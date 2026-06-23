@@ -1,19 +1,26 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
   Gamepad2,
   Globe,
   Info,
   Languages,
+  MinusSquare,
   MonitorDown,
   Palette,
   Plug,
+  Power,
+  Rocket,
   ServerCog,
+  Zap,
 } from "lucide-react";
 import { useSettings, type Theme } from "../store";
 import { type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
+import { NumberField } from "./NumberField";
+import { Switch } from "./Switch";
 
 const REPO = "https://github.com/Hypostasis-Cat/HypoMux";
 
@@ -22,18 +29,31 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, socksPort, httpPort, closeToTray, set } = useSettings();
+  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, set } =
+    useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
 
   useEffect(() => {
     api.checkAdmin().then(setAdmin).catch(() => setAdmin(true));
+    // 同步真实的开机自启状态到 UI
+    autoIsEnabled()
+      .then((v) => set("autostart", v))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAppConfig = async (
-    app: "steam" | "idm",
-    enable: boolean,
-  ) => {
+  const toggleAutostart = async (v: boolean) => {
+    try {
+      if (v) await autoEnable();
+      else await autoDisable();
+      set("autostart", v);
+    } catch (e) {
+      toast("error", t("msgAutostartFailed", { err: String(e) }));
+    }
+  };
+
+  const handleAppConfig = async (app: "steam" | "idm", enable: boolean) => {
     try {
       if (app === "steam") await api.configureSteam(enable, socksPort);
       else await api.configureIdm(enable, socksPort);
@@ -53,10 +73,10 @@ export function SettingsPage({ running }: Props) {
 
   return (
     <div className="h-full overflow-y-auto px-1 pb-6">
-      <div className="max-w-[820px] mx-auto flex flex-col gap-5">
+      <div className="max-w-[860px] mx-auto flex flex-col gap-5">
         {!admin && (
           <div
-            className="glass px-4 py-3 text-[12.5px] leading-relaxed"
+            className="panel px-4 py-3 text-[12.5px] leading-relaxed"
             style={{ borderLeft: "3px solid var(--warn)", color: "var(--text-1)" }}
           >
             {t("adminWarn")}
@@ -86,19 +106,19 @@ export function SettingsPage({ running }: Props) {
             />
           </Row>
           <Row icon={<Plug size={15} />} label={t("settingPorts")}>
-            <div className="flex items-center gap-3">
-              <PortInput
-                label={t("portHttp")}
-                value={httpPort}
-                disabled={running}
-                onChange={(v) => set("httpPort", v)}
-              />
-              <PortInput
-                label={t("portSocks")}
-                value={socksPort}
-                disabled={running}
-                onChange={(v) => set("socksPort", v)}
-              />
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+                  {t("portHttp")}
+                </span>
+                <NumberField value={httpPort} disabled={running} onChange={(v) => set("httpPort", v)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+                  {t("portSocks")}
+                </span>
+                <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} />
+              </div>
             </div>
           </Row>
           <Row icon={<MonitorDown size={15} />} label={t("settingCloseBehavior")}>
@@ -110,6 +130,19 @@ export function SettingsPage({ running }: Props) {
               ]}
               onChange={(v) => set("closeToTray", v)}
             />
+          </Row>
+        </Section>
+
+        {/* 自动化（Plus 专属） */}
+        <Section icon={<Rocket size={16} />} title={t("settingsAutomation")}>
+          <Row icon={<Power size={15} />} label={t("settingAutostart")} hint={t("settingAutostartHint")}>
+            <Switch checked={autostart} onChange={toggleAutostart} />
+          </Row>
+          <Row icon={<MinusSquare size={15} />} label={t("settingLaunchMin")}>
+            <Switch checked={launchMinimized} onChange={(v) => set("launchMinimized", v)} />
+          </Row>
+          <Row icon={<Zap size={15} />} label={t("settingAutoBoost")} hint={t("settingAutoBoostHint")}>
+            <Switch checked={autoBoost} onChange={(v) => set("autoBoost", v)} />
           </Row>
         </Section>
 
@@ -136,7 +169,7 @@ export function SettingsPage({ running }: Props) {
         {/* 关于 */}
         <Section icon={<Info size={16} />} title={t("aboutTitle")}>
           <Row label={t("aboutVersion")}>
-            <span className="text-[13px]" style={{ color: "var(--text-1)" }}>
+            <span className="mono text-[13px]" style={{ color: "var(--text-1)" }}>
               v1.0.0
             </span>
           </Row>
@@ -151,11 +184,7 @@ export function SettingsPage({ running }: Props) {
             </span>
           </Row>
           <Row icon={<Globe size={15} />} label={t("aboutOriginal")}>
-            <button
-              onClick={() => openUrl(REPO)}
-              className="text-[13px] hover:underline"
-              style={{ color: "var(--accent-soft)" }}
-            >
+            <button onClick={() => openUrl(REPO)} className="text-[13px] hover:underline" style={{ color: "var(--accent-soft)" }}>
               {REPO}
             </button>
           </Row>
@@ -168,21 +197,11 @@ export function SettingsPage({ running }: Props) {
   );
 }
 
-function Section({
-  icon,
-  title,
-  hint,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
+function Section({ icon, title, hint, children }: { icon: ReactNode; title: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="glass p-5" style={{ boxShadow: "var(--shadow)" }}>
+    <div className="panel p-5">
       <div className="flex items-center gap-2 mb-1">
-        <span style={{ color: "var(--accent-soft)" }}>{icon}</span>
+        <span style={{ color: "var(--cyan)" }}>{icon}</span>
         <h3 className="font-semibold text-[14px]">{title}</h3>
       </div>
       {hint && (
@@ -195,17 +214,21 @@ function Section({
   );
 }
 
-function Row({ icon, label, children }: { icon?: ReactNode; label: string; children: ReactNode }) {
+function Row({ icon, label, hint, children }: { icon?: ReactNode; label: string; hint?: string; children: ReactNode }) {
   return (
-    <div
-      className="flex items-center justify-between py-3"
-      style={{ borderTop: "1px solid var(--border)" }}
-    >
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-1)" }}>
-        {icon && <span style={{ color: "var(--text-2)" }}>{icon}</span>}
-        {label}
+    <div className="flex items-center justify-between py-3 gap-4" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-1)" }}>
+          {icon && <span style={{ color: "var(--text-2)" }}>{icon}</span>}
+          {label}
+        </div>
+        {hint && (
+          <div className="text-[11px] mt-1 ml-[22px]" style={{ color: "var(--text-2)" }}>
+            {hint}
+          </div>
+        )}
       </div>
-      {children}
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -222,7 +245,7 @@ function Segmented<T extends string | boolean>({
   return (
     <div
       className="flex items-center p-0.5 rounded-lg gap-0.5"
-      style={{ background: "var(--surface-strong)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -231,50 +254,12 @@ function Segmented<T extends string | boolean>({
             key={String(o.value)}
             onClick={() => onChange(o.value)}
             className="px-3.5 py-1.5 rounded-md text-[12.5px] font-medium transition-colors"
-            style={{
-              background: active ? "var(--accent)" : "transparent",
-              color: active ? "#fff" : "var(--text-1)",
-            }}
+            style={{ background: active ? "var(--accent)" : "transparent", color: active ? "#fff" : "var(--text-1)" }}
           >
             {o.label}
           </button>
         );
       })}
-    </div>
-  );
-}
-
-function PortInput({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  disabled?: boolean;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
-        {label}
-      </span>
-      <input
-        type="number"
-        min={1}
-        max={65534}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Math.min(65534, Math.max(1, Number(e.target.value) || 1)))}
-        className="w-[88px] px-2.5 py-1.5 rounded-lg text-[13px] tabular-nums outline-none"
-        style={{
-          background: "var(--surface-strong)",
-          border: "1px solid var(--border)",
-          color: "var(--text-0)",
-          opacity: disabled ? 0.5 : 1,
-        }}
-      />
     </div>
   );
 }
@@ -300,14 +285,14 @@ function CompatRow({
         <button
           onClick={onApply}
           className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
-          style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-soft))" }}
+          style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
         >
           {applyText}
         </button>
         <button
           onClick={onRestore}
           className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors"
-          style={{ background: "var(--surface-strong)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
         >
           {restoreText}
         </button>

@@ -60,5 +60,6 @@ export const win = {
   minimize: () => getCurrentWindow().minimize(),
   toggleMaximize: () => getCurrentWindow().toggleMaximize(),
   close: () => getCurrentWindow().close(),
+  hide: () => getCurrentWindow().hide(),
   startDragging: () => getCurrentWindow().startDragging(),
 };

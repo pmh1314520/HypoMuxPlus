@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Clock, Network, TrendingUp } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Clock, Database, Network, TrendingUp } from "lucide-react";
 import { useSettings } from "../store";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { AreaChart } from "./AreaChart";
@@ -10,6 +10,7 @@ interface Props {
   history: number[];
   peak: number;
   uptime: number;
+  sessionMB: number;
   running: boolean;
   busy: boolean;
   canBoost: boolean;
@@ -23,14 +24,18 @@ function fmtUptime(sec: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function SpeedHero({ telemetry, history, peak, uptime, running, busy, canBoost, onBoost }: Props) {
+export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running, busy, canBoost, onBoost }: Props) {
   const { t } = useSettings();
   const total = telemetry?.total ?? { downMbps: 0, upMbps: 0, connections: 0 };
+
+  const sessionVal = sessionMB >= 1024 ? (sessionMB / 1024).toFixed(2) : sessionMB.toFixed(0);
+  const sessionUnit = sessionMB >= 1024 ? "GB" : "MB";
 
   const chips = [
     { icon: ArrowUpFromLine, label: t("uplink"), value: total.upMbps.toFixed(2), unit: t("unitMbps") },
     { icon: Network, label: t("totalConn"), value: String(total.connections), unit: "" },
     { icon: TrendingUp, label: t("peakSpeed"), value: peak.toFixed(2), unit: t("unitMbps") },
+    { icon: Database, label: t("sessTotal"), value: sessionVal, unit: sessionUnit },
     { icon: Clock, label: t("elapsed"), value: fmtUptime(uptime), unit: "" },
   ];
 
@@ -80,7 +85,7 @@ export function SpeedHero({ telemetry, history, peak, uptime, running, busy, can
         </div>
 
         {/* 底部指标条 */}
-        <div className="grid grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-5 gap-2.5">
           {chips.map((c) => {
             const Icon = c.icon;
             return (

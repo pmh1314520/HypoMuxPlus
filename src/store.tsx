@@ -10,6 +10,9 @@ interface Settings {
   socksPort: number;
   httpPort: number;
   closeToTray: boolean;
+  autostart: boolean;
+  launchMinimized: boolean;
+  autoBoost: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -18,6 +21,9 @@ const DEFAULTS: Settings = {
   socksPort: 10800,
   httpPort: 10801,
   closeToTray: true,
+  autostart: false,
+  launchMinimized: false,
+  autoBoost: false,
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

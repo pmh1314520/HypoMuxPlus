@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -13,6 +13,7 @@ import {
   onBoostState,
   onLog,
   onTelemetry,
+  win,
   type AdapterInfo,
   type NicTelemetry,
   type SelectedNic,
@@ -21,14 +22,25 @@ import {
 
 const HISTORY_LEN = 60;
 const LOG_CAP = 300;
+const SELECTED_KEY = "hmx-plus-selected";
+
+function loadSelected(): Set<number> {
+  try {
+    const raw = localStorage.getItem(SELECTED_KEY);
+    if (raw) return new Set<number>(JSON.parse(raw));
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
 
 function AppInner() {
-  const { t, socksPort, httpPort, closeToTray } = useSettings();
+  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost } = useSettings();
   const toast = useToast();
 
   const [view, setView] = useState<View>("dashboard");
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(loadSelected);
   const [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState(true);
 
@@ -40,7 +52,10 @@ function AppInner() {
   const [history, setHistory] = useState<number[]>(new Array(HISTORY_LEN).fill(0));
   const [peak, setPeak] = useState(0);
   const [uptime, setUptime] = useState(0);
+  const [sessionMB, setSessionMB] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
+
+  const booted = useRef(false);
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -75,6 +90,8 @@ function AppInner() {
       setPerNic(map);
       setHistory((prev) => [...prev.slice(1), p.total.downMbps]);
       setPeak((prev) => Math.max(prev, p.total.downMbps));
+      // 每秒一次采样，downMbps(MB/s) × 1s ≈ 本秒下载量(MB)
+      setSessionMB((prev) => prev + p.total.downMbps);
     }).then((u) => unlisteners.push(u));
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
@@ -86,6 +103,22 @@ function AppInner() {
     api.setCloseToTray(closeToTray).catch(() => {});
   }, [closeToTray]);
 
+  // 持久化已选网卡（供"启动后自动加速"复用）
+  useEffect(() => {
+    localStorage.setItem(SELECTED_KEY, JSON.stringify([...selected]));
+  }, [selected]);
+
+  // 首次扫描完成后的启动自动化：最小化到托盘 / 自动加速
+  useEffect(() => {
+    if (booted.current || loading) return;
+    booted.current = true;
+    if (launchMinimized) win.hide().catch(() => {});
+    if (autoBoost && selected.size > 0 && !running) {
+      void onBoost();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   useEffect(() => {
     if (!running) {
       setUptime(0);
@@ -93,6 +126,7 @@ function AppInner() {
       setTelemetry(null);
       setHistory(new Array(HISTORY_LEN).fill(0));
       setPeak(0);
+      setSessionMB(0);
       return;
     }
     const start = Date.now();
@@ -178,6 +212,7 @@ function AppInner() {
                     history={history}
                     peak={peak}
                     uptime={uptime}
+                    sessionMB={sessionMB}
                     running={running}
                     busy={busy}
                     canBoost={canBoost}

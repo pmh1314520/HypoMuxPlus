@@ -1,6 +1,7 @@
 import { SpeedHero } from "./SpeedHero";
 import { AdapterTable } from "./AdapterTable";
 import { Console } from "./Console";
+import { LinkDistribution } from "./LinkDistribution";
 import type { AdapterInfo, NicTelemetry, TelemetryPayload } from "../lib/api";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
   history: number[];
   peak: number;
   uptime: number;
+  sessionMB: number;
   running: boolean;
   busy: boolean;
   canBoost: boolean;
@@ -34,12 +36,13 @@ export function Dashboard(props: Props) {
         history={props.history}
         peak={props.peak}
         uptime={props.uptime}
+        sessionMB={props.sessionMB}
         running={props.running}
         busy={props.busy}
         canBoost={props.canBoost}
         onBoost={props.onBoost}
       />
-      <div className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: "1.35fr 1fr" }}>
+      <div className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: "1.45fr 1fr" }}>
         <AdapterTable
           adapters={props.adapters}
           selected={props.selected}
@@ -51,7 +54,10 @@ export function Dashboard(props: Props) {
           running={props.running}
           loading={props.loading}
         />
-        <Console logs={props.logs} clear={props.clearLogs} />
+        <div className="grid gap-4 min-h-0" style={{ gridTemplateRows: "1fr 1fr" }}>
+          <LinkDistribution perNic={props.perNic} running={props.running} />
+          <Console logs={props.logs} clear={props.clearLogs} />
+        </div>
       </div>
     </div>
   );

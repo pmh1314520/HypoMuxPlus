@@ -1,5 +1,6 @@
 import { Cpu, Network, ShieldAlert, ShieldCheck, Wifi } from "lucide-react";
 import { useSettings } from "../store";
+import { Tooltip } from "./Tooltip";
 
 interface Props {
   running: boolean;
@@ -57,14 +58,12 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
       <div className="flex-1" />
 
       {/* 权限徽章 */}
-      <span
-        className="flex items-center gap-1.5"
-        style={{ color: admin ? "var(--ok)" : "var(--warn)" }}
-        title={admin ? t("adminOk") : t("adminWarn")}
-      >
-        {admin ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
-        {admin ? t("adminBadgeOk") : t("adminBadgeNo")}
-      </span>
+      <Tooltip label={admin ? t("adminOk") : t("adminWarn")} placement="top">
+        <span className="flex items-center gap-1.5" style={{ color: admin ? "var(--ok)" : "var(--warn)" }}>
+          {admin ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+          {admin ? t("adminBadgeOk") : t("adminBadgeNo")}
+        </span>
+      </Tooltip>
 
       <Sep />
       <span className="mono" style={{ color: "var(--text-2)" }}>

@@ -15,6 +15,9 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:event:default",
-    "opener:default"
+    "opener:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

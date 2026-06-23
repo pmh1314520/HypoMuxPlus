@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal, Trash2 } from "lucide-react";
 import { useSettings } from "../store";
+import { Tooltip } from "./Tooltip";
 
 interface Props {
   logs: string[];
@@ -34,14 +35,15 @@ export function Console({ logs, clear }: Props) {
         <Terminal size={17} style={{ color: "var(--accent-soft)" }} />
         <span className="font-semibold text-[14px]">{t("consoleTitle")}</span>
         <div className="flex-1" />
-        <button
-          onClick={clear}
-          className="grid place-items-center w-7 h-7 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
-          style={{ color: "var(--text-2)" }}
-          title={t("consoleClear")}
-        >
-          <Trash2 size={14} />
-        </button>
+        <Tooltip label={t("consoleClear")} placement="left">
+          <button
+            onClick={clear}
+            className="grid place-items-center w-7 h-7 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+            style={{ color: "var(--text-2)" }}
+          >
+            <Trash2 size={14} />
+          </button>
+        </Tooltip>
       </div>
 
       <div

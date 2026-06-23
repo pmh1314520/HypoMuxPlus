@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Activity, Moon, Settings as SettingsIcon, Sun, Waypoints } from "lucide-react";
+import { Activity, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { useSettings } from "../store";
+import { Logo } from "./Logo";
 import type { View } from "./shell-types";
 
 interface Props {
@@ -24,14 +25,8 @@ export function Sidebar({ view, setView, running }: Props) {
     >
       {/* 品牌区（可拖拽） */}
       <div data-tauri-drag-region className="flex items-center gap-3 px-5 h-[58px] shrink-0">
-        <div
-          className="relative grid place-items-center w-10 h-10 rounded-xl pointer-events-none"
-          style={{
-            background: "linear-gradient(135deg, var(--accent-deep), var(--cyan))",
-            boxShadow: "0 8px 22px var(--accent-glow)",
-          }}
-        >
-          <Waypoints size={21} color="#fff" />
+        <div className="relative pointer-events-none">
+          <Logo size={38} />
           {running && (
             <span
               className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full live-dot"

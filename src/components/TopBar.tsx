@@ -1,6 +1,7 @@
 import { Minus, RefreshCw, Square, X } from "lucide-react";
 import { useSettings } from "../store";
 import { win } from "../lib/api";
+import { Tooltip } from "./Tooltip";
 import type { View } from "./shell-types";
 
 interface Props {
@@ -46,26 +47,27 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
       <div className="flex-1" />
 
       {view === "dashboard" && (
-        <button
-          onClick={onRefresh}
-          disabled={running}
-          className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
-          style={{ color: "var(--text-1)", opacity: running ? 0.4 : 1, cursor: running ? "not-allowed" : "pointer" }}
-          title={t("tipRefresh")}
-        >
-          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-        </button>
+        <Tooltip label={t("tipRefresh")} placement="bottom">
+          <button
+            onClick={onRefresh}
+            disabled={running}
+            className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+            style={{ color: "var(--text-1)", opacity: running ? 0.4 : 1, cursor: running ? "not-allowed" : "pointer" }}
+          >
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+          </button>
+        </Tooltip>
       )}
 
       {/* 窗口控制 */}
       <div className="flex items-center gap-0.5">
-        <WinBtn onClick={() => win.minimize()} title={t("tipMinimize")}>
+        <WinBtn onClick={() => win.minimize()} label={t("tipMinimize")}>
           <Minus size={15} />
         </WinBtn>
-        <WinBtn onClick={() => win.toggleMaximize()} title={t("tipMaximize")}>
+        <WinBtn onClick={() => win.toggleMaximize()} label={t("tipMaximize")}>
           <Square size={12} />
         </WinBtn>
-        <WinBtn danger onClick={() => win.close()} title={t("tipClose")}>
+        <WinBtn danger onClick={() => win.close()} label={t("tipClose")}>
           <X size={15} />
         </WinBtn>
       </div>
@@ -77,23 +79,24 @@ function WinBtn({
   children,
   onClick,
   danger,
-  title,
+  label,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   danger?: boolean;
-  title?: string;
+  label: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
-      style={{ color: "var(--text-1)" }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = danger ? "var(--danger)" : "var(--surface-hover)")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-    >
-      {children}
-    </button>
+    <Tooltip label={label} placement="bottom">
+      <button
+        onClick={onClick}
+        className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
+        style={{ color: "var(--text-1)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = danger ? "var(--danger)" : "var(--surface-hover)")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
