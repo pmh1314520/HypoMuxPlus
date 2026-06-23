@@ -235,48 +235,51 @@
           <p data-zh="多线程下载的连接被 Round-Robin 均匀分发到每张选中的网卡，实现真正的物理带宽叠加。" data-en="Multi-threaded download connections are round-robin distributed across selected adapters for true physical bandwidth stacking.">多线程下载的连接被 Round-Robin 均匀分发到每张选中的网卡，实现真正的物理带宽叠加。</p>
         </div>
         <svg class="diagram" viewBox="0 0 440 404" role="img" aria-label="data flow diagram">
-          <!-- 管道（底层 + 流动层） -->
+          <!-- 直角布线：底层 + 流动层 -->
           <g>
-            <path class="pipe" d="M220,62 V104" />
-            <path class="pipe" d="M220,152 V192" />
-            <path class="pipe" d="M220,240 C220,268 74,262 74,290" />
+            <path class="pipe" d="M220,62 V100" />
+            <path class="pipe" d="M220,152 V188" />
+            <path class="pipe" d="M220,240 V265 H74 V290" />
             <path class="pipe" d="M220,240 V290" />
-            <path class="pipe" d="M220,240 C220,268 366,262 366,290" />
-            <path class="pipe" d="M74,334 C74,362 220,346 220,352" />
+            <path class="pipe" d="M220,240 V265 H366 V290" />
+            <path class="pipe" d="M74,334 V343 H220 V352" />
             <path class="pipe" d="M220,334 V352" />
-            <path class="pipe" d="M366,334 C366,362 220,346 220,352" />
+            <path class="pipe" d="M366,334 V343 H220 V352" />
           </g>
           <g>
-            <path class="flow" d="M220,62 V104" />
-            <path class="flow" style="animation-delay: -0.2s" d="M220,152 V192" />
-            <path class="flow" style="animation-delay: -0.1s" d="M220,240 C220,268 74,262 74,290" />
+            <path class="flow" d="M220,62 V100" />
+            <path class="flow" style="animation-delay: -0.2s" d="M220,152 V188" />
+            <path class="flow" style="animation-delay: -0.1s" d="M220,240 V265 H74 V290" />
             <path class="flow" style="animation-delay: -0.35s" d="M220,240 V290" />
-            <path class="flow" style="animation-delay: -0.5s" d="M220,240 C220,268 366,262 366,290" />
-            <path class="flow" style="animation-delay: -0.15s" d="M74,334 C74,362 220,346 220,352" />
+            <path class="flow" style="animation-delay: -0.5s" d="M220,240 V265 H366 V290" />
+            <path class="flow" style="animation-delay: -0.15s" d="M74,334 V343 H220 V352" />
             <path class="flow" style="animation-delay: -0.4s" d="M220,334 V352" />
-            <path class="flow" style="animation-delay: -0.6s" d="M366,334 C366,362 220,346 220,352" />
+            <path class="flow" style="animation-delay: -0.6s" d="M366,334 V343 H220 V352" />
           </g>
+          <!-- 分叉 / 汇聚节点 -->
+          <rect class="junction" x="216.5" y="261.5" width="7" height="7" />
+          <rect class="junction" x="216.5" y="339.5" width="7" height="7" />
           <!-- 节点 -->
           <g>
-            <rect class="node" x="128" y="18" width="184" height="44" rx="12" />
+            <rect class="node" x="128" y="18" width="184" height="44" rx="8" />
             <text class="nlabel" x="220" y="45" text-anchor="middle" data-zh="多线程下载流量" data-en="Download Traffic">多线程下载流量</text>
 
-            <rect class="node" x="116" y="100" width="208" height="52" rx="12" />
+            <rect class="node" x="116" y="100" width="208" height="52" rx="8" />
             <text class="nlabel" x="220" y="122" text-anchor="middle" data-zh="系统代理接管" data-en="System Proxy">系统代理接管</text>
             <text class="nsub" x="220" y="140" text-anchor="middle">:10801 · :10800</text>
 
-            <rect class="node node-accent" x="116" y="188" width="208" height="52" rx="12" />
+            <rect class="node node-accent" x="116" y="188" width="208" height="52" rx="8" />
             <text class="nlabel" x="220" y="210" text-anchor="middle" data-zh="分流引擎" data-en="Splitting Engine">分流引擎</text>
             <text class="nsub" x="220" y="228" text-anchor="middle">Round-Robin · tokio</text>
 
-            <rect class="node" x="14" y="290" width="120" height="44" rx="11" />
+            <rect class="node" x="14" y="290" width="120" height="44" rx="8" />
             <text class="nlabel" x="74" y="317" text-anchor="middle" data-zh="网卡 1" data-en="NIC 1">网卡 1</text>
-            <rect class="node" x="160" y="290" width="120" height="44" rx="11" />
+            <rect class="node" x="160" y="290" width="120" height="44" rx="8" />
             <text class="nlabel" x="220" y="317" text-anchor="middle" data-zh="网卡 2" data-en="NIC 2">网卡 2</text>
-            <rect class="node" x="306" y="290" width="120" height="44" rx="11" />
+            <rect class="node" x="306" y="290" width="120" height="44" rx="8" />
             <text class="nlabel" x="366" y="317" text-anchor="middle" data-zh="网卡 N" data-en="NIC N">网卡 N</text>
 
-            <rect class="node node-accent" x="116" y="352" width="208" height="44" rx="12" />
+            <rect class="node node-accent" x="116" y="352" width="208" height="44" rx="8" />
             <text class="nlabel" x="220" y="379" text-anchor="middle" data-zh="物理带宽叠加" data-en="Bandwidth Stacked">物理带宽叠加</text>
           </g>
         </svg>

@@ -95,45 +95,47 @@ export function TutorialPage() {
           </p>
           <svg className="hmx-diagram" viewBox="0 0 440 404" role="img" aria-label="data flow">
             <g>
-              <path className="pipe" d="M220,62 V104" />
-              <path className="pipe" d="M220,152 V192" />
-              <path className="pipe" d="M220,240 C220,268 74,262 74,290" />
+              <path className="pipe" d="M220,62 V100" />
+              <path className="pipe" d="M220,152 V188" />
+              <path className="pipe" d="M220,240 V265 H74 V290" />
               <path className="pipe" d="M220,240 V290" />
-              <path className="pipe" d="M220,240 C220,268 366,262 366,290" />
-              <path className="pipe" d="M74,334 C74,362 220,346 220,352" />
+              <path className="pipe" d="M220,240 V265 H366 V290" />
+              <path className="pipe" d="M74,334 V343 H220 V352" />
               <path className="pipe" d="M220,334 V352" />
-              <path className="pipe" d="M366,334 C366,362 220,346 220,352" />
+              <path className="pipe" d="M366,334 V343 H220 V352" />
             </g>
             <g>
-              <path className="flow" d="M220,62 V104" />
-              <path className="flow" style={{ animationDelay: "-0.2s" }} d="M220,152 V192" />
-              <path className="flow" style={{ animationDelay: "-0.1s" }} d="M220,240 C220,268 74,262 74,290" />
+              <path className="flow" d="M220,62 V100" />
+              <path className="flow" style={{ animationDelay: "-0.2s" }} d="M220,152 V188" />
+              <path className="flow" style={{ animationDelay: "-0.1s" }} d="M220,240 V265 H74 V290" />
               <path className="flow" style={{ animationDelay: "-0.35s" }} d="M220,240 V290" />
-              <path className="flow" style={{ animationDelay: "-0.5s" }} d="M220,240 C220,268 366,262 366,290" />
-              <path className="flow" style={{ animationDelay: "-0.15s" }} d="M74,334 C74,362 220,346 220,352" />
+              <path className="flow" style={{ animationDelay: "-0.5s" }} d="M220,240 V265 H366 V290" />
+              <path className="flow" style={{ animationDelay: "-0.15s" }} d="M74,334 V343 H220 V352" />
               <path className="flow" style={{ animationDelay: "-0.4s" }} d="M220,334 V352" />
-              <path className="flow" style={{ animationDelay: "-0.6s" }} d="M366,334 C366,362 220,346 220,352" />
+              <path className="flow" style={{ animationDelay: "-0.6s" }} d="M366,334 V343 H220 V352" />
             </g>
+            <rect className="junction" x="216.5" y="261.5" width="7" height="7" />
+            <rect className="junction" x="216.5" y="339.5" width="7" height="7" />
             <g>
-              <rect className="node" x="128" y="18" width="184" height="44" rx="12" />
+              <rect className="node" x="128" y="18" width="184" height="44" rx="8" />
               <text className="nlabel" x="220" y="45" textAnchor="middle">{t("diagTraffic")}</text>
 
-              <rect className="node" x="116" y="100" width="208" height="52" rx="12" />
+              <rect className="node" x="116" y="100" width="208" height="52" rx="8" />
               <text className="nlabel" x="220" y="122" textAnchor="middle">{t("diagProxy")}</text>
               <text className="nsub" x="220" y="140" textAnchor="middle">:10801 · :10800</text>
 
-              <rect className="node node-accent" x="116" y="188" width="208" height="52" rx="12" />
+              <rect className="node node-accent" x="116" y="188" width="208" height="52" rx="8" />
               <text className="nlabel" x="220" y="210" textAnchor="middle">{t("diagEngine")}</text>
               <text className="nsub" x="220" y="228" textAnchor="middle">Round-Robin · tokio</text>
 
-              <rect className="node" x="14" y="290" width="120" height="44" rx="11" />
+              <rect className="node" x="14" y="290" width="120" height="44" rx="8" />
               <text className="nlabel" x="74" y="317" textAnchor="middle">{t("diagNic1")}</text>
-              <rect className="node" x="160" y="290" width="120" height="44" rx="11" />
+              <rect className="node" x="160" y="290" width="120" height="44" rx="8" />
               <text className="nlabel" x="220" y="317" textAnchor="middle">{t("diagNic2")}</text>
-              <rect className="node" x="306" y="290" width="120" height="44" rx="11" />
+              <rect className="node" x="306" y="290" width="120" height="44" rx="8" />
               <text className="nlabel" x="366" y="317" textAnchor="middle">{t("diagNicN")}</text>
 
-              <rect className="node node-accent" x="116" y="352" width="208" height="44" rx="12" />
+              <rect className="node node-accent" x="116" y="352" width="208" height="44" rx="8" />
               <text className="nlabel" x="220" y="379" textAnchor="middle">{t("diagStacked")}</text>
             </g>
           </svg>

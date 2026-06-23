@@ -17,6 +17,7 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
   const titleMap: Record<View, string> = {
     dashboard: t("navDashboard"),
     stats: t("navStats"),
+    diagnostics: t("navDiagnostics"),
     tutorial: t("navTutorial"),
     settings: t("settingsTitle"),
     about: t("navAbout"),
@@ -24,6 +25,7 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
   const descMap: Record<View, string> = {
     dashboard: t("topDashDesc"),
     stats: t("topStatsDesc"),
+    diagnostics: t("topDiagDesc"),
     tutorial: t("topTutorialDesc"),
     settings: t("topSettingsDesc"),
     about: t("topAboutDesc"),

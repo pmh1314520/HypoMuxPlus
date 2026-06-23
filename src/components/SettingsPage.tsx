@@ -27,7 +27,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, set } =
+  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -145,10 +145,19 @@ export function SettingsPage({ running }: Props) {
           <Row
             icon={<KeyRound size={15} />}
             label={t("settingHotkey")}
-            hint={t("settingHotkeyHint", { key: "Ctrl+Alt+H" })}
+            hint={t("settingHotkeyHint")}
           >
             <Switch checked={globalHotkey} onChange={(v) => set("globalHotkey", v)} />
           </Row>
+          {globalHotkey && (
+            <Row label={t("settingHotkeyCombo")}>
+              <HotkeyCapture
+                value={hotkeyCombo}
+                onChange={(v) => set("hotkeyCombo", v)}
+                recordingLabel={t("hotkeyRecording")}
+              />
+            </Row>
+          )}
           <Row icon={<Bell size={15} />} label={t("settingNotify")} hint={t("settingNotifyHint")}>
             <Switch checked={notifications} onChange={(v) => set("notifications", v)} />
           </Row>
@@ -264,6 +273,52 @@ function Segmented<T extends string | boolean>({
         );
       })}
     </div>
+  );
+}
+
+function HotkeyCapture({
+  value,
+  onChange,
+  recordingLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  recordingLabel: string;
+}) {
+  const [rec, setRec] = useState(false);
+  const fmt = (c: string) =>
+    c.replace("Control", "Ctrl").replace("Super", "Win").split("+").join(" + ");
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!rec) return;
+    e.preventDefault();
+    const key = e.key;
+    if (["Control", "Alt", "Shift", "Meta", "OS"].includes(key)) return; // 等待非修饰键
+    const mods: string[] = [];
+    if (e.ctrlKey) mods.push("Control");
+    if (e.altKey) mods.push("Alt");
+    if (e.shiftKey) mods.push("Shift");
+    if (e.metaKey) mods.push("Super");
+    if (mods.length === 0) return; // 必须含至少一个修饰键
+    let main = key.length === 1 ? key.toUpperCase() : key;
+    if (key === " ") main = "Space";
+    onChange([...mods, main].join("+"));
+    setRec(false);
+  };
+  return (
+    <button
+      onClick={() => setRec(true)}
+      onKeyDown={onKey}
+      onBlur={() => setRec(false)}
+      className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-semibold mono transition-colors"
+      style={{
+        background: rec ? "var(--accent)" : "var(--surface-2)",
+        color: rec ? "#fff" : "var(--text-0)",
+        border: `1px solid ${rec ? "var(--accent)" : "var(--border)"}`,
+        minWidth: 130,
+      }}
+    >
+      {rec ? recordingLabel : fmt(value)}
+    </button>
   );
 }
 

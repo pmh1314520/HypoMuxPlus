@@ -17,6 +17,7 @@ interface Settings {
   strategy: SchedStrategy;
   globalHotkey: boolean;
   notifications: boolean;
+  hotkeyCombo: string;
 }
 
 const DEFAULTS: Settings = {
@@ -31,6 +32,7 @@ const DEFAULTS: Settings = {
   strategy: "rr",
   globalHotkey: false,
   notifications: false,
+  hotkeyCombo: "Control+Alt+H",
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

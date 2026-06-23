@@ -7,6 +7,7 @@ import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
 import { Dashboard } from "./components/Dashboard";
 import { StatsPage } from "./components/StatsPage";
+import { DiagnosticsPage } from "./components/DiagnosticsPage";
 import { TutorialPage } from "./components/TutorialPage";
 import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
@@ -35,7 +36,6 @@ const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
 const LIFE_PEAK_KEY = "hmx-lifetime-peak";
 const LIFE_SECS_KEY = "hmx-lifetime-secs";
-const HOTKEY = "CommandOrControl+Alt+H";
 
 function loadSelected(): Set<number> {
   try {
@@ -48,7 +48,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications } =
+  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo } =
     useSettings();
   const toast = useToast();
 
@@ -238,6 +238,12 @@ function AppInner() {
     }
   };
 
+  // 一键诊断：先测延迟，再测吞吐
+  const onDiagnose = async () => {
+    await onTest();
+    await onBench();
+  };
+
   // 系统通知
   const notify = async (body: string) => {
     if (!notifications) return;
@@ -296,13 +302,13 @@ function AppInner() {
 
   // 全局热键：在任意界面一键加速 / 停止
   useEffect(() => {
-    if (!globalHotkey) return;
+    if (!globalHotkey || !hotkeyCombo) return;
     let cancelled = false;
     (async () => {
       try {
-        await unregister(HOTKEY).catch(() => {});
+        await unregister(hotkeyCombo).catch(() => {});
         if (cancelled) return;
-        await register(HOTKEY, (e) => {
+        await register(hotkeyCombo, (e) => {
           if (!e || e.state === "Pressed") onBoostRef.current();
         });
       } catch (err) {
@@ -311,10 +317,10 @@ function AppInner() {
     })();
     return () => {
       cancelled = true;
-      unregister(HOTKEY).catch(() => {});
+      unregister(hotkeyCombo).catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalHotkey]);
+  }, [globalHotkey, hotkeyCombo]);
 
   const canBoost = running || selected.size > 0;
   const totalConn = telemetry?.total.connections ?? 0;
@@ -358,16 +364,18 @@ function AppInner() {
                     loading={loading}
                     logs={logs}
                     clearLogs={() => setLogs([])}
-                    latencies={latencies}
-                    testing={testing}
-                    onTest={onTest}
-                    speedResults={speedResults}
-                    benchmarking={benchmarking}
-                    onBench={onBench}
                     connections={connections}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
+                ) : view === "diagnostics" ? (
+                  <DiagnosticsPage
+                    adapters={adapters}
+                    latencies={latencies}
+                    speedResults={speedResults}
+                    diagnosing={testing || benchmarking}
+                    onDiagnose={onDiagnose}
+                  />
                 ) : view === "stats" ? (
                   <StatsPage
                     lifetimeMB={lifetimeMB}

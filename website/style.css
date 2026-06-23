@@ -1238,19 +1238,26 @@ body {
   fill: none;
   stroke: var(--border-strong);
   stroke-width: 2.4;
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
 }
 .diagram .flow {
   fill: none;
   stroke: var(--accent-soft);
   stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-dasharray: 0.5 11;
-  animation: flowMove 0.85s linear infinite;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  stroke-dasharray: 6 9;
+  animation: flowMove 0.8s linear infinite;
   filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+.diagram .junction {
+  fill: var(--accent-soft);
+  filter: drop-shadow(0 0 4px var(--accent-glow));
 }
 @keyframes flowMove {
   to {
-    stroke-dashoffset: -11.5;
+    stroke-dashoffset: -15;
   }
 }
 @media (prefers-reduced-motion: reduce) {

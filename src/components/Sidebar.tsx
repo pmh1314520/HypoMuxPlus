@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Activity, BarChart3, BookOpen, Info, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
+import { Activity, BarChart3, BookOpen, Info, Moon, Settings as SettingsIcon, Stethoscope, Sun } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
 import type { View } from "./shell-types";
@@ -16,6 +16,7 @@ export function Sidebar({ view, setView, running }: Props) {
   const nav: { id: View; label: string; icon: typeof Activity }[] = [
     { id: "dashboard", label: t("navDashboard"), icon: Activity },
     { id: "stats", label: t("navStats"), icon: BarChart3 },
+    { id: "diagnostics", label: t("navDiagnostics"), icon: Stethoscope },
     { id: "tutorial", label: t("navTutorial"), icon: BookOpen },
     { id: "settings", label: t("navSettings"), icon: SettingsIcon },
     { id: "about", label: t("navAbout"), icon: Info },
