@@ -115,43 +115,49 @@
         </div>
       </div>
 
-      <!-- 应用预览 -->
+      <!-- 应用预览（实时动态演示） -->
       <div class="shot reveal">
         <div class="shot-bar">
           <i style="background: #ff5f57"></i><i style="background: #febc2e"></i><i style="background: #28c840"></i>
+          <span class="shot-title">HypoMux<span class="accent">Plus</span></span>
         </div>
         <div class="shot-body">
           <div class="shot-rail">
-            <svg width="30" height="30"><use href="#logo" /></svg>
-            <span class="dot on"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
+            <svg class="rail-logo" width="30" height="30"><use href="#logo" /></svg>
+            <span class="rail-sep"></span>
+            <span class="rail-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+            <span class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <span class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
           </div>
           <div class="shot-main">
-            <div class="shot-label" data-zh="合并下行总速度" data-en="Combined Download">合并下行总速度</div>
-            <div class="shot-num">112.6 <span>MB/s</span></div>
-            <svg class="spark" viewBox="0 0 320 56" preserveAspectRatio="none">
+            <div class="shot-label">
+              <span data-zh="合并下行总速度" data-en="Combined Download">合并下行总速度</span>
+              <span class="shot-live"><i></i>LIVE</span>
+            </div>
+            <div class="shot-num"><span id="shotNum">256.0</span> <span class="unit">MB/s</span></div>
+            <svg class="spark" viewBox="0 0 320 60" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.4" />
+                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.42" />
                   <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
                 </linearGradient>
               </defs>
-              <path d="M0,44 L30,38 L60,42 L90,28 L120,33 L150,18 L180,24 L210,12 L240,20 L270,9 L300,16 L320,11 L320,56 L0,56 Z" fill="url(#sp)" />
-              <path d="M0,44 L30,38 L60,42 L90,28 L120,33 L150,18 L180,24 L210,12 L240,20 L270,9 L300,16 L320,11" fill="none" stroke="#3b82f6" stroke-width="2" />
+              <path id="sparkArea" d="" fill="url(#sp)" />
+              <path id="sparkLine" d="" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
             </svg>
             <div class="bars">
               <div class="bar">
-                <div class="row"><span data-zh="以太网" data-en="Ethernet">以太网</span><span class="mono">39.1 MB/s</span></div>
-                <div class="track"><div class="fill" style="width: 35%; background: linear-gradient(90deg, #3b82f6aa, #3b82f6)"></div></div>
+                <div class="row"><span data-zh="以太网" data-en="Ethernet">以太网</span><span class="mono" id="b0v">—</span></div>
+                <div class="track"><div class="fill" id="b0" style="width: 0; background: linear-gradient(90deg, #3b82f6aa, #3b82f6)"></div></div>
               </div>
               <div class="bar">
-                <div class="row"><span data-zh="以太网 2" data-en="Ethernet 2">以太网 2</span><span class="mono">37.4 MB/s</span></div>
-                <div class="track"><div class="fill" style="width: 33%; background: linear-gradient(90deg, #38bdf8aa, #38bdf8)"></div></div>
+                <div class="row"><span data-zh="以太网 2" data-en="Ethernet 2">以太网 2</span><span class="mono" id="b1v">—</span></div>
+                <div class="track"><div class="fill" id="b1" style="width: 0; background: linear-gradient(90deg, #38bdf8aa, #38bdf8)"></div></div>
               </div>
               <div class="bar">
-                <div class="row"><span>WLAN</span><span class="mono">36.1 MB/s</span></div>
-                <div class="track"><div class="fill" style="width: 32%; background: linear-gradient(90deg, #34d399aa, #34d399)"></div></div>
+                <div class="row"><span>WLAN</span><span class="mono" id="b2v">—</span></div>
+                <div class="track"><div class="fill" id="b2" style="width: 0; background: linear-gradient(90deg, #34d399aa, #34d399)"></div></div>
               </div>
             </div>
           </div>
