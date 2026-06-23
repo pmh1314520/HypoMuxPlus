@@ -223,7 +223,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
       "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目并非简单换壳——已将原以 Python 实现的分流引擎用 Rust（tokio）从零重写，并以 Tauri + React 打造全新桌面客户端。",
     aboutSponsor: "赞助支持",
     aboutSponsorDesc:
-      "HypoMuxPlus 完全免费开源。如果它帮你省下了带宽与时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时欢迎备注您的昵称。",
+      "HypoMuxPlus 完全免费开源。如果它帮你省下了时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时记得备注“HypoMuxPlus 支持”",
     sponsorWechat: "微信赞赏",
     sponsorAlipay: "支付宝",
   },
