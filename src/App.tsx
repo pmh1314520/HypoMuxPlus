@@ -4,6 +4,8 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
 import { Dashboard } from "./components/Dashboard";
+import { TutorialPage } from "./components/TutorialPage";
+import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
@@ -228,6 +230,10 @@ function AppInner() {
                     logs={logs}
                     clearLogs={() => setLogs([])}
                   />
+                ) : view === "tutorial" ? (
+                  <TutorialPage />
+                ) : view === "about" ? (
+                  <AboutPage />
                 ) : (
                   <SettingsPage running={running} />
                 )}

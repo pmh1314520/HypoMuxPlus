@@ -26,15 +26,13 @@ export function BoostButton({ running, busy, disabled, onClick }: Props) {
       whileTap={{ scale: disabled || busy ? 1 : 0.97 }}
       disabled={disabled || busy}
       onClick={onClick}
-      className={`relative flex items-center justify-center gap-2.5 h-[52px] px-8 rounded-2xl font-semibold text-[15px] text-white overflow-hidden ${
-        running && !busy ? "pulse-ring" : ""
-      }`}
+      className="relative flex items-center justify-center gap-2.5 h-[48px] px-7 rounded-xl font-semibold text-[14px] text-white overflow-hidden"
       style={{
         background: running
-          ? "linear-gradient(135deg, #ff5d5d, #d83a3a)"
-          : "linear-gradient(135deg, var(--accent), var(--accent-soft))",
-        boxShadow: running ? "0 10px 30px rgba(216,58,58,0.4)" : "0 10px 30px var(--accent-glow)",
-        opacity: disabled ? 0.5 : 1,
+          ? "linear-gradient(135deg, #e0535e, #c43a44)"
+          : "linear-gradient(135deg, var(--accent), var(--accent-deep))",
+        boxShadow: running ? "0 6px 18px -8px rgba(196,58,68,0.6)" : "0 6px 18px -8px var(--accent-glow)",
+        opacity: disabled ? 0.45 : 1,
         cursor: disabled || busy ? "not-allowed" : "pointer",
       }}
     >

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HypoMux Plus · 多网卡带宽聚合下载加速器</title>
+    <meta name="description" content="HypoMux Plus —— 现代化多网卡带宽聚合下载加速客户端，基于 Tauri + Rust + React 构建。" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- 复用客户端 Logo 的 SVG 符号 -->
+    <svg width="0" height="0" style="position: absolute">
+      <defs>
+        <linearGradient id="lg-bg" x1="4" y1="2" x2="44" y2="46" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#0a64e0" />
+          <stop offset="55%" stop-color="#1f8fff" />
+          <stop offset="100%" stop-color="#22d3ee" />
+        </linearGradient>
+        <linearGradient id="lg-trunk" x1="24" y1="24" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="100%" stop-color="#e6fbff" />
+        </linearGradient>
+        <symbol id="logo" viewBox="0 0 48 48">
+          <rect x="0" y="0" width="48" height="48" rx="13" fill="url(#lg-bg)" />
+          <rect x="1" y="1" width="46" height="46" rx="12" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1" />
+          <g fill="none" stroke-linecap="round">
+            <path d="M11 14 C 19 14, 18 24, 24 24" stroke="#fff" stroke-opacity="0.62" stroke-width="2.2" />
+            <path d="M11 24 H 24" stroke="#fff" stroke-opacity="0.95" stroke-width="2.2" />
+            <path d="M11 34 C 19 34, 18 24, 24 24" stroke="#fff" stroke-opacity="0.62" stroke-width="2.2" />
+            <path d="M24 24 H 39" stroke="url(#lg-trunk)" stroke-width="3.4" />
+          </g>
+          <circle cx="11" cy="14" r="2.5" fill="#fff" fill-opacity="0.82" />
+          <circle cx="11" cy="24" r="2.5" fill="#fff" />
+          <circle cx="11" cy="34" r="2.5" fill="#fff" fill-opacity="0.82" />
+          <circle cx="24" cy="24" r="6" fill="#fff" fill-opacity="0.18" />
+          <circle cx="24" cy="24" r="3.6" fill="#fff" />
+          <circle cx="39" cy="24" r="3.6" fill="#fff" />
+          <circle cx="39" cy="24" r="6" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.4" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <!-- 导航 -->
+    <nav>
+      <div class="container nav-inner">
+        <a class="brand" href="#top">
+          <svg width="30" height="30"><use href="#logo" /></svg>
+          HypoMux <span class="accent" style="margin-left: -4px">Plus</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features" data-zh="核心特性" data-en="Features">核心特性</a>
+          <a href="#how" data-zh="工作原理" data-en="How It Works">工作原理</a>
+          <a href="#tech" data-zh="技术栈" data-en="Tech Stack">技术栈</a>
+          <a href="#download" data-zh="下载" data-en="Download">下载</a>
+        </div>
+        <div class="nav-right">
+          <button class="lang-toggle" id="langBtn">EN</button>
+          <a class="btn btn-ghost" href="https://github.com/Hypostasis-Cat/HypoMux" target="_blank" rel="noopener" data-zh="源码" data-en="Source">源码</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <header id="top" class="container hero">
+      <div>
+        <span class="eyebrow">Multi-NIC Acceleration</span>
+        <h1>
+          <span data-zh="多网卡带宽" data-en="Stack the bandwidth of">多网卡带宽</span>
+          <span class="grad" data-zh="聚合加速" data-en="every network link">聚合加速</span>
+        </h1>
+        <p class="lead" data-zh="HypoMux Plus 把电脑上多条独立网络线路的带宽聚合到同一批高并发下载任务，让 Steam、IDM、浏览器大文件下载跑满每一张网卡。基于 Tauri + Rust 重构，单文件、零依赖、原生般流畅。" data-en="HypoMux Plus aggregates the bandwidth of multiple independent network links for the same batch of high-concurrency downloads — maxing out every NIC for Steam, IDM and browser downloads. Rebuilt with Tauri + Rust: single-file, zero-dependency, native-grade.">
+          HypoMux Plus 把电脑上多条独立网络线路的带宽聚合到同一批高并发下载任务，让 Steam、IDM、浏览器大文件下载跑满每一张网卡。基于 Tauri + Rust 重构，单文件、零依赖、原生般流畅。
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#download" data-zh="立即下载" data-en="Download Now">立即下载</a>
+          <a class="btn btn-ghost" href="#how" data-zh="了解原理" data-en="How It Works">了解原理</a>
+        </div>
+        <div class="hero-meta">
+          <div><span class="num accent">L3</span><span class="lbl" data-zh="物理层网卡绑定" data-en="Socket binding">物理层网卡绑定</span></div>
+          <div><span class="num accent">2</span><span class="lbl" data-zh="协议无感接管" data-en="Protocols">协议无感接管</span></div>
+          <div><span class="num accent">∞</span><span class="lbl" data-zh="多网卡并发" data-en="Multi-NIC">多网卡并发</span></div>
+        </div>
+      </div>
+
+      <!-- 控制台可视化 -->
+      <div class="mock">
+        <div class="mock-label" data-zh="合并下行总速度" data-en="Combined Download">合并下行总速度</div>
+        <div class="mock-num mono">112.6 <span>MB/s</span></div>
+        <div class="mock-bars">
+          <div class="mock-bar">
+            <div class="row"><span data-zh="以太网" data-en="Ethernet">以太网</span><span class="mono">39.1 MB/s</span></div>
+            <div class="track"><div class="fill" style="width: 35%; background: linear-gradient(90deg, #3b82f6aa, #3b82f6)"></div></div>
+          </div>
+          <div class="mock-bar">
+            <div class="row"><span data-zh="以太网 2" data-en="Ethernet 2">以太网 2</span><span class="mono">37.4 MB/s</span></div>
+            <div class="track"><div class="fill" style="width: 33%; background: linear-gradient(90deg, #38bdf8aa, #38bdf8)"></div></div>
+          </div>
+          <div class="mock-bar">
+            <div class="row"><span data-zh="WLAN" data-en="WLAN">WLAN</span><span class="mono">36.1 MB/s</span></div>
+            <div class="track"><div class="fill" style="width: 32%; background: linear-gradient(90deg, #34d399aa, #34d399)"></div></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 特性 -->
+    <section id="features" class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Features</span>
+        <h2 data-zh="为发烧友打磨的每一处细节" data-en="Crafted in every detail">为发烧友打磨的每一处细节</h2>
+        <p data-zh="从底层网络内核到界面动效，专业、稳定、现代。" data-en="From the network core to the UI motion — professional, stable, modern.">从底层网络内核到界面动效，专业、稳定、现代。</p>
+      </div>
+      <div class="features">
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+          <h3 data-zh="双协议无感接管" data-en="Dual-Protocol Takeover">双协议无感接管</h3>
+          <p data-zh="后台同时运行 SOCKS5 与 HTTP/HTTPS 转发，自动接管系统代理，兼容 Steam、IDM、浏览器。" data-en="Runs SOCKS5 and HTTP/HTTPS forwarders, auto-applying the system proxy. Works with Steam, IDM and browsers.">后台同时运行 SOCKS5 与 HTTP/HTTPS 转发，自动接管系统代理，兼容 Steam、IDM、浏览器。</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+          <h3 data-zh="L3 物理层网卡绑定" data-en="L3 Socket Binding">L3 物理层网卡绑定</h3>
+          <p data-zh="IP_UNICAST_IF 接口强绑定，把每条连接物理钉死在指定网卡，根治同网段错网卡问题。" data-en="IP_UNICAST_IF pins each connection to a specific NIC, eliminating same-subnet wrong-adapter issues.">IP_UNICAST_IF 接口强绑定，把每条连接物理钉死在指定网卡，根治同网段错网卡问题。</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <h3 data-zh="实时遥测大屏" data-en="Live Telemetry">实时遥测大屏</h3>
+          <p data-zh="基于内核计数器逐秒采样，合并速度、实时波形、各网卡负载分布一目了然。" data-en="Per-second sampling from kernel counters — combined speed, live waveform and per-NIC load at a glance.">基于内核计数器逐秒采样，合并速度、实时波形、各网卡负载分布一目了然。</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3 data-zh="全生命周期代理保护" data-en="Fail-Safe Proxy">全生命周期代理保护</h3>
+          <p data-zh="手动停止、启动失败、关窗、退出等所有路径都强制还原系统代理，杜绝代理残留断网。" data-en="Manual stop, failure, close and exit all force-restore the system proxy, preventing leftover-proxy outages.">手动停止、启动失败、关窗、退出等所有路径都强制还原系统代理，杜绝代理残留断网。</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg></div>
+          <h3 data-zh="开机自启 · 自动加速" data-en="Autostart · Auto-Boost">开机自启 · 自动加速</h3>
+          <p data-zh="支持随系统启动、启动即最小化到托盘、开机后自动用上次的网卡开始加速。" data-en="Launch at startup, start minimized to tray, and auto-boost with the last selected adapters.">支持随系统启动、启动即最小化到托盘、开机后自动用上次的网卡开始加速。</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <h3 data-zh="现代界面 · 中英双语" data-en="Modern UI · Bilingual">现代界面 · 中英双语</h3>
+          <p data-zh="克制的工业级控制台设计，深浅双主题，完整简体中文 / English 双语切换。" data-en="A restrained industrial console design, dark/light themes, full Chinese / English bilingual support.">克制的工业级控制台设计，深浅双主题，完整简体中文 / English 双语切换。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 工作原理 -->
+    <section id="how" class="container">
+      <div class="how reveal">
+        <div>
+          <span class="eyebrow">How It Works</span>
+          <h2 data-zh="物理多通道并进" data-en="True Multi-Channel">物理多通道并进</h2>
+          <p data-zh="加速时程序向系统注册表写入全覆盖代理链条；分流引擎收到连接后，先用 IP_UNICAST_IF 锁死出口物理网卡，再绑定源地址，强制流量剥离默认网关。" data-en="When boosting, the app writes a full proxy chain to the registry. The engine locks each connection's outbound NIC via IP_UNICAST_IF, then binds the source IP, forcing traffic off the default gateway.">加速时程序向系统注册表写入全覆盖代理链条；分流引擎收到连接后，先用 IP_UNICAST_IF 锁死出口物理网卡，再绑定源地址，强制流量剥离默认网关。</p>
+          <p data-zh="多线程下载的连接被 Round-Robin 均匀分发到每张选中的网卡，实现真正的物理带宽叠加。" data-en="Multi-threaded download connections are round-robin distributed across selected adapters for true physical bandwidth stacking.">多线程下载的连接被 Round-Robin 均匀分发到每张选中的网卡，实现真正的物理带宽叠加。</p>
+        </div>
+        <pre>多线程下载流量
+      │  WinINet 系统代理接管
+      ▼  http/https → :10801 · socks → :10800
+分流引擎 (Rust · tokio)
+      │  Round-Robin 轮询分发
+      ▼  IP_UNICAST_IF 接口强绑定 + bind
+   ├─ 网卡 1 ─┐
+   ├─ 网卡 2 ─┼─►  物理带宽叠加
+   └─ 网卡 N ─┘</pre>
+      </div>
+    </section>
+
+    <!-- 技术栈 -->
+    <section id="tech" class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Built With</span>
+        <h2 data-zh="现代技术栈" data-en="Modern Tech Stack">现代技术栈</h2>
+      </div>
+      <div class="tech reveal">
+        <span>Tauri 2</span><span>Rust</span><span>tokio</span><span>socket2</span>
+        <span>React 19</span><span>TypeScript</span><span>TailwindCSS</span><span>Vite</span>
+      </div>
+    </section>
+
+    <!-- 下载 CTA -->
+    <section id="download" class="container">
+      <div class="cta reveal">
+        <h2 data-zh="把每一条网线都用起来" data-en="Put every link to work">把每一条网线都用起来</h2>
+        <p data-zh="Windows 10 / 11 · 免费开源 · AGPL-3.0" data-en="Windows 10 / 11 · Free & Open Source · AGPL-3.0">Windows 10 / 11 · 免费开源 · AGPL-3.0</p>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap">
+          <a class="btn btn-primary" href="https://github.com/Hypostasis-Cat/HypoMux" target="_blank" rel="noopener" data-zh="前往 GitHub" data-en="Get on GitHub">前往 GitHub</a>
+          <a class="btn btn-ghost" href="#top" data-zh="返回顶部" data-en="Back to top">返回顶部</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer>
+      <div class="container foot-inner">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <svg width="26" height="26"><use href="#logo" /></svg>
+          <div>
+            <div style="font-weight: 700">HypoMux Plus</div>
+            <div class="muted" data-zh="衍生自 Hypostasis-Cat / HypoMux · 开发者 青云制作_彭明航" data-en="Derived from Hypostasis-Cat / HypoMux · by 青云制作_彭明航">衍生自 Hypostasis-Cat / HypoMux · 开发者 青云制作_彭明航</div>
+          </div>
+        </div>
+        <div class="foot-links">
+          <a href="https://github.com/Hypostasis-Cat/HypoMux" target="_blank" rel="noopener">GitHub</a>
+          <a href="#features" data-zh="特性" data-en="Features">特性</a>
+          <a href="#how" data-zh="原理" data-en="How">原理</a>
+          <span class="muted">AGPL-3.0</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

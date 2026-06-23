@@ -8,8 +8,8 @@ interface Props {
   running: boolean;
 }
 
-// 链路区分色：蓝 / 青 / 蓝绿 / 靛 / 紫
-const HUES = ["#2f87ff", "#22d3ee", "#34d399", "#818cf8", "#c084fc"];
+// 链路区分色（数据可视化多序列，沉稳色板）
+const HUES = ["#3b82f6", "#38bdf8", "#34d399", "#a78bfa", "#f59e0b"];
 
 export function LinkDistribution({ perNic, running }: Props) {
   const { t } = useSettings();

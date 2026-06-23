@@ -14,8 +14,20 @@ interface Props {
 export function TopBar({ view, running, loading, onRefresh }: Props) {
   const { t } = useSettings();
 
-  const title = view === "dashboard" ? t("navDashboard") : t("settingsTitle");
-  const desc = view === "dashboard" ? t("topDashDesc") : t("topSettingsDesc");
+  const titleMap: Record<View, string> = {
+    dashboard: t("navDashboard"),
+    tutorial: t("navTutorial"),
+    settings: t("settingsTitle"),
+    about: t("navAbout"),
+  };
+  const descMap: Record<View, string> = {
+    dashboard: t("topDashDesc"),
+    tutorial: t("topTutorialDesc"),
+    settings: t("topSettingsDesc"),
+    about: t("topAboutDesc"),
+  };
+  const title = titleMap[view];
+  const desc = descMap[view];
 
   return (
     <div data-tauri-drag-region className="flex items-center h-[58px] px-5 shrink-0 gap-4">

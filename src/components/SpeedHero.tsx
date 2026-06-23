@@ -70,9 +70,9 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
               <AnimatedNumber
                 value={total.downMbps}
                 decimals={2}
-                className="mono text-[68px] font-bold leading-[0.95] glow-text"
+                className="mono text-[54px] font-semibold leading-[0.95] tracking-tight"
               />
-              <span className="text-[18px] mb-2.5 font-medium" style={{ color: "var(--text-1)" }}>
+              <span className="text-[16px] mb-2.5 font-medium" style={{ color: "var(--text-1)" }}>
                 {t("unitMbps")}
               </span>
             </div>

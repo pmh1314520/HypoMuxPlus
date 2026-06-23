@@ -1,10 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
   Gamepad2,
-  Globe,
-  Info,
   Languages,
   MinusSquare,
   MonitorDown,
@@ -21,8 +18,6 @@ import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { NumberField } from "./NumberField";
 import { Switch } from "./Switch";
-
-const REPO = "https://github.com/Hypostasis-Cat/HypoMux";
 
 interface Props {
   running: boolean;
@@ -164,33 +159,6 @@ export function SettingsPage({ running }: Props) {
             applyText={t("btnApply")}
             restoreText={t("btnRestore")}
           />
-        </Section>
-
-        {/* 关于 */}
-        <Section icon={<Info size={16} />} title={t("aboutTitle")}>
-          <Row label={t("aboutVersion")}>
-            <span className="mono text-[13px]" style={{ color: "var(--text-1)" }}>
-              v1.0.0
-            </span>
-          </Row>
-          <Row label={t("aboutAuthor")}>
-            <span className="text-[13px]" style={{ color: "var(--text-1)" }}>
-              青云制作_彭明航
-            </span>
-          </Row>
-          <Row label={t("aboutLicense")}>
-            <span className="text-[13px]" style={{ color: "var(--text-1)" }}>
-              AGPL-3.0
-            </span>
-          </Row>
-          <Row icon={<Globe size={15} />} label={t("aboutOriginal")}>
-            <button onClick={() => openUrl(REPO)} className="text-[13px] hover:underline" style={{ color: "var(--accent-soft)" }}>
-              {REPO}
-            </button>
-          </Row>
-          <p className="text-[12px] leading-relaxed mt-1 px-1" style={{ color: "var(--text-2)" }}>
-            {t("aboutDesc")}
-          </p>
         </Section>
       </div>
     </div>
