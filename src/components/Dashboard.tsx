@@ -3,7 +3,7 @@ import { SpeedHero } from "./SpeedHero";
 import { AdapterTable } from "./AdapterTable";
 import { Console } from "./Console";
 import { LinkDistribution } from "./LinkDistribution";
-import type { AdapterInfo, NicTelemetry, TelemetryPayload } from "../lib/api";
+import type { AdapterInfo, LatencyResult, NicTelemetry, TelemetryPayload } from "../lib/api";
 
 interface Props {
   telemetry: TelemetryPayload | null;
@@ -27,6 +27,10 @@ interface Props {
 
   logs: string[];
   clearLogs: () => void;
+
+  latencies: Record<number, LatencyResult>;
+  testing: boolean;
+  onTest: () => void;
 }
 
 export function Dashboard(props: Props) {
@@ -59,6 +63,9 @@ export function Dashboard(props: Props) {
           perNic={props.perNic}
           running={props.running}
           loading={props.loading}
+          latencies={props.latencies}
+          testing={props.testing}
+          onTest={props.onTest}
         />
         <div className="grid gap-4 min-h-0" style={{ gridTemplateRows: "1fr 1fr" }}>
           <LinkDistribution perNic={props.perNic} running={props.running} />

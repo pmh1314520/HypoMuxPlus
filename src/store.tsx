@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Lang, translate } from "./i18n";
 
 export type Theme = "dark" | "light";
+export type SchedStrategy = "rr" | "least" | "weighted";
 
 interface Settings {
   lang: Lang;
@@ -13,6 +14,7 @@ interface Settings {
   autostart: boolean;
   launchMinimized: boolean;
   autoBoost: boolean;
+  strategy: SchedStrategy;
 }
 
 const DEFAULTS: Settings = {
@@ -24,6 +26,7 @@ const DEFAULTS: Settings = {
   autostart: false,
   launchMinimized: false,
   autoBoost: false,
+  strategy: "rr",
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

@@ -25,6 +25,13 @@ export interface NicTelemetry {
   connections: number;
 }
 
+export interface LatencyResult {
+  index: number;
+  name: string;
+  latencyMs: number;
+  ok: boolean;
+}
+
 export interface TelemetryPayload {
   perNic: NicTelemetry[];
   total: { downMbps: number; upMbps: number; connections: number };
@@ -37,9 +44,10 @@ export const api = {
   getBoostState: () => invoke<boolean>("get_boost_state"),
   getSystemProxy: () => invoke<[boolean, string]>("get_system_proxy"),
   setCloseToTray: (enabled: boolean) => invoke<void>("set_close_to_tray", { enabled }),
-  startBoost: (nics: SelectedNic[], socksPort: number, httpPort: number) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort }),
+  startBoost: (nics: SelectedNic[], socksPort: number, httpPort: number, strategy: string) =>
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy }),
   stopBoost: () => invoke<void>("stop_boost"),
+  testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   configureSteam: (enable: boolean, port: number) =>
     invoke<void>("configure_steam", { enable, port }),
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),

@@ -10,9 +10,10 @@ import {
   Power,
   Rocket,
   ServerCog,
+  Shuffle,
   Zap,
 } from "lucide-react";
-import { useSettings, type Theme } from "../store";
+import { useSettings, type SchedStrategy, type Theme } from "../store";
 import { type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, set } =
+  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -139,6 +140,28 @@ export function SettingsPage({ running }: Props) {
           <Row icon={<Zap size={15} />} label={t("settingAutoBoost")} hint={t("settingAutoBoostHint")}>
             <Switch checked={autoBoost} onChange={(v) => set("autoBoost", v)} />
           </Row>
+        </Section>
+
+        {/* 调度引擎（Plus 专属） */}
+        <Section icon={<Shuffle size={16} />} title={t("schedTitle")} hint={t("schedHint")}>
+          <div className="pt-1 flex items-center justify-between gap-4 flex-wrap">
+            <Segmented<SchedStrategy>
+              value={strategy}
+              options={[
+                { value: "rr", label: t("schedRR") },
+                { value: "least", label: t("schedLeast") },
+                { value: "weighted", label: t("schedWeighted") },
+              ]}
+              onChange={(v) => set("strategy", v)}
+            />
+          </div>
+          <p className="text-[12px] leading-relaxed mt-3" style={{ color: "var(--text-2)" }}>
+            {strategy === "rr"
+              ? t("schedRRDesc")
+              : strategy === "least"
+              ? t("schedLeastDesc")
+              : t("schedWeightedDesc")}
+          </p>
         </Section>
 
         {/* 应用兼容性 */}

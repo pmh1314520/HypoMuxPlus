@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { Check, CheckSquare, Layers, RefreshCw, Square } from "lucide-react";
+import { Activity, Check, CheckSquare, Layers, Loader2, RefreshCw, Square } from "lucide-react";
 import { useSettings } from "../store";
-import type { AdapterInfo, NicTelemetry } from "../lib/api";
+import type { AdapterInfo, LatencyResult, NicTelemetry } from "../lib/api";
 
 interface Props {
   adapters: AdapterInfo[];
@@ -13,6 +13,9 @@ interface Props {
   perNic: Record<string, NicTelemetry>;
   running: boolean;
   loading: boolean;
+  latencies: Record<number, LatencyResult>;
+  testing: boolean;
+  onTest: () => void;
 }
 
 export function AdapterTable({
@@ -25,6 +28,9 @@ export function AdapterTable({
   perNic,
   running,
   loading,
+  latencies,
+  testing,
+  onTest,
 }: Props) {
   const { t } = useSettings();
 
@@ -43,9 +49,13 @@ export function AdapterTable({
           </span>
         </div>
         <div className="flex-1" />
-        <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--surface-strong)", color: "var(--text-1)" }}>
+        <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--surface-2)", color: "var(--text-1)" }}>
           {t("selectedCount", { n: selected.size })}
         </span>
+        <HeaderBtn onClick={onTest} disabled={testing}>
+          {testing ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}{" "}
+          {testing ? t("latencyTesting") : t("latencyTest")}
+        </HeaderBtn>
         <HeaderBtn onClick={selectAll} disabled={running}>
           <CheckSquare size={14} /> {t("selectAll")}
         </HeaderBtn>
@@ -120,10 +130,23 @@ export function AdapterTable({
                   </span>
                 </div>
 
-                {/* IPv4 */}
-                <span className="text-[12px] tabular-nums" style={{ color: hasIp ? "var(--text-1)" : "var(--text-2)" }}>
-                  {hasIp ? a.ipv4 : t("noValidIp")}
-                </span>
+                {/* IPv4 + 延迟体检结果 */}
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="text-[12px] tabular-nums truncate" style={{ color: hasIp ? "var(--text-1)" : "var(--text-2)" }}>
+                    {hasIp ? a.ipv4 : t("noValidIp")}
+                  </span>
+                  {latencies[a.index] && (
+                    <span
+                      className="text-[10px] mono px-1.5 py-0.5 rounded w-fit"
+                      style={{
+                        background: latencies[a.index].ok ? "rgba(62,207,142,0.13)" : "rgba(240,97,109,0.13)",
+                        color: latencies[a.index].ok ? "var(--ok)" : "var(--danger)",
+                      }}
+                    >
+                      {latencies[a.index].ok ? `${latencies[a.index].latencyMs} ms` : t("latencyTimeout")}
+                    </span>
+                  )}
+                </div>
 
                 {/* 速度 */}
                 <span

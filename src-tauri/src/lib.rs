@@ -125,12 +125,13 @@ async fn start_boost(
     nics: Vec<engine::SelectedNic>,
     socks_port: u16,
     http_port: u16,
+    strategy: String,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
     }
 
-    let handle = engine::start(app.clone(), nics, socks_port, http_port).await?;
+    let handle = engine::start(app.clone(), nics, socks_port, http_port, strategy).await?;
 
     let socks_addr = format!("127.0.0.1:{socks_port}");
     let http_addr = format!("127.0.0.1:{http_port}");
@@ -177,6 +178,12 @@ fn configure_idm(enable: bool, port: u16) -> Result<(), String> {
     appcompat::configure_idm(enable, "127.0.0.1", port)
 }
 
+/// 逐张网卡探测出口连通性与延迟（Plus 专属链路体检）。
+#[tauri::command]
+async fn test_latency(nics: Vec<engine::SelectedNic>) -> Result<Vec<engine::LatencyResult>, String> {
+    Ok(engine::test_latency(nics).await)
+}
+
 /// 退出前的统一清理：停止引擎、还原系统代理与死网关检测。
 fn cleanup(app: &AppHandle) {
     let state = app.state::<AppState>();
@@ -208,6 +215,7 @@ pub fn run() {
             stop_boost,
             configure_steam,
             configure_idm,
+            test_latency,
         ])
         .setup(|app| {
             // 启动即清除任何残留的系统代理，保证干净起点

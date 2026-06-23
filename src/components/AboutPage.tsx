@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { motion } from "framer-motion";
-import { Coffee, ExternalLink, GitBranch, Heart, ScrollText, User } from "lucide-react";
+import { Coffee, Database, ExternalLink, GitBranch, Heart, ScrollText, User } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
 import wechatQr from "../assets/sponsor-wechat.png";
@@ -12,7 +12,13 @@ const TECH = ["Tauri 2", "Rust", "tokio", "React 19", "TypeScript", "TailwindCSS
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
-export function AboutPage() {
+function fmtData(mb: number): string {
+  if (mb >= 1048576) return (mb / 1048576).toFixed(2) + " TB";
+  if (mb >= 1024) return (mb / 1024).toFixed(2) + " GB";
+  return mb.toFixed(0) + " MB";
+}
+
+export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
   const { t } = useSettings();
 
   return (
@@ -45,6 +51,24 @@ export function AboutPage() {
             <p className="text-[13px] mt-1.5" style={{ color: "var(--text-1)" }}>
               {t("aboutTagline")}
             </p>
+          </div>
+        </motion.div>
+
+        {/* 累计加速流量 */}
+        <motion.div
+          variants={item}
+          className="panel p-5 flex items-center gap-4"
+          style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.07), transparent 60%)" }}
+        >
+          <div
+            className="grid place-items-center w-11 h-11 rounded-xl"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-soft)" }}
+          >
+            <Database size={19} />
+          </div>
+          <div>
+            <div className="eyebrow">{t("lifetimeTotal")}</div>
+            <div className="text-[24px] font-bold mono leading-none mt-1.5">{fmtData(lifetimeMB)}</div>
           </div>
         </motion.div>
 

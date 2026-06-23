@@ -11,8 +11,8 @@
 //! 根治同网段双网卡的 WinError 10049 错网卡问题。
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
@@ -44,6 +44,36 @@ pub struct NicRuntime {
     pub ip: Ipv4Addr,
     pub if_index: u32,
     pub active: AtomicI64,
+    /// 最近一秒下行速率（MB/s × 100），供按速度加权调度使用
+    pub speed: AtomicU64,
+}
+
+/// 连接调度策略
+#[derive(Clone, Copy, PartialEq)]
+pub enum Strategy {
+    /// 经典轮询（与原版一致）
+    RoundRobin,
+    /// 最少连接优先（自动均衡负载）
+    LeastConn,
+    /// 按实时下行速度加权（快的网卡多分流量）
+    WeightedSpeed,
+}
+
+impl Strategy {
+    fn parse(s: &str) -> Strategy {
+        match s {
+            "least" => Strategy::LeastConn,
+            "weighted" => Strategy::WeightedSpeed,
+            _ => Strategy::RoundRobin,
+        }
+    }
+    fn label(&self) -> &'static str {
+        match self {
+            Strategy::RoundRobin => "Round-Robin 轮询",
+            Strategy::LeastConn => "最少连接优先",
+            Strategy::WeightedSpeed => "按速度加权",
+        }
+    }
 }
 
 /// 遥测载荷（emit 给前端）
@@ -76,13 +106,54 @@ struct TelemetryPayload {
 pub struct Engine {
     nics: Vec<Arc<NicRuntime>>,
     rr: AtomicUsize,
+    strategy: Strategy,
+    /// 平滑加权轮询的动态权重累加器（仅 WeightedSpeed 使用）
+    wrr: Mutex<Vec<i64>>,
     app: AppHandle,
 }
 
 impl Engine {
     fn next_nic(&self) -> Arc<NicRuntime> {
-        let i = self.rr.fetch_add(1, Ordering::Relaxed) % self.nics.len();
-        self.nics[i].clone()
+        match self.strategy {
+            Strategy::RoundRobin => {
+                let i = self.rr.fetch_add(1, Ordering::Relaxed) % self.nics.len();
+                self.nics[i].clone()
+            }
+            Strategy::LeastConn => {
+                let mut best = 0usize;
+                let mut best_v = i64::MAX;
+                for (i, n) in self.nics.iter().enumerate() {
+                    let v = n.active.load(Ordering::Relaxed);
+                    if v < best_v {
+                        best_v = v;
+                        best = i;
+                    }
+                }
+                self.nics[best].clone()
+            }
+            Strategy::WeightedSpeed => {
+                // 有效权重 = 实时速度(MB/s×100) + 基准 100，保证慢/空闲网卡也有最低份额
+                let eff: Vec<i64> = self
+                    .nics
+                    .iter()
+                    .map(|n| n.speed.load(Ordering::Relaxed) as i64 + 100)
+                    .collect();
+                let total: i64 = eff.iter().sum();
+                // 平滑加权轮询（nginx SWRR 算法），分配均匀且按权重倾斜
+                let mut cur = self.wrr.lock().unwrap();
+                let mut best = 0usize;
+                let mut best_v = i64::MIN;
+                for i in 0..eff.len() {
+                    cur[i] += eff[i];
+                    if cur[i] > best_v {
+                        best_v = cur[i];
+                        best = i;
+                    }
+                }
+                cur[best] -= total;
+                self.nics[best].clone()
+            }
+        }
     }
 
     fn log(&self, msg: impl Into<String>) {
@@ -108,10 +179,12 @@ pub async fn start(
     selected: Vec<SelectedNic>,
     socks_port: u16,
     http_port: u16,
+    strategy: String,
 ) -> Result<EngineHandle, String> {
     if selected.is_empty() {
         return Err("至少需要选择一张网卡".into());
     }
+    let strategy = Strategy::parse(&strategy);
 
     let mut nics: Vec<Arc<NicRuntime>> = Vec::with_capacity(selected.len());
     for s in &selected {
@@ -124,6 +197,7 @@ pub async fn start(
             ip,
             if_index: s.index,
             active: AtomicI64::new(0),
+            speed: AtomicU64::new(0),
         }));
     }
 
@@ -138,12 +212,15 @@ pub async fn start(
     let engine = Arc::new(Engine {
         nics: nics.clone(),
         rr: AtomicUsize::new(0),
+        strategy,
+        wrr: Mutex::new(vec![0i64; nics.len()]),
         app: app.clone(),
     });
 
     let nic_names: Vec<&str> = nics.iter().map(|n| n.name.as_str()).collect();
     engine.log(format!(
-        "[HypoMux] SOCKS5+HTTP 分流引擎已启动 | SOCKS 127.0.0.1:{socks_port} | HTTP 127.0.0.1:{http_port} | 参与分流网卡: {}",
+        "[HypoMux] SOCKS5+HTTP 分流引擎已启动 | SOCKS 127.0.0.1:{socks_port} | HTTP 127.0.0.1:{http_port} | 调度策略: {} | 参与分流网卡: {}",
+        strategy.label(),
         nic_names.join(", ")
     ));
 
@@ -173,6 +250,53 @@ pub async fn start(
     }
 
     Ok(EngineHandle { cancel })
+}
+
+/// 单张网卡的连通性 / 延迟探测结果
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatencyResult {
+    pub index: u32,
+    pub name: String,
+    /// 连接 RTT（毫秒），-1 表示探测失败
+    pub latency_ms: i64,
+    pub ok: bool,
+}
+
+/// 逐张网卡探测出口连通性与延迟：经各网卡 TCP 连接公共节点测 RTT。
+pub async fn test_latency(selected: Vec<SelectedNic>) -> Vec<LatencyResult> {
+    // 国内外均可达的稳定节点（AliDNS:443），仅测 TCP 握手 RTT，不传输数据
+    let target = SocketAddrV4::new(Ipv4Addr::new(223, 5, 5, 5), 443);
+    let mut out = Vec::with_capacity(selected.len());
+    for s in selected {
+        let ip: Ipv4Addr = match s.ip.parse() {
+            Ok(v) => v,
+            Err(_) => {
+                out.push(LatencyResult { index: s.index, name: s.name, latency_ms: -1, ok: false });
+                continue;
+            }
+        };
+        let nic = NicRuntime {
+            name: s.name.clone(),
+            ip,
+            if_index: s.index,
+            active: AtomicI64::new(0),
+            speed: AtomicU64::new(0),
+        };
+        let start = std::time::Instant::now();
+        let res =
+            tokio::time::timeout(std::time::Duration::from_secs(2), connect_via_nic(&nic, target)).await;
+        match res {
+            Ok(Ok(_stream)) => out.push(LatencyResult {
+                index: s.index,
+                name: s.name,
+                latency_ms: start.elapsed().as_millis() as i64,
+                ok: true,
+            }),
+            _ => out.push(LatencyResult { index: s.index, name: s.name, latency_ms: -1, ok: false }),
+        }
+    }
+    out
 }
 
 #[derive(Clone, Copy)]
@@ -587,6 +711,9 @@ async fn telemetry_loop(app: AppHandle, nics: Vec<Arc<NicRuntime>>, cancel: Canc
             let conn = nic.active.load(Ordering::Relaxed).max(0);
             let down = (down * 100.0).round() / 100.0;
             let up = (up * 100.0).round() / 100.0;
+
+            // 写入实时速度，供按速度加权调度（WeightedSpeed）参考
+            nic.speed.store((down * 100.0) as u64, Ordering::Relaxed);
 
             total_down += down;
             total_up += up;

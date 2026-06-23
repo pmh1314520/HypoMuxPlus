@@ -17,6 +17,7 @@ import {
   onTelemetry,
   win,
   type AdapterInfo,
+  type LatencyResult,
   type NicTelemetry,
   type SelectedNic,
   type TelemetryPayload,
@@ -25,6 +26,7 @@ import {
 const HISTORY_LEN = 60;
 const LOG_CAP = 300;
 const SELECTED_KEY = "hmx-plus-selected";
+const LIFETIME_KEY = "hmx-lifetime-mb";
 
 function loadSelected(): Set<number> {
   try {
@@ -37,7 +39,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost } = useSettings();
+  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy } = useSettings();
   const toast = useToast();
 
   const [view, setView] = useState<View>("dashboard");
@@ -56,6 +58,9 @@ function AppInner() {
   const [uptime, setUptime] = useState(0);
   const [sessionMB, setSessionMB] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
+  const [latencies, setLatencies] = useState<Record<number, LatencyResult>>({});
+  const [testing, setTesting] = useState(false);
+  const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
 
   const booted = useRef(false);
 
@@ -94,6 +99,12 @@ function AppInner() {
       setPeak((prev) => Math.max(prev, p.total.downMbps));
       // 每秒一次采样，downMbps(MB/s) × 1s ≈ 本秒下载量(MB)
       setSessionMB((prev) => prev + p.total.downMbps);
+      // 累计加速流量（跨会话持久化）
+      setLifetimeMB((prev) => {
+        const n = prev + p.total.downMbps;
+        localStorage.setItem(LIFETIME_KEY, String(n));
+        return n;
+      });
     }).then((u) => unlisteners.push(u));
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
@@ -147,6 +158,28 @@ function AppInner() {
     setSelected(new Set(adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0").map((a) => a.index)));
   const deselectAll = () => setSelected(new Set());
 
+  // 链路体检：逐张网卡探测出口延迟
+  const onTest = async () => {
+    const valid: SelectedNic[] = adapters
+      .filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0")
+      .map((a) => ({ index: a.index, name: a.alias, ip: a.ipv4 }));
+    if (valid.length === 0) {
+      toast("warning", t("msgLatencyNoSel"));
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await api.testLatency(valid);
+      const map: Record<number, LatencyResult> = {};
+      for (const r of res) map[r.index] = r;
+      setLatencies(map);
+    } catch (e) {
+      toast("error", String(e));
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const onBoost = async () => {
     if (busy) return;
     if (running) {
@@ -178,7 +211,7 @@ function AppInner() {
       const steam = await api.checkSteamRunning().catch(() => false);
       if (steam) toast("warning", t("warnSteamRunning"));
 
-      await api.startBoost(chosen, socksPort, httpPort);
+      await api.startBoost(chosen, socksPort, httpPort, strategy);
       toast("success", t("msgBoostStarted"));
     } catch (e) {
       toast("error", t("msgStartFailed", { err: String(e) }));
@@ -229,11 +262,14 @@ function AppInner() {
                     loading={loading}
                     logs={logs}
                     clearLogs={() => setLogs([])}
+                    latencies={latencies}
+                    testing={testing}
+                    onTest={onTest}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
                 ) : view === "about" ? (
-                  <AboutPage />
+                  <AboutPage lifetimeMB={lifetimeMB} />
                 ) : (
                   <SettingsPage running={running} />
                 )}
