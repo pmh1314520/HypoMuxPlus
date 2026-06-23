@@ -39,12 +39,17 @@ HypoMuxPlus 是一款面向 Windows 平台的**多网卡带宽并发聚合下载
 
 - **双协议无感接管**：后台同时运行 SOCKS5 与 HTTP/HTTPS 转发服务，启动后自动写入 Windows WinINet 系统代理，兼容 Steam、IDM、浏览器等遵循系统代理规范的客户端。
 - **L3 物理层网卡绑定**：对每条出站连接执行 `setsockopt(IP_UNICAST_IF)` 接口索引强绑定 + 源地址 bind，把流量物理钉死在指定网卡上，根治同网段多网卡的 `WinError 10049` 错网卡问题。
-- **Round-Robin 连接调度**：在用户勾选的网卡集合内轮询分发连接，将多线程下载的带宽叠加到多张物理网卡。
+- **智能调度引擎**：内置三种连接调度策略——经典轮询、最少连接优先、按实时下行速度动态加权（平滑加权轮询 SWRR），让更快的网卡承担更多连接，弱链路不再拖累整体聚合。
+- **链路体检与测速**：一键探测各网卡出口延迟（RTT），并支持逐张网卡下载测速跑分，帮你挑选最健康、最快的线路。
+- **实时连接监控**：实时连接列表展示每条连接的目标地址与所分配的出口网卡，分流过程透明可见。
 - **全生命周期代理保护**：手动停止、启动失败、窗口关闭、进程退出等所有路径都强制还原系统代理，降低代理残留导致断网的风险。
 - **实时遥测大屏**：基于内核计数器（`GetIfEntry2`）的逐秒采样，展示合并下行总速度、实时波形、各网卡速度与活跃连接数。
 - **现代化界面**：深色 / 浅色双主题、玻璃拟态、流畅动效、完整中英双语，矢量图标全程无 Emoji。
 - **稳定性增强**：加速期间自动关闭死网关检测（Dead Gateway Detection），防止慢速链路被系统判定失效而中途罢工。
 - **应用兼容性**：为 Steam / IDM 一键写入或还原 SOCKS5 代理配置。
+- **全局热键与系统通知**：全局热键（默认 `Ctrl+Alt+H`）在任意界面一键加速 / 停止；加速启停弹出系统通知提醒。
+- **自动化**：开机自启、启动即最小化到托盘、开机后自动用上次选择的网卡开始加速。
+- **累计统计**：跨会话持久化记录累计加速流量，关于页一目了然。
 - **系统托盘**：支持最小化到托盘 / 直接退出两种关闭行为。
 
 ### 技术栈
@@ -136,12 +141,17 @@ HypoMuxPlus is a modernized desktop client of a **multi-network-adapter bandwidt
 
 - **Seamless Dual-Protocol Takeover**: Runs SOCKS5 and HTTP/HTTPS forwarders simultaneously, applying the Windows WinINet system proxy automatically. Compatible with Steam, IDM, browsers and any client honoring the system proxy.
 - **L3 Socket Binding**: Each outbound connection is pinned to a chosen NIC via `setsockopt(IP_UNICAST_IF)` plus source `bind`, eliminating the same-subnet `WinError 10049` wrong-adapter problem.
-- **Round-Robin Dispatch**: Connections are distributed across the selected adapters to physically stack bandwidth for multi-threaded downloads.
+- **Smart Scheduler**: Three connection strategies — classic round-robin, least-connections, and dynamic weighting by real-time download speed (smooth weighted round-robin) — so faster adapters carry more connections and weak links no longer hold aggregation back.
+- **Link Test & Benchmark**: One-click per-adapter latency (RTT) probing plus per-adapter download benchmarking to help you pick the healthiest, fastest links.
+- **Live Connection Monitor**: A live connection list shows each connection's target and the adapter it was assigned to — fully transparent dispatch.
 - **Fail-Safe Proxy Restore**: Manual stop, startup failure, window close and process exit all force-restore the system proxy.
 - **Live Telemetry Dashboard**: Per-second sampling via kernel counters (`GetIfEntry2`) shows combined speed, a live waveform, and per-NIC speed and active connections.
 - **Modern UI**: Dark / light themes, glassmorphism, fluid motion, full Chinese/English bilingual support, vector icons throughout (no emoji).
 - **Stability Boost**: Dead Gateway Detection is disabled while boosting to keep slow links from being dropped by the OS.
 - **App Compatibility**: One-click SOCKS5 config apply/restore for Steam and IDM.
+- **Global Hotkey & Notifications**: A global hotkey (default `Ctrl+Alt+H`) toggles boost/stop from anywhere; system notifications announce start/stop.
+- **Automation**: Launch at startup, start minimized to tray, and auto-boost with the last selected adapters on launch.
+- **Lifetime Stats**: Persisted cumulative accelerated-traffic counter shown on the About page.
 - **System Tray**: Minimize-to-tray or exit-on-close behaviors.
 
 ### Tech Stack

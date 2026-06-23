@@ -32,6 +32,19 @@ export interface LatencyResult {
   ok: boolean;
 }
 
+export interface SpeedResult {
+  index: number;
+  name: string;
+  mbps: number;
+  ok: boolean;
+}
+
+export interface ConnInfo {
+  target: string;
+  nic: string;
+  proto: string;
+}
+
 export interface TelemetryPayload {
   perNic: NicTelemetry[];
   total: { downMbps: number; upMbps: number; connections: number };
@@ -48,6 +61,8 @@ export const api = {
     invoke<string>("start_boost", { nics, socksPort, httpPort, strategy }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
+  speedTest: (nics: SelectedNic[], duration: number) =>
+    invoke<SpeedResult[]>("speed_test", { nics, duration }),
   configureSteam: (enable: boolean, port: number) =>
     invoke<void>("configure_steam", { enable, port }),
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),
@@ -62,6 +77,12 @@ export const onTelemetry = (cb: (p: TelemetryPayload) => void): Promise<Unlisten
 
 export const onBoostState = (cb: (running: boolean) => void): Promise<UnlistenFn> =>
   listen<boolean>("hmx-boost-state", (e) => cb(e.payload));
+
+export const onConnections = (cb: (c: ConnInfo[]) => void): Promise<UnlistenFn> =>
+  listen<ConnInfo[]>("hmx-connections", (e) => cb(e.payload));
+
+export const onSpeedTest = (cb: (r: SpeedResult) => void): Promise<UnlistenFn> =>
+  listen<SpeedResult>("hmx-speedtest", (e) => cb(e.payload));
 
 // ---- 窗口控制 ----
 export const win = {

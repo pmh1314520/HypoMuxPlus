@@ -184,6 +184,16 @@ async fn test_latency(nics: Vec<engine::SelectedNic>) -> Result<Vec<engine::Late
     Ok(engine::test_latency(nics).await)
 }
 
+/// 逐张网卡下载测速跑分（Plus 专属）。
+#[tauri::command]
+async fn speed_test(
+    app: AppHandle,
+    nics: Vec<engine::SelectedNic>,
+    duration: u64,
+) -> Result<Vec<engine::SpeedResult>, String> {
+    Ok(engine::speed_test(app, nics, duration).await)
+}
+
 /// 退出前的统一清理：停止引擎、还原系统代理与死网关检测。
 fn cleanup(app: &AppHandle) {
     let state = app.state::<AppState>();
@@ -203,6 +213,8 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             check_admin,
@@ -216,6 +228,7 @@ pub fn run() {
             configure_steam,
             configure_idm,
             test_latency,
+            speed_test,
         ])
         .setup(|app| {
             // 启动即清除任何残留的系统代理，保证干净起点

@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
 import { SpeedHero } from "./SpeedHero";
 import { AdapterTable } from "./AdapterTable";
-import { Console } from "./Console";
+import { MonitorPanel } from "./MonitorPanel";
 import { LinkDistribution } from "./LinkDistribution";
-import type { AdapterInfo, LatencyResult, NicTelemetry, TelemetryPayload } from "../lib/api";
+import type { AdapterInfo, ConnInfo, LatencyResult, NicTelemetry, TelemetryPayload } from "../lib/api";
 
 interface Props {
   telemetry: TelemetryPayload | null;
@@ -31,6 +31,10 @@ interface Props {
   latencies: Record<number, LatencyResult>;
   testing: boolean;
   onTest: () => void;
+  speedResults: Record<number, { mbps: number; ok: boolean }>;
+  benchmarking: boolean;
+  onBench: () => void;
+  connections: ConnInfo[];
 }
 
 export function Dashboard(props: Props) {
@@ -66,10 +70,18 @@ export function Dashboard(props: Props) {
           latencies={props.latencies}
           testing={props.testing}
           onTest={props.onTest}
+          speedResults={props.speedResults}
+          benchmarking={props.benchmarking}
+          onBench={props.onBench}
         />
         <div className="grid gap-4 min-h-0" style={{ gridTemplateRows: "1fr 1fr" }}>
           <LinkDistribution perNic={props.perNic} running={props.running} />
-          <Console logs={props.logs} clear={props.clearLogs} />
+          <MonitorPanel
+            logs={props.logs}
+            clearLogs={props.clearLogs}
+            connections={props.connections}
+            running={props.running}
+          />
         </div>
       </motion.div>
     </motion.div>

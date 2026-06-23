@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
+  Bell,
   Gamepad2,
+  KeyRound,
   Languages,
   MinusSquare,
   MonitorDown,
@@ -25,7 +27,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, set } =
+  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -139,6 +141,16 @@ export function SettingsPage({ running }: Props) {
           </Row>
           <Row icon={<Zap size={15} />} label={t("settingAutoBoost")} hint={t("settingAutoBoostHint")}>
             <Switch checked={autoBoost} onChange={(v) => set("autoBoost", v)} />
+          </Row>
+          <Row
+            icon={<KeyRound size={15} />}
+            label={t("settingHotkey")}
+            hint={t("settingHotkeyHint", { key: "Ctrl+Alt+H" })}
+          >
+            <Switch checked={globalHotkey} onChange={(v) => set("globalHotkey", v)} />
+          </Row>
+          <Row icon={<Bell size={15} />} label={t("settingNotify")} hint={t("settingNotifyHint")}>
+            <Switch checked={notifications} onChange={(v) => set("notifications", v)} />
           </Row>
         </Section>
 

@@ -10,6 +10,7 @@
 //! 以及前置异步 DNS 解析，逻辑一字不差地继承自原 Python 项目的验证成果，
 //! 根治同网段双网卡的 WinError 10049 错网卡问题。
 
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::atomic::{AtomicI64, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -102,6 +103,15 @@ struct TelemetryPayload {
     total: TotalTelemetry,
 }
 
+/// 活跃连接信息（实时连接列表用）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnInfo {
+    pub target: String,
+    pub nic: String,
+    pub proto: &'static str,
+}
+
 /// 代理引擎核心，含调度器与网卡集合
 pub struct Engine {
     nics: Vec<Arc<NicRuntime>>,
@@ -109,6 +119,9 @@ pub struct Engine {
     strategy: Strategy,
     /// 平滑加权轮询的动态权重累加器（仅 WeightedSpeed 使用）
     wrr: Mutex<Vec<i64>>,
+    /// 活跃连接表（id -> 信息），供实时连接列表展示
+    conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
+    conn_id: AtomicU64,
     app: AppHandle,
 }
 
@@ -158,6 +171,27 @@ impl Engine {
 
     fn log(&self, msg: impl Into<String>) {
         let _ = self.app.emit("hmx-log", msg.into());
+    }
+
+    fn register_conn(&self, target: String, nic: String, proto: &'static str) -> ConnTableGuard {
+        let id = self.conn_id.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut map) = self.conns.lock() {
+            map.insert(id, ConnInfo { target, nic, proto });
+        }
+        ConnTableGuard { conns: self.conns.clone(), id }
+    }
+}
+
+/// 活跃连接表 RAII 守卫：drop 时移除该连接记录
+struct ConnTableGuard {
+    conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
+    id: u64,
+}
+impl Drop for ConnTableGuard {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.conns.lock() {
+            map.remove(&self.id);
+        }
     }
 }
 
@@ -214,6 +248,8 @@ pub async fn start(
         rr: AtomicUsize::new(0),
         strategy,
         wrr: Mutex::new(vec![0i64; nics.len()]),
+        conns: Arc::new(Mutex::new(HashMap::new())),
+        conn_id: AtomicU64::new(0),
         app: app.clone(),
     });
 
@@ -244,8 +280,9 @@ pub async fn start(
     {
         let app2 = app.clone();
         let c = cancel.clone();
+        let conns = engine.conns.clone();
         tauri::async_runtime::spawn(async move {
-            telemetry_loop(app2, nics, c).await;
+            telemetry_loop(app2, nics, conns, c).await;
         });
     }
 
@@ -297,6 +334,76 @@ pub async fn test_latency(selected: Vec<SelectedNic>) -> Vec<LatencyResult> {
         }
     }
     out
+}
+
+/// 单张网卡测速结果（MB/s）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeedResult {
+    pub index: u32,
+    pub name: String,
+    pub mbps: f64,
+    pub ok: bool,
+}
+
+const BENCH_HOST: &str = "speedtest.tele2.net";
+const BENCH_PATH: &str = "/100MB.zip";
+
+/// 逐张网卡跑分：经各网卡下载测速文件若干秒，测真实吞吐（MB/s）。
+/// 每张测完即通过 `hmx-speedtest` 事件回传，前端可渐进展示。
+pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_secs: u64) -> Vec<SpeedResult> {
+    let dur = std::time::Duration::from_secs(duration_secs.clamp(2, 15));
+    let mut out = Vec::with_capacity(selected.len());
+    for s in selected {
+        let r = match bench_one(&s, dur).await {
+            Some(mbps) => SpeedResult { index: s.index, name: s.name.clone(), mbps, ok: true },
+            None => SpeedResult { index: s.index, name: s.name.clone(), mbps: 0.0, ok: false },
+        };
+        let _ = app.emit("hmx-speedtest", r.clone());
+        out.push(r);
+    }
+    out
+}
+
+async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
+    let ip: Ipv4Addr = s.ip.parse().ok()?;
+    let nic = NicRuntime {
+        name: s.name.clone(),
+        ip,
+        if_index: s.index,
+        active: AtomicI64::new(0),
+        speed: AtomicU64::new(0),
+    };
+    let addr = tokio::time::timeout(std::time::Duration::from_secs(3), resolve_ipv4(BENCH_HOST, 80))
+        .await
+        .ok()?
+        .ok()?;
+    let mut stream =
+        tokio::time::timeout(std::time::Duration::from_secs(3), connect_via_nic(&nic, addr))
+            .await
+            .ok()?
+            .ok()?;
+    let req = format!(
+        "GET {BENCH_PATH} HTTP/1.1\r\nHost: {BENCH_HOST}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(req.as_bytes()).await.ok()?;
+
+    let start = std::time::Instant::now();
+    let mut buf = vec![0u8; 65536];
+    let mut total: u64 = 0;
+    loop {
+        let elapsed = start.elapsed();
+        if elapsed >= dur {
+            break;
+        }
+        match tokio::time::timeout(dur - elapsed, stream.read(&mut buf)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(n)) => total += n as u64,
+            _ => break,
+        }
+    }
+    let secs = start.elapsed().as_secs_f64().max(0.001);
+    Some((total as f64 / 1024.0 / 1024.0) / secs)
 }
 
 #[derive(Clone, Copy)]
@@ -499,6 +606,7 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         "[调度分配] 新连接 -> [{}] | 目标: {}:{}",
         nic.name, target_display, port
     ));
+    let _ctg = engine.register_conn(format!("{target_display}:{port}"), nic.name.clone(), "SOCKS");
 
     let mut upstream = match connect_via_nic(&nic, dst).await {
         Ok(s) => s,
@@ -614,6 +722,7 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         "[HTTP 调度分配] 新连接 -> [{}] | 目标: {}({}):{}",
         nic.name, dst_host, dst.ip(), dst_port
     ));
+    let _ctg = engine.register_conn(format!("{dst_host}:{dst_port}"), nic.name.clone(), "HTTP");
 
     let mut upstream = match connect_via_nic(&nic, dst).await {
         Ok(s) => s,
@@ -684,7 +793,12 @@ fn split_host_port(value: &str, default_port: u16) -> (String, u16) {
 
 // ============================== 遥测 ==============================
 
-async fn telemetry_loop(app: AppHandle, nics: Vec<Arc<NicRuntime>>, cancel: CancellationToken) {
+async fn telemetry_loop(
+    app: AppHandle,
+    nics: Vec<Arc<NicRuntime>>,
+    conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
+    cancel: CancellationToken,
+) {
     let mut last: Vec<(u64, u64)> = nics
         .iter()
         .map(|n| crate::telemetry::read_octets(n.if_index))
@@ -737,5 +851,12 @@ async fn telemetry_loop(app: AppHandle, nics: Vec<Arc<NicRuntime>>, cancel: Canc
             },
         };
         let _ = app.emit("hmx-telemetry", payload);
+
+        // 实时连接列表快照（最多 80 条，避免高并发刷爆 webview）
+        let snapshot: Vec<ConnInfo> = match conns.lock() {
+            Ok(map) => map.values().take(80).cloned().collect(),
+            Err(_) => Vec::new(),
+        };
+        let _ = app.emit("hmx-connections", snapshot);
     }
 }

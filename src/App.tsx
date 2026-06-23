@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
@@ -13,10 +15,13 @@ import { useSettings } from "./store";
 import {
   api,
   onBoostState,
+  onConnections,
   onLog,
+  onSpeedTest,
   onTelemetry,
   win,
   type AdapterInfo,
+  type ConnInfo,
   type LatencyResult,
   type NicTelemetry,
   type SelectedNic,
@@ -27,6 +32,7 @@ const HISTORY_LEN = 60;
 const LOG_CAP = 300;
 const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
+const HOTKEY = "CommandOrControl+Alt+H";
 
 function loadSelected(): Set<number> {
   try {
@@ -39,7 +45,8 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy } = useSettings();
+  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications } =
+    useSettings();
   const toast = useToast();
 
   const [view, setView] = useState<View>("dashboard");
@@ -60,7 +67,12 @@ function AppInner() {
   const [logs, setLogs] = useState<string[]>([]);
   const [latencies, setLatencies] = useState<Record<number, LatencyResult>>({});
   const [testing, setTesting] = useState(false);
+  const [speedResults, setSpeedResults] = useState<Record<number, { mbps: number; ok: boolean }>>({});
+  const [benchmarking, setBenchmarking] = useState(false);
+  const [connections, setConnections] = useState<ConnInfo[]>([]);
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
+
+  const onBoostRef = useRef<() => void>(() => {});
 
   const booted = useRef(false);
 
@@ -108,6 +120,10 @@ function AppInner() {
     }).then((u) => unlisteners.push(u));
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
+    onConnections((c) => setConnections(c)).then((u) => unlisteners.push(u));
+    onSpeedTest((r) =>
+      setSpeedResults((prev) => ({ ...prev, [r.index]: { mbps: r.mbps, ok: r.ok } })),
+    ).then((u) => unlisteners.push(u));
 
     return () => unlisteners.forEach((u) => u());
   }, [scan]);
@@ -140,6 +156,7 @@ function AppInner() {
       setHistory(new Array(HISTORY_LEN).fill(0));
       setPeak(0);
       setSessionMB(0);
+      setConnections([]);
       return;
     }
     const start = Date.now();
@@ -180,6 +197,38 @@ function AppInner() {
     }
   };
 
+  // 各网卡下载测速跑分
+  const onBench = async () => {
+    const valid: SelectedNic[] = adapters
+      .filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0")
+      .map((a) => ({ index: a.index, name: a.alias, ip: a.ipv4 }));
+    if (valid.length === 0) {
+      toast("warning", t("msgLatencyNoSel"));
+      return;
+    }
+    setBenchmarking(true);
+    setSpeedResults({});
+    try {
+      await api.speedTest(valid, 6);
+    } catch (e) {
+      toast("error", String(e));
+    } finally {
+      setBenchmarking(false);
+    }
+  };
+
+  // 系统通知
+  const notify = async (body: string) => {
+    if (!notifications) return;
+    try {
+      let granted = await isPermissionGranted();
+      if (!granted) granted = (await requestPermission()) === "granted";
+      if (granted) sendNotification({ title: t("notifyTitle"), body });
+    } catch {
+      /* ignore */
+    }
+  };
+
   const onBoost = async () => {
     if (busy) return;
     if (running) {
@@ -187,6 +236,7 @@ function AppInner() {
       try {
         await api.stopBoost();
         toast("info", t("msgBoostStopped"));
+        notify(t("msgBoostStopped"));
       } catch (e) {
         toast("error", String(e));
       } finally {
@@ -213,12 +263,37 @@ function AppInner() {
 
       await api.startBoost(chosen, socksPort, httpPort, strategy);
       toast("success", t("msgBoostStarted"));
+      notify(t("msgBoostStarted"));
     } catch (e) {
       toast("error", t("msgStartFailed", { err: String(e) }));
     } finally {
       setBusy(false);
     }
   };
+
+  onBoostRef.current = onBoost;
+
+  // 全局热键：在任意界面一键加速 / 停止
+  useEffect(() => {
+    if (!globalHotkey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await unregister(HOTKEY).catch(() => {});
+        if (cancelled) return;
+        await register(HOTKEY, (e) => {
+          if (!e || e.state === "Pressed") onBoostRef.current();
+        });
+      } catch (err) {
+        toast("error", t("msgHotkeyFailed", { err: String(err) }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unregister(HOTKEY).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalHotkey]);
 
   const canBoost = running || selected.size > 0;
   const totalConn = telemetry?.total.connections ?? 0;
@@ -265,6 +340,10 @@ function AppInner() {
                     latencies={latencies}
                     testing={testing}
                     onTest={onTest}
+                    speedResults={speedResults}
+                    benchmarking={benchmarking}
+                    onBench={onBench}
+                    connections={connections}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />

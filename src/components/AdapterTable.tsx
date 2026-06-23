@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Activity, Check, CheckSquare, Layers, Loader2, RefreshCw, Square } from "lucide-react";
+import { Activity, Check, CheckSquare, Gauge, Layers, Loader2, RefreshCw, Square } from "lucide-react";
 import { useSettings } from "../store";
 import type { AdapterInfo, LatencyResult, NicTelemetry } from "../lib/api";
 
@@ -16,6 +16,9 @@ interface Props {
   latencies: Record<number, LatencyResult>;
   testing: boolean;
   onTest: () => void;
+  speedResults: Record<number, { mbps: number; ok: boolean }>;
+  benchmarking: boolean;
+  onBench: () => void;
 }
 
 export function AdapterTable({
@@ -31,6 +34,9 @@ export function AdapterTable({
   latencies,
   testing,
   onTest,
+  speedResults,
+  benchmarking,
+  onBench,
 }: Props) {
   const { t } = useSettings();
 
@@ -52,9 +58,13 @@ export function AdapterTable({
         <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--surface-2)", color: "var(--text-1)" }}>
           {t("selectedCount", { n: selected.size })}
         </span>
-        <HeaderBtn onClick={onTest} disabled={testing}>
+        <HeaderBtn onClick={onTest} disabled={testing || benchmarking}>
           {testing ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}{" "}
           {testing ? t("latencyTesting") : t("latencyTest")}
+        </HeaderBtn>
+        <HeaderBtn onClick={onBench} disabled={benchmarking || testing || running}>
+          {benchmarking ? <Loader2 size={14} className="animate-spin" /> : <Gauge size={14} />}{" "}
+          {benchmarking ? t("speedTesting") : t("speedTest")}
         </HeaderBtn>
         <HeaderBtn onClick={selectAll} disabled={running}>
           <CheckSquare size={14} /> {t("selectAll")}
@@ -144,6 +154,19 @@ export function AdapterTable({
                       }}
                     >
                       {latencies[a.index].ok ? `${latencies[a.index].latencyMs} ms` : t("latencyTimeout")}
+                    </span>
+                  )}
+                  {speedResults[a.index] && (
+                    <span
+                      className="text-[10px] mono px-1.5 py-0.5 rounded w-fit"
+                      style={{
+                        background: speedResults[a.index].ok ? "rgba(59,130,246,0.14)" : "rgba(240,97,109,0.13)",
+                        color: speedResults[a.index].ok ? "var(--accent-soft)" : "var(--danger)",
+                      }}
+                    >
+                      {speedResults[a.index].ok
+                        ? `↓ ${speedResults[a.index].mbps.toFixed(1)} MB/s`
+                        : t("latencyTimeout")}
                     </span>
                   )}
                 </div>

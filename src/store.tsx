@@ -15,6 +15,8 @@ interface Settings {
   launchMinimized: boolean;
   autoBoost: boolean;
   strategy: SchedStrategy;
+  globalHotkey: boolean;
+  notifications: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -27,6 +29,8 @@ const DEFAULTS: Settings = {
   launchMinimized: false,
   autoBoost: false,
   strategy: "rr",
+  globalHotkey: false,
+  notifications: false,
 };
 
 const STORAGE_KEY = "hmx-plus-settings";
