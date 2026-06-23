@@ -179,8 +179,10 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
   // 不规律地推进目标：曲线左移一格 + 新样本，速度随机游走，权重抖动
   function mutate() {
-    const jump = Math.random() < 0.16 ? 1.5 : 0.6;
-    tTotal += (Math.random() - 0.5) * 95 * jump;
+    // 均值回归随机游走：向中心 180 拉回 + 随机扰动，避免长时间贴边
+    const CENTER = 180;
+    const kick = Math.random() < 0.15 ? 95 : 48; // 偶尔大幅跳动
+    tTotal += (CENTER - tTotal) * 0.2 + (Math.random() - 0.5) * 2 * kick;
     tTotal = Math.min(MAX, Math.max(MIN, tTotal));
     target.shift();
     target.push(tTotal + (Math.random() - 0.5) * 40);
