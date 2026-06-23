@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/* ============================================================
+   HypoMux Plus 设计系统
+   深色为主、可切换浅色的现代玻璃拟态风格，主色微光蓝 #0078d4
+   ============================================================ */
+
+:root {
+  --accent: #0078d4;
+  --accent-soft: #2b9fff;
+  --accent-glow: rgba(0, 120, 212, 0.45);
+
+  /* 深色主题（默认） */
+  --bg-0: #070b14;
+  --bg-1: #0c111d;
+  --bg-grad-a: #0b1322;
+  --bg-grad-b: #060912;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-strong: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text-0: #eaf1fb;
+  --text-1: #aab6c8;
+  --text-2: #6b7888;
+  --ok: #2bd576;
+  --warn: #ffb02e;
+  --danger: #ff5d5d;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] {
+  --bg-0: #eef3fb;
+  --bg-1: #ffffff;
+  --bg-grad-a: #e7eefb;
+  --bg-grad-b: #f4f7fd;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-hover: rgba(0, 120, 212, 0.06);
+  --border: rgba(15, 35, 70, 0.1);
+  --border-strong: rgba(15, 35, 70, 0.18);
+  --text-0: #15202e;
+  --text-1: #44566b;
+  --text-2: #8593a4;
+  --ok: #14a85a;
+  --warn: #d98300;
+  --danger: #e23b3b;
+  --shadow: 0 18px 50px rgba(40, 70, 120, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, -apple-system,
+    sans-serif;
+  color: var(--text-0);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  background: radial-gradient(1200px 700px at 80% -10%, var(--bg-grad-a), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, var(--bg-grad-b), transparent 55%),
+    linear-gradient(160deg, var(--bg-0), var(--bg-1));
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 玻璃卡片 */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* 文本选区 */
+::selection {
+  background: var(--accent-glow);
+  color: #fff;
+}
+
+/* 加速按钮的脉冲呼吸光环 */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(0, 120, 212, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 120, 212, 0);
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+/* 数字大屏发光 */
+.glow-text {
+  text-shadow: 0 0 22px var(--accent-glow);
+}
+
+/* 运行态流动渐变描边 */
+@keyframes flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+.flow-border {
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft), var(--accent));
+  background-size: 200% 100%;
+  animation: flow 3s linear infinite;
+}
+
+/* 隐藏 focus 轮廓但保留可访问性 */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

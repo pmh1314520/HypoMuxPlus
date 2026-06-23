@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "HypoMux Plus",
+  "version": "1.0.0",
+  "identifier": "com.qingyun.hypomuxplus",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "HypoMux Plus",
+        "width": 1200,
+        "height": 780,
+        "minWidth": 1040,
+        "minHeight": 680,
+        "decorations": false,
+        "transparent": false,
+        "resizable": true,
+        "center": true,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "青云制作_彭明航",
+    "copyright": "© 2026 青云制作_彭明航. 衍生自 Hypostasis-Cat / HypoMux (AGPL-3.0).",
+    "category": "Utility",
+    "shortDescription": "现代化多网卡带宽聚合下载加速器",
+    "longDescription": "HypoMux Plus 是一款 Windows 多网卡带宽并发聚合下载加速工具，通过 L3 物理层套接字绑定与双协议本地代理引擎，将下载连接分散到多张活动网卡实现带宽叠加。",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
