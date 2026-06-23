@@ -1,23 +1,38 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, GitBranch, Heart, ScrollText, User } from "lucide-react";
+import { motion } from "framer-motion";
+import { Coffee, ExternalLink, GitBranch, Heart, ScrollText, User } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
+import wechatQr from "../assets/sponsor-wechat.png";
+import alipayQr from "../assets/sponsor-alipay.jpg";
 
 const REPO = "https://github.com/Hypostasis-Cat/HypoMux";
 const TECH = ["Tauri 2", "Rust", "tokio", "React 19", "TypeScript", "TailwindCSS"];
+
+const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
+const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export function AboutPage() {
   const { t } = useSettings();
 
   return (
     <div className="h-full overflow-y-auto px-1 pb-8">
-      <div className="max-w-[820px] mx-auto flex flex-col gap-5">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="max-w-[840px] mx-auto flex flex-col gap-5"
+      >
         {/* 品牌头 */}
-        <div className="panel p-7 flex items-center gap-5">
-          <Logo size={64} />
-          <div>
+        <motion.div variants={item} className="panel relative overflow-hidden p-7 flex items-center gap-5">
+          <div
+            className="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle, var(--accent-glow), transparent 70%)" }}
+          />
+          <Logo size={66} />
+          <div className="relative">
             <div className="flex items-center gap-2.5">
-              <h2 className="text-[22px] font-bold tracking-tight">
+              <h2 className="text-[23px] font-bold tracking-tight">
                 HypoMux <span style={{ color: "var(--accent-soft)" }}>Plus</span>
               </h2>
               <span
@@ -31,10 +46,10 @@ export function AboutPage() {
               {t("aboutTagline")}
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* 描述 + 技术栈 */}
-        <div className="panel p-6">
+        <motion.div variants={item} className="panel p-6">
           <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--text-1)" }}>
             {t("aboutDesc")}
           </p>
@@ -50,16 +65,35 @@ export function AboutPage() {
               </span>
             ))}
           </div>
-        </div>
+        </motion.div>
+
+        {/* 赞助支持 */}
+        <motion.div
+          variants={item}
+          className="panel relative overflow-hidden p-6"
+          style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.06), transparent 60%)" }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Coffee size={16} style={{ color: "var(--warn)" }} />
+            <h3 className="font-semibold text-[14px]">{t("aboutSponsor")}</h3>
+          </div>
+          <p className="text-[12.5px] leading-relaxed mb-5 max-w-[640px]" style={{ color: "var(--text-1)" }}>
+            {t("aboutSponsorDesc")}
+          </p>
+          <div className="grid grid-cols-2 gap-4 max-w-[440px]">
+            <QrCard src={wechatQr} label={t("sponsorWechat")} color="#07c160" />
+            <QrCard src={alipayQr} label={t("sponsorAlipay")} color="#1677ff" />
+          </div>
+        </motion.div>
 
         {/* 信息卡 */}
-        <div className="grid grid-cols-2 gap-4">
+        <motion.div variants={item} className="grid grid-cols-2 gap-4">
           <InfoCard icon={<User size={15} />} label={t("aboutAuthor")} value="青云制作_彭明航" />
           <InfoCard icon={<ScrollText size={15} />} label={t("aboutLicense")} value="AGPL-3.0" />
-        </div>
+        </motion.div>
 
         {/* 原项目 */}
-        <div className="panel p-6">
+        <motion.div variants={item} className="panel p-6">
           <div className="flex items-center gap-2 mb-3">
             <GitBranch size={16} style={{ color: "var(--accent-soft)" }} />
             <h3 className="font-semibold text-[14px]">{t("aboutOriginal")}</h3>
@@ -72,10 +106,10 @@ export function AboutPage() {
             {REPO}
             <ExternalLink size={13} />
           </button>
-        </div>
+        </motion.div>
 
         {/* 致谢 */}
-        <div className="panel p-6">
+        <motion.div variants={item} className="panel p-6">
           <div className="flex items-center gap-2 mb-3">
             <Heart size={16} style={{ color: "var(--danger)" }} />
             <h3 className="font-semibold text-[14px]">{t("aboutThanks")}</h3>
@@ -83,8 +117,25 @@ export function AboutPage() {
           <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-1)" }}>
             {t("aboutThanksDesc")}
           </p>
-        </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
+function QrCard({ src, label, color }: { src: string; label: string; color: string }) {
+  return (
+    <div
+      className="flex flex-col items-center gap-2.5 p-3 rounded-xl"
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+    >
+      <div className="rounded-lg overflow-hidden bg-white p-1.5" style={{ width: "100%" }}>
+        <img src={src} alt={label} className="w-full block rounded-md" style={{ aspectRatio: "1 / 1", objectFit: "cover" }} />
       </div>
+      <span className="flex items-center gap-1.5 text-[12.5px] font-semibold">
+        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+        {label}
+      </span>
     </div>
   );
 }

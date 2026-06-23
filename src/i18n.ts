@@ -156,6 +156,11 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutThanks: "致谢",
     aboutThanksDesc:
       "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目在其基础上以 Tauri + Rust + React 重写了全部桌面客户端实现。",
+    aboutSponsor: "赞助支持",
+    aboutSponsorDesc:
+      "HypoMux Plus 完全免费开源。如果它帮你省下了带宽与时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时欢迎备注您的昵称。",
+    sponsorWechat: "微信赞赏",
+    sponsorAlipay: "支付宝",
   },
 
   en: {
@@ -304,6 +309,11 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutThanks: "Acknowledgments",
     aboutThanksDesc:
       "The core multi-NIC physical binding approach and protocol design originate from the original HypoMux project. This project rewrites the entire desktop client with Tauri + Rust + React on top of it.",
+    aboutSponsor: "Support the Project",
+    aboutSponsorDesc:
+      "HypoMux Plus is completely free and open source. If it saved you bandwidth and time, feel free to buy the author a coffee — donations are entirely voluntary, and all features stay free forever regardless. Feel free to leave your nickname.",
+    sponsorWechat: "WeChat",
+    sponsorAlipay: "Alipay",
   },
 };
 

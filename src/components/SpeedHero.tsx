@@ -65,6 +65,17 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
             <div className="flex items-center gap-2 text-[12px] tracking-wide uppercase" style={{ color: "var(--text-2)" }}>
               <ArrowDownToLine size={14} style={{ color: "var(--cyan)" }} />
               {t("combinedDown")}
+              {running && (
+                <span
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded ml-1"
+                  style={{ background: "rgba(62,207,142,0.12)", border: "1px solid rgba(62,207,142,0.25)" }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--ok)" }} />
+                  <span className="text-[9px] font-bold tracking-[0.1em]" style={{ color: "var(--ok)" }}>
+                    LIVE
+                  </span>
+                </span>
+              )}
             </div>
             <div className="flex items-end gap-2 mt-1">
               <AnimatedNumber

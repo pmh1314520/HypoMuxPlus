@@ -90,6 +90,7 @@ export function AdapterTable({
                   gridTemplateColumns: "44px 1fr 140px 110px 70px",
                   background: checked ? "var(--surface-hover)" : "transparent",
                   border: checked ? "1px solid var(--border-strong)" : "1px solid transparent",
+                  boxShadow: checked ? "inset 3px 0 0 var(--accent)" : "none",
                   cursor: hasIp && !running ? "pointer" : "not-allowed",
                   opacity: hasIp ? 1 : 0.5,
                 }}

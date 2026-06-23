@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { SpeedHero } from "./SpeedHero";
 import { AdapterTable } from "./AdapterTable";
 import { Console } from "./Console";
@@ -29,20 +30,25 @@ interface Props {
 }
 
 export function Dashboard(props: Props) {
+  const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
+  const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } };
+
   return (
-    <div className="h-full flex flex-col gap-4">
-      <SpeedHero
-        telemetry={props.telemetry}
-        history={props.history}
-        peak={props.peak}
-        uptime={props.uptime}
-        sessionMB={props.sessionMB}
-        running={props.running}
-        busy={props.busy}
-        canBoost={props.canBoost}
-        onBoost={props.onBoost}
-      />
-      <div className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: "1.45fr 1fr" }}>
+    <motion.div variants={container} initial="hidden" animate="show" className="h-full flex flex-col gap-4">
+      <motion.div variants={item}>
+        <SpeedHero
+          telemetry={props.telemetry}
+          history={props.history}
+          peak={props.peak}
+          uptime={props.uptime}
+          sessionMB={props.sessionMB}
+          running={props.running}
+          busy={props.busy}
+          canBoost={props.canBoost}
+          onBoost={props.onBoost}
+        />
+      </motion.div>
+      <motion.div variants={item} className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: "1.45fr 1fr" }}>
         <AdapterTable
           adapters={props.adapters}
           selected={props.selected}
@@ -58,7 +64,7 @@ export function Dashboard(props: Props) {
           <LinkDistribution perNic={props.perNic} running={props.running} />
           <Console logs={props.logs} clear={props.clearLogs} />
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
