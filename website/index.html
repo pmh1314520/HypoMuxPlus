@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HypoMuxPlus · 多网卡带宽聚合下载加速器</title>
     <meta name="description" content="HypoMuxPlus —— 现代化多网卡带宽聚合下载加速客户端，基于 Tauri + Rust + React 构建，仅支持 Windows。" />
+    <meta name="theme-color" content="#0a0e18" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -69,6 +72,7 @@
           <a href="#features" data-zh="核心特性" data-en="Features">核心特性</a>
           <a href="#how" data-zh="工作原理" data-en="How It Works">工作原理</a>
           <a href="#tech" data-zh="技术栈" data-en="Tech Stack">技术栈</a>
+          <a href="#faq" data-zh="常见问题" data-en="FAQ">常见问题</a>
           <a href="#sponsor" data-zh="赞助" data-en="Support">赞助</a>
           <a href="#download" data-zh="下载" data-en="Download">下载</a>
         </div>
@@ -227,6 +231,27 @@
       </div>
     </section>
 
+    <!-- 支持的应用 -->
+    <section id="apps" class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Compatibility</span>
+        <h2 data-zh="广泛兼容主流下载场景" data-en="Works with what you download">广泛兼容主流下载场景</h2>
+        <p data-zh="任何遵循系统代理、且采用多线程并发下载的客户端，都能接入多网卡聚合。" data-en="Any client that honors the system proxy and downloads with multiple connections benefits from aggregation.">任何遵循系统代理、且采用多线程并发下载的客户端，都能接入多网卡聚合。</p>
+      </div>
+      <div class="apps-grid reveal">
+        <span class="app">Steam</span>
+        <span class="app">IDM</span>
+        <span class="app">Epic Games</span>
+        <span class="app">EA App</span>
+        <span class="app">Xbox</span>
+        <span class="app">Chrome</span>
+        <span class="app">Edge</span>
+        <span class="app">Firefox</span>
+        <span class="app" data-zh="迅雷" data-en="Thunder">迅雷</span>
+        <span class="app" data-zh="百度网盘" data-en="Baidu Netdisk">百度网盘</span>
+      </div>
+    </section>
+
     <!-- 技术栈 -->
     <section id="tech" class="container">
       <div class="sec-head reveal">
@@ -236,6 +261,36 @@
       <div class="tech reveal">
         <span>Tauri 2</span><span>Rust</span><span>tokio</span><span>socket2</span>
         <span>React 19</span><span>TypeScript</span><span>TailwindCSS</span><span>Vite</span>
+      </div>
+    </section>
+
+    <!-- 常见问题 -->
+    <section id="faq" class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">FAQ</span>
+        <h2 data-zh="常见问题" data-en="Frequently Asked">常见问题</h2>
+      </div>
+      <div class="faq reveal">
+        <div class="faq-item">
+          <button class="faq-q"><span data-zh="为什么需要多张网卡？" data-en="Why do I need multiple adapters?">为什么需要多张网卡？</span><svg class="faq-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-a"><p data-zh="多网卡聚合的本质是多连接负载均衡：把多线程下载的连接分散到不同的物理网卡上同时传输，从而叠加各条线路的带宽。线路越多、越独立，效果越明显。" data-en="Aggregation is connection-level load balancing: it spreads a multi-threaded download's connections across different physical NICs to stack their bandwidth. More independent links means stronger results.">多网卡聚合的本质是多连接负载均衡：把多线程下载的连接分散到不同的物理网卡上同时传输，从而叠加各条线路的带宽。线路越多、越独立，效果越明显。</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q"><span data-zh="单线程下载能加速吗？" data-en="Can it speed up single-threaded downloads?">单线程下载能加速吗？</span><svg class="faq-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-a"><p data-zh="不能。单线程、被源头限速的下载受限于服务器本身，任何多网卡聚合工具都无法对其加速。" data-en="No. A single-threaded, source-rate-capped download is limited by the server itself; no multi-NIC tool can accelerate it.">不能。单线程、被源头限速的下载受限于服务器本身，任何多网卡聚合工具都无法对其加速。</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q"><span data-zh="会被游戏反作弊封禁吗？" data-en="Will it trigger game anti-cheat?">会被游戏反作弊封禁吗？</span><svg class="faq-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-a"><p data-zh="不会。程序工作在标准应用层代理与套接字绑定层，不触碰游戏内存、不修改任何封包、不注入 DLL 驱动。" data-en="No. It operates purely at the application-layer proxy and socket-binding level — it never touches game memory, modifies packets, or injects DLLs.">不会。程序工作在标准应用层代理与套接字绑定层，不触碰游戏内存、不修改任何封包、不注入 DLL 驱动。</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q"><span data-zh="需要管理员权限吗？" data-en="Does it need admin rights?">需要管理员权限吗？</span><svg class="faq-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-a"><p data-zh="核心多网卡分流无需管理员权限即可使用；死网关检测等稳定性增强功能需要管理员，未提权时也不影响核心加速。" data-en="Core splitting works without admin rights; stability features like dead-gateway detection require admin, but the lack of elevation does not affect core acceleration.">核心多网卡分流无需管理员权限即可使用；死网关检测等稳定性增强功能需要管理员，未提权时也不影响核心加速。</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q"><span data-zh="支持最小化到系统托盘吗？" data-en="Does it minimize to the system tray?">支持最小化到系统托盘吗？</span><svg class="faq-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-a"><p data-zh="支持。设置 → 关闭按钮行为可选「最小化到系统托盘」，并提供开机自启、启动即最小化到托盘、开机后自动加速等自动化选项。" data-en="Yes. In Settings → Close Button Behavior choose 'Minimize to system tray'. It also offers launch-at-startup, start-minimized-to-tray and auto-boost-on-launch.">支持。设置 → 关闭按钮行为可选「最小化到系统托盘」，并提供开机自启、启动即最小化到托盘、开机后自动加速等自动化选项。</p></div>
+        </div>
       </div>
     </section>
 
@@ -300,6 +355,15 @@
         </div>
       </div>
     </footer>
+
+    <!-- 二维码全屏放大 -->
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+      <button class="lightbox-close" id="lightboxClose" aria-label="close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+      </button>
+      <img id="lightboxImg" src="" alt="QR" />
+      <div class="lightbox-cap" id="lightboxCap"></div>
+    </div>
 
     <script src="script.js"></script>
   </body>

@@ -454,7 +454,6 @@ nav.scrolled {
 .bar .fill {
   height: 100%;
   border-radius: 6px;
-  transition: width 0.9s var(--ease);
 }
 
 /* ---------- 区块 ---------- */
@@ -934,9 +933,13 @@ footer {
 .qr .img img {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
+  height: auto;
   border-radius: 8px;
+  cursor: zoom-in;
+  transition: transform 0.25s var(--ease);
+}
+.qr .img:hover img {
+  transform: scale(1.03);
 }
 .qr .name {
   margin-top: 14px;
@@ -958,8 +961,222 @@ footer {
   font-size: 13.5px;
   margin-top: 26px;
 }
+
+/* 二维码全屏放大灯箱 */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 7, 14, 0.86);
+  backdrop-filter: blur(12px);
+  padding: 24px;
+}
+.lightbox.open {
+  display: flex;
+  animation: lbFade 0.25s var(--ease);
+}
+.lightbox img {
+  max-width: min(440px, 92vw);
+  max-height: 86vh;
+  width: auto;
+  height: auto;
+  border-radius: 16px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.85);
+  animation: lbZoom 0.3s var(--ease);
+}
+.lightbox-cap {
+  position: absolute;
+  bottom: 34px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 600;
+}
+.lightbox-close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-0);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.lightbox-close:hover {
+  background: var(--surface-hover);
+}
+@keyframes lbFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lbZoom {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
 @media (max-width: 900px) {
   .sponsor-wrap {
     max-width: 380px;
+  }
+}
+
+/* ============================================================
+   支持的应用
+   ============================================================ */
+.apps-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.app {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 13px 22px;
+  border-radius: 14px;
+  transition: all 0.25s var(--ease);
+}
+.app::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  box-shadow: 0 0 8px var(--accent);
+}
+.app:hover {
+  color: var(--text-0);
+  border-color: var(--border-strong);
+  transform: translateY(-3px);
+}
+
+/* ============================================================
+   常见问题 FAQ（自研手风琴，平滑展开）
+   ============================================================ */
+.faq {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.faq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.25s;
+}
+.faq-item.open {
+  border-color: var(--border-strong);
+}
+.faq-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text-0);
+  text-align: left;
+}
+.faq-ic {
+  flex-shrink: 0;
+  color: var(--text-2);
+  transition: transform 0.3s var(--ease);
+}
+.faq-item.open .faq-ic {
+  transform: rotate(180deg);
+  color: var(--accent-soft);
+}
+.faq-a {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s var(--ease);
+}
+.faq-a p {
+  padding: 0 22px 20px;
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+@media (max-width: 640px) {
+  .app {
+    font-size: 13.5px;
+    padding: 11px 17px;
+  }
+  .faq-q {
+    font-size: 14.5px;
+    padding: 16px 18px;
+  }
+  .faq-a p {
+    padding: 0 18px 18px;
+    font-size: 13.5px;
+  }
+}
+
+/* 触摸体验 */
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 小屏手机：精简导航，避免溢出 */
+@media (max-width: 520px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .brand {
+    font-size: 15px;
+    gap: 9px;
+  }
+  .nav-right {
+    gap: 7px;
+  }
+  .nav-right .btn-primary.btn-sm {
+    padding: 9px 12px;
+  }
+  .nav-right .btn-primary.btn-sm span {
+    display: none;
+  }
+  .lang-toggle {
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .hero-meta {
+    gap: 16px;
+  }
+  .hero-meta .num {
+    font-size: 22px;
   }
 }

@@ -70,7 +70,41 @@ const io = new IntersectionObserver(
 );
 document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
-/* ---------- Hero 实时演示动画（随机游走，非循环） ---------- */
+/* ---------- 二维码全屏放大灯箱 ---------- */
+(function () {
+  const lb = document.getElementById("lightbox");
+  const lbImg = document.getElementById("lightboxImg");
+  const lbCap = document.getElementById("lightboxCap");
+  const lbClose = document.getElementById("lightboxClose");
+  if (!lb) return;
+
+  function open(src, cap) {
+    lbImg.src = src;
+    lbCap.textContent = cap || "";
+    lb.classList.add("open");
+    lb.setAttribute("aria-hidden", "false");
+  }
+  function close() {
+    lb.classList.remove("open");
+    lb.setAttribute("aria-hidden", "true");
+  }
+
+  document.querySelectorAll(".qr").forEach((qr) => {
+    const img = qr.querySelector("img");
+    const nameEl = qr.querySelector(".name span");
+    img?.addEventListener("click", () => open(img.src, nameEl ? nameEl.textContent : ""));
+  });
+
+  lbClose?.addEventListener("click", close);
+  lb.addEventListener("click", (e) => {
+    if (e.target === lb) close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+})();
+
+/* ---------- Hero 实时演示动画（60fps 逐帧缓动，极致丝滑） ---------- */
 (function () {
   const numEl = document.getElementById("shotNum");
   const areaEl = document.getElementById("sparkArea");
@@ -81,85 +115,131 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
   }));
   if (!numEl || !lineEl) return;
 
-  const MIN = 100;
-  const MAX = 500;
-  const N = 28;
-  const W = 320;
-  const TOP = 8;
-  const BOT = 58;
+  const MIN = 100,
+    MAX = 500,
+    N = 30,
+    W = 320,
+    TOP = 8,
+    BOT = 58;
 
-  // 初始用一段随机游走填满曲线
-  let total = 240 + Math.random() * 120;
-  const series = [];
-  let seed = total;
+  // 目标值（随机游走，不规律变化）与显示值（每帧缓动逼近）
+  let tTotal = 240 + Math.random() * 140;
+  let dTotal = tTotal;
+  const target = [];
+  const disp = [];
+  let seed = tTotal;
   for (let i = 0; i < N; i++) {
-    seed += (Math.random() - 0.5) * 90;
+    seed += (Math.random() - 0.5) * 80;
     seed = Math.min(MAX, Math.max(MIN, seed));
-    series.push(seed);
+    target.push(seed);
+    disp.push(seed);
   }
-  total = series[N - 1];
+  let tW = [0.36, 0.34, 0.3];
+  let dW = tW.slice();
 
-  // 三网卡基础权重（每次抖动，制造自然的此消彼长）
-  let weights = [0.36, 0.34, 0.3];
+  const yOf = (v) => BOT - ((v - MIN) / (MAX - MIN)) * (BOT - TOP);
 
-  function y(v) {
-    const f = (v - MIN) / (MAX - MIN);
-    return BOT - f * (BOT - TOP);
-  }
-  function draw() {
+  // Catmull-Rom → 三次贝塞尔，平滑曲线
+  function smoothPath(ys) {
     const step = W / (N - 1);
-    let line = "";
-    for (let i = 0; i < N; i++) {
-      line += (i ? "L" : "M") + (i * step).toFixed(1) + "," + y(series[i]).toFixed(1) + " ";
+    const p = ys.map((y, i) => [i * step, yOf(y)]);
+    let d = `M${p[0][0].toFixed(2)},${p[0][1].toFixed(2)}`;
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i],
+        p1 = p[i],
+        p2 = p[i + 1],
+        p3 = p[i + 2] || p2;
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6,
+        c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6,
+        c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += `C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
     }
-    lineEl.setAttribute("d", line.trim());
-    areaEl.setAttribute("d", line.trim() + " L" + W + ",60 L0,60 Z");
+    return d;
   }
 
-  function animateNumber(from, to, dur) {
-    const t0 = performance.now();
-    function frame(now) {
-      const p = Math.min(1, (now - t0) / dur);
-      const e = 1 - Math.pow(1 - p, 3); // easeOutCubic
-      numEl.textContent = (from + (to - from) * e).toFixed(1);
-      if (p < 1) requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  }
+  let raf = 0;
+  function render() {
+    dTotal += (tTotal - dTotal) * 0.075;
+    for (let i = 0; i < N; i++) disp[i] += (target[i] - disp[i]) * 0.12;
+    for (let i = 0; i < 3; i++) dW[i] += (tW[i] - dW[i]) * 0.08;
 
-  function updateBars() {
-    // 权重随机抖动后归一化
-    let w = weights.map((x) => Math.max(0.12, x + (Math.random() - 0.5) * 0.28));
-    const sum = w[0] + w[1] + w[2];
-    w = w.map((x) => x / sum);
-    weights = w;
+    const line = smoothPath(disp);
+    lineEl.setAttribute("d", line);
+    areaEl.setAttribute("d", `${line} L${W},60 L0,60 Z`);
+    numEl.textContent = dTotal.toFixed(1);
     bars.forEach((b, i) => {
-      if (!b.fill) return;
-      const v = total * w[i];
-      b.fill.style.width = (w[i] * 100).toFixed(1) + "%";
-      if (b.val) b.val.textContent = v.toFixed(1) + " MB/s";
+      if (b.fill) b.fill.style.width = (dW[i] * 100).toFixed(2) + "%";
+      if (b.val) b.val.textContent = (dTotal * dW[i]).toFixed(1) + " MB/s";
     });
+    raf = requestAnimationFrame(render);
   }
 
-  function tick() {
-    const prev = total;
-    // 随机游走：步长与方向都随机，偶尔大跳，营造"无规律"的真实感
-    const jump = Math.random() < 0.18 ? 1 : 0.4;
-    total += (Math.random() - 0.5) * 170 * jump;
-    total = Math.min(MAX, Math.max(MIN, total));
-    series.push(total);
-    series.shift();
-    draw();
-    animateNumber(parseFloat(numEl.textContent) || prev, total, 700);
-    updateBars();
-    // 不规则刷新间隔
-    setTimeout(tick, 820 + Math.random() * 900);
+  // 不规律地推进目标：曲线左移一格 + 新样本，速度随机游走，权重抖动
+  function mutate() {
+    const jump = Math.random() < 0.16 ? 1.6 : 0.6;
+    tTotal += (Math.random() - 0.5) * 150 * jump;
+    tTotal = Math.min(MAX, Math.max(MIN, tTotal));
+    target.shift();
+    target.push(tTotal + (Math.random() - 0.5) * 40);
+    target[N - 1] = Math.min(MAX, Math.max(MIN, target[N - 1]));
+
+    let w = tW.map((x) => Math.max(0.14, x + (Math.random() - 0.5) * 0.26));
+    const s = w[0] + w[1] + w[2];
+    tW = w.map((x) => x / s);
+
+    timer = setTimeout(mutate, 620 + Math.random() * 760);
   }
 
-  draw();
-  updateBars();
-  numEl.textContent = total.toFixed(1);
+  let timer = 0;
+  function start() {
+    if (!raf) raf = requestAnimationFrame(render);
+    if (!timer) timer = setTimeout(mutate, 600);
+  }
+  function stop() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    clearTimeout(timer);
+    timer = 0;
+  }
 
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduce) setTimeout(tick, 900);
+  if (reduce) {
+    // 静态快照
+    lineEl.setAttribute("d", smoothPath(disp));
+    areaEl.setAttribute("d", `${smoothPath(disp)} L${W},60 L0,60 Z`);
+    numEl.textContent = dTotal.toFixed(1);
+    bars.forEach((b, i) => {
+      if (b.fill) b.fill.style.width = (dW[i] * 100).toFixed(2) + "%";
+      if (b.val) b.val.textContent = (dTotal * dW[i]).toFixed(1) + " MB/s";
+    });
+    return;
+  }
+
+  // 标签页不可见时暂停，省电且回到时不跳变
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+  start();
+})();
+
+
+/* ---------- FAQ 手风琴 ---------- */
+(function () {
+  const items = document.querySelectorAll(".faq-item");
+  const setH = (item) => {
+    const a = item.querySelector(".faq-a");
+    if (item.classList.contains("open")) a.style.maxHeight = a.scrollHeight + "px";
+  };
+  items.forEach((item) => {
+    const q = item.querySelector(".faq-q");
+    const a = item.querySelector(".faq-a");
+    q?.addEventListener("click", () => {
+      const open = item.classList.toggle("open");
+      a.style.maxHeight = open ? a.scrollHeight + "px" : null;
+    });
+  });
+  // 视口变化 / 语言切换后重算已展开项高度
+  window.addEventListener("resize", () => items.forEach(setH));
+  document
+    .getElementById("langBtn")
+    ?.addEventListener("click", () => setTimeout(() => items.forEach(setH), 0));
 })();
