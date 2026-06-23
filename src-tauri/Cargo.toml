@@ -1,7 +1,7 @@
 [package]
 name = "hypomuxplus"
 version = "1.0.0"
-description = "HypoMux Plus - 现代化多网卡带宽聚合下载加速客户端"
+description = "HypoMuxPlus - 现代化多网卡带宽聚合下载加速客户端"
 authors = ["青云制作_彭明航"]
 edition = "2021"
 

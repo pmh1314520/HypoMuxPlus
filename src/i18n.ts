@@ -1,11 +1,11 @@
-// HypoMux Plus 国际化字典（简体中文 / English）
+// HypoMuxPlus 国际化字典（简体中文 / English）
 // 所有界面文本统一从此处取，确保中英文套件完整对应。
 
 export type Lang = "zh" | "en";
 
 export const DICT: Record<Lang, Record<string, string>> = {
   zh: {
-    appName: "HypoMux Plus",
+    appName: "HypoMuxPlus",
     appSubtitle: "多网卡带宽聚合 · 双协议分流加速引擎",
     navSection: "导航",
     topDashDesc: "多网卡分流调度与实时吞吐监控",
@@ -92,7 +92,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     closeToExit: "直接退出程序",
     settingsAutomation: "自动化",
     settingAutostart: "开机自启动",
-    settingAutostartHint: "随 Windows 启动自动运行 HypoMux Plus",
+    settingAutostartHint: "随 Windows 启动自动运行 HypoMuxPlus",
     settingLaunchMin: "启动时最小化到托盘",
     settingAutoBoost: "启动后自动加速",
     settingAutoBoostHint: "程序启动后自动用上次选择的网卡开始加速",
@@ -123,8 +123,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutDerived: "衍生自原项目",
     aboutLicense: "开源协议",
     aboutOriginal: "原项目",
+    aboutRepo: "项目仓库",
+    aboutDownload: "下载",
     aboutDesc:
-      "HypoMux Plus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的现代化桌面客户端，采用 Tauri + React + Rust 重构，遵循 AGPL-3.0 协议开源。",
+      "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的现代化桌面客户端，采用 Tauri + React + Rust 重构，遵循 AGPL-3.0 协议开源。",
 
     // 工作原理小卡
     howTitle: "工作原理",
@@ -158,13 +160,13 @@ export const DICT: Record<Lang, Record<string, string>> = {
       "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目在其基础上以 Tauri + Rust + React 重写了全部桌面客户端实现。",
     aboutSponsor: "赞助支持",
     aboutSponsorDesc:
-      "HypoMux Plus 完全免费开源。如果它帮你省下了带宽与时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时欢迎备注您的昵称。",
+      "HypoMuxPlus 完全免费开源。如果它帮你省下了带宽与时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时欢迎备注您的昵称。",
     sponsorWechat: "微信赞赏",
     sponsorAlipay: "支付宝",
   },
 
   en: {
-    appName: "HypoMux Plus",
+    appName: "HypoMuxPlus",
     appSubtitle: "Multi-NIC Bandwidth Aggregation · Dual-Protocol Splitting Engine",
     navSection: "Navigation",
     topDashDesc: "Multi-NIC dispatch & real-time throughput monitoring",
@@ -245,7 +247,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     closeToExit: "Exit the program",
     settingsAutomation: "Automation",
     settingAutostart: "Launch at startup",
-    settingAutostartHint: "Run HypoMux Plus automatically when Windows starts",
+    settingAutostartHint: "Run HypoMuxPlus automatically when Windows starts",
     settingLaunchMin: "Start minimized to tray",
     settingAutoBoost: "Auto-boost on launch",
     settingAutoBoostHint: "Automatically boost with the last selected adapters on launch",
@@ -277,8 +279,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutDerived: "Derived from",
     aboutLicense: "License",
     aboutOriginal: "Original Project",
+    aboutRepo: "Repositories",
+    aboutDownload: "Download",
     aboutDesc:
-      "HypoMux Plus is a modernized desktop client based on the open-source HypoMux by Hypostasis-Cat, rebuilt with Tauri + React + Rust and released under AGPL-3.0.",
+      "HypoMuxPlus is a modernized desktop client based on the open-source HypoMux by Hypostasis-Cat, rebuilt with Tauri + React + Rust and released under AGPL-3.0.",
 
     howTitle: "How It Works",
     howDesc:
@@ -311,7 +315,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
       "The core multi-NIC physical binding approach and protocol design originate from the original HypoMux project. This project rewrites the entire desktop client with Tauri + Rust + React on top of it.",
     aboutSponsor: "Support the Project",
     aboutSponsorDesc:
-      "HypoMux Plus is completely free and open source. If it saved you bandwidth and time, feel free to buy the author a coffee — donations are entirely voluntary, and all features stay free forever regardless. Feel free to leave your nickname.",
+      "HypoMuxPlus is completely free and open source. If it saved you bandwidth and time, feel free to buy the author a coffee — donations are entirely voluntary, and all features stay free forever regardless. Feel free to leave your nickname.",
     sponsorWechat: "WeChat",
     sponsorAlipay: "Alipay",
   },

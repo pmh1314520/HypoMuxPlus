@@ -1,4 +1,4 @@
-// HypoMux Plus 官网交互：中英切换 + 滚动揭示
+// HypoMuxPlus 官网交互：中英切换 · 导航滚动态 · 滚动揭示
 
 const STORAGE = "hmx-site-lang";
 let lang = localStorage.getItem(STORAGE) || "zh";
@@ -21,6 +21,12 @@ document.getElementById("langBtn")?.addEventListener("click", () => {
 
 applyLang();
 
+// 导航栏滚动态
+const nav = document.getElementById("nav");
+const onScroll = () => nav?.classList.toggle("scrolled", window.scrollY > 12);
+window.addEventListener("scroll", onScroll, { passive: true });
+onScroll();
+
 // 滚动揭示
 const io = new IntersectionObserver(
   (entries) => {
@@ -31,6 +37,6 @@ const io = new IntersectionObserver(
       }
     });
   },
-  { threshold: 0.12 },
+  { threshold: 0.1 },
 );
 document.querySelectorAll(".reveal").forEach((el) => io.observe(el));

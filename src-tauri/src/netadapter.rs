@@ -137,5 +137,5 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
 
 #[cfg(not(windows))]
 pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
-    Err("HypoMux Plus 仅支持 Windows 平台".into())
+    Err("HypoMuxPlus 仅支持 Windows 平台".into())
 }

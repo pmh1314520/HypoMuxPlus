@@ -1,4 +1,4 @@
-//! HypoMux Plus —— 现代化多网卡带宽聚合下载加速客户端（Tauri 后端）
+//! HypoMuxPlus —— 现代化多网卡带宽聚合下载加速客户端（Tauri 后端）
 //!
 //! 衍生自 Hypostasis-Cat 的开源项目 HypoMux（AGPL-3.0）。
 //! 衍生开发者：青云制作_彭明航。
@@ -220,7 +220,7 @@ pub fn run() {
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("HypoMux Plus · 多网卡加速")
+                .tooltip("HypoMuxPlus · 多网卡加速")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -266,7 +266,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("启动 HypoMux Plus 失败")
+        .expect("启动 HypoMuxPlus 失败")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 cleanup(app_handle);

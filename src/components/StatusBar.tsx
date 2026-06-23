@@ -67,7 +67,7 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
 
       <Sep />
       <span className="mono" style={{ color: "var(--text-2)" }}>
-        HypoMux Plus v1.0.0
+        HypoMuxPlus v1.0.0
       </span>
     </div>
   );

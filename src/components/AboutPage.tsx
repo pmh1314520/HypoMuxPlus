@@ -33,7 +33,7 @@ export function AboutPage() {
           <div className="relative">
             <div className="flex items-center gap-2.5">
               <h2 className="text-[23px] font-bold tracking-tight">
-                HypoMux <span style={{ color: "var(--accent-soft)" }}>Plus</span>
+                HypoMux<span style={{ color: "var(--accent-soft)" }}>Plus</span>
               </h2>
               <span
                 className="mono text-[11px] px-2 py-0.5 rounded-md"
@@ -92,10 +92,22 @@ export function AboutPage() {
           <InfoCard icon={<ScrollText size={15} />} label={t("aboutLicense")} value="AGPL-3.0" />
         </motion.div>
 
-        {/* 原项目 */}
+        {/* 项目仓库 */}
         <motion.div variants={item} className="panel p-6">
           <div className="flex items-center gap-2 mb-3">
             <GitBranch size={16} style={{ color: "var(--accent-soft)" }} />
+            <h3 className="font-semibold text-[14px]">{t("aboutRepo")}</h3>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <RepoLink url="https://github.com/pmh1314520/HypoMuxPlus" label="GitHub" />
+            <RepoLink url="https://gitee.com/peng-minghang/hypo-mux-plus" label="Gitee" />
+          </div>
+        </motion.div>
+
+        {/* 原项目 */}
+        <motion.div variants={item} className="panel p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <GitBranch size={16} style={{ color: "var(--text-2)" }} />
             <h3 className="font-semibold text-[14px]">{t("aboutOriginal")}</h3>
           </div>
           <button
@@ -137,6 +149,20 @@ function QrCard({ src, label, color }: { src: string; label: string; color: stri
         {label}
       </span>
     </div>
+  );
+}
+
+function RepoLink({ url, label }: { url: string; label: string }) {
+  return (
+    <button
+      onClick={() => openUrl(url)}
+      className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-[12.5px] font-medium transition-colors"
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)" }}
+    >
+      <GitBranch size={14} style={{ color: "var(--accent-soft)" }} />
+      {label}
+      <ExternalLink size={12} style={{ color: "var(--text-2)" }} />
+    </button>
   );
 }
 

@@ -38,7 +38,7 @@ export function Sidebar({ view, setView, running }: Props) {
         </div>
         <div className="leading-none pointer-events-none">
           <div className="font-bold text-[15px] tracking-tight">
-            HypoMux <span style={{ color: "var(--cyan)" }}>Plus</span>
+            HypoMux<span style={{ color: "var(--cyan)" }}>Plus</span>
           </div>
           <div className="text-[9.5px] mt-1 tracking-[0.12em] uppercase" style={{ color: "var(--text-2)" }}>
             Network Console

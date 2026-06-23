@@ -1,4 +1,4 @@
-//! 多网卡分流代理引擎（HypoMux Plus 核心）
+//! 多网卡分流代理引擎（HypoMuxPlus 核心）
 //!
 //! 在 tokio 异步运行时上同时提供 SOCKS5 与 HTTP/HTTPS 本地转发服务，对每条
 //! 出站连接执行 Round-Robin 网卡轮询，并通过 `IP_UNICAST_IF` 接口索引强绑定
