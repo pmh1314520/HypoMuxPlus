@@ -1,12 +1,16 @@
+import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { motion } from "framer-motion";
-import { Coffee, Database, ExternalLink, GitBranch, Heart, ScrollText, User } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Coffee, Database, ExternalLink, FolderGit2, GitFork, Heart, ScrollText, User, X } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
+import { GitHubIcon, GiteeIcon } from "./BrandIcons";
 import wechatQr from "../assets/sponsor-wechat.png";
 import alipayQr from "../assets/sponsor-alipay.jpg";
 
-const REPO = "https://github.com/Hypostasis-Cat/HypoMux";
+const ORIGINAL = "https://github.com/Hypostasis-Cat/HypoMux";
+const GITHUB = "https://github.com/pmh1314520/HypoMuxPlus";
+const GITEE = "https://gitee.com/peng-minghang/hypo-mux-plus";
 const TECH = ["Tauri 2", "Rust", "tokio", "React 19", "TypeScript", "TailwindCSS"];
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
@@ -20,15 +24,17 @@ function fmtData(mb: number): string {
 
 export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
   const { t } = useSettings();
+  const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <div className="h-full overflow-y-auto px-1 pb-8">
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="max-w-[840px] mx-auto flex flex-col gap-5"
-      >
+      <motion.div variants={container} initial="hidden" animate="show" className="max-w-[840px] mx-auto flex flex-col gap-5">
         {/* 品牌头 */}
         <motion.div variants={item} className="panel relative overflow-hidden p-7 flex items-center gap-5">
           <div
@@ -105,8 +111,8 @@ export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
             {t("aboutSponsorDesc")}
           </p>
           <div className="grid grid-cols-2 gap-4 max-w-[440px]">
-            <QrCard src={wechatQr} label={t("sponsorWechat")} color="#07c160" />
-            <QrCard src={alipayQr} label={t("sponsorAlipay")} color="#1677ff" />
+            <QrCard src={wechatQr} label={t("sponsorWechat")} color="#07c160" onZoom={setZoom} />
+            <QrCard src={alipayQr} label={t("sponsorAlipay")} color="#1677ff" onZoom={setZoom} />
           </div>
         </motion.div>
 
@@ -119,27 +125,27 @@ export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
         {/* 项目仓库 */}
         <motion.div variants={item} className="panel p-6">
           <div className="flex items-center gap-2 mb-3">
-            <GitBranch size={16} style={{ color: "var(--accent-soft)" }} />
+            <FolderGit2 size={16} style={{ color: "var(--accent-soft)" }} />
             <h3 className="font-semibold text-[14px]">{t("aboutRepo")}</h3>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <RepoLink url="https://github.com/pmh1314520/HypoMuxPlus" label="GitHub" />
-            <RepoLink url="https://gitee.com/peng-minghang/hypo-mux-plus" label="Gitee" />
+            <RepoLink url={GITHUB} label="GitHub" icon={<GitHubIcon size={15} />} />
+            <RepoLink url={GITEE} label="Gitee" icon={<GiteeIcon size={15} style={{ color: "#c71d23" }} />} />
           </div>
         </motion.div>
 
         {/* 原项目 */}
         <motion.div variants={item} className="panel p-6">
           <div className="flex items-center gap-2 mb-3">
-            <GitBranch size={16} style={{ color: "var(--text-2)" }} />
+            <GitFork size={16} style={{ color: "var(--text-2)" }} />
             <h3 className="font-semibold text-[14px]">{t("aboutOriginal")}</h3>
           </div>
           <button
-            onClick={() => openUrl(REPO)}
+            onClick={() => openUrl(ORIGINAL)}
             className="flex items-center gap-2 text-[13px] mono hover:underline"
             style={{ color: "var(--accent-soft)" }}
           >
-            {REPO}
+            {ORIGINAL}
             <ExternalLink size={13} />
           </button>
         </motion.div>
@@ -155,42 +161,104 @@ export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
           </p>
         </motion.div>
       </motion.div>
+
+      {/* 二维码全屏放大 */}
+      <AnimatePresence>
+        {zoom && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setZoom(null)}
+            className="fixed inset-0 z-[1000] grid place-items-center p-6"
+            style={{
+              background: "color-mix(in srgb, var(--bg-0) 86%, transparent)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <button
+              onClick={() => setZoom(null)}
+              className="absolute top-5 right-5 grid place-items-center w-11 h-11 rounded-xl"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text-0)" }}
+            >
+              <X size={18} />
+            </button>
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex flex-col items-center gap-3"
+            >
+              <img
+                src={zoom.src}
+                alt={zoom.label}
+                className="rounded-2xl bg-white p-3"
+                style={{ maxWidth: "min(440px, 92vw)", maxHeight: "82vh", width: "auto", height: "auto" }}
+              />
+              <span className="text-[14px] font-semibold" style={{ color: "var(--text-1)" }}>
+                {zoom.label}
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function QrCard({ src, label, color }: { src: string; label: string; color: string }) {
+function QrCard({
+  src,
+  label,
+  color,
+  onZoom,
+}: {
+  src: string;
+  label: string;
+  color: string;
+  onZoom: (z: { src: string; label: string }) => void;
+}) {
   return (
-    <div
-      className="flex flex-col items-center gap-2.5 p-3 rounded-xl"
-      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+    <button
+      onClick={() => onZoom({ src, label })}
+      className="flex flex-col items-center gap-2.5 p-3 rounded-xl transition-transform hover:scale-[1.02]"
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", cursor: "zoom-in" }}
     >
-      <div className="rounded-lg overflow-hidden bg-white p-1.5" style={{ width: "100%" }}>
-        <img src={src} alt={label} className="w-full block rounded-md" style={{ aspectRatio: "1 / 1", objectFit: "cover" }} />
+      <div
+        className="rounded-lg overflow-hidden bg-white p-2 w-full grid place-items-center"
+        style={{ aspectRatio: "3 / 4" }}
+      >
+        <img
+          src={src}
+          alt={label}
+          className="rounded-md"
+          style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit: "contain" }}
+        />
       </div>
       <span className="flex items-center gap-1.5 text-[12.5px] font-semibold">
         <span className="w-2 h-2 rounded-full" style={{ background: color }} />
         {label}
       </span>
-    </div>
+    </button>
   );
 }
 
-function RepoLink({ url, label }: { url: string; label: string }) {
+function RepoLink({ url, label, icon }: { url: string; label: string; icon: ReactNode }) {
   return (
     <button
       onClick={() => openUrl(url)}
       className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-[12.5px] font-medium transition-colors"
       style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)" }}
     >
-      <GitBranch size={14} style={{ color: "var(--accent-soft)" }} />
+      {icon}
       {label}
       <ExternalLink size={12} style={{ color: "var(--text-2)" }} />
     </button>
   );
 }
 
-function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="panel p-5">
       <div className="flex items-center gap-2 eyebrow mb-2">

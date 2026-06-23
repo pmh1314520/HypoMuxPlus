@@ -245,3 +245,20 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
     .getElementById("langBtn")
     ?.addEventListener("click", () => setTimeout(() => items.forEach(setH), 0));
 })();
+
+/* ---------- 防复制 / 防盗版（合理威慑，非绝对防护） ---------- */
+(function () {
+  const block = (e) => {
+    e.preventDefault();
+    return false;
+  };
+  ["contextmenu", "dragstart", "selectstart", "copy", "cut"].forEach((ev) =>
+    document.addEventListener(ev, block),
+  );
+  document.addEventListener("keydown", (e) => {
+    const k = (e.key || "").toLowerCase();
+    if (e.key === "F12") return block(e);
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && ["s", "u", "p", "c", "a", "x"].includes(k)) return block(e);
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i", "j", "c"].includes(k)) return block(e);
+  });
+})();

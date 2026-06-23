@@ -123,6 +123,18 @@ export const DICT: Record<Lang, Record<string, string>> = {
     connEmpty: "暂无活跃连接",
     connTarget: "目标",
     connNic: "出口网卡",
+    navStats: "统计",
+    topStatsDesc: "加速流量与会话数据统计",
+    statLifetime: "历史累计",
+    statSession: "本次会话",
+    statLifetimePeak: "历史峰值速度",
+    statLifetimeTime: "累计加速时长",
+    statSessionData: "本次下行",
+    statSessionPeak: "本次峰值",
+    statSessionConn: "当前连接数",
+    statSessionUptime: "本次运行时长",
+    statStrategy: "当前调度策略",
+    statIdle: "未在加速",
     linkDistTitle: "链路负载分布",
     linkDistEmpty: "加速后显示各网卡的实时负载占比",
     sessionTitle: "本次会话统计",
@@ -152,7 +164,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutRepo: "项目仓库",
     aboutDownload: "下载",
     aboutDesc:
-      "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的现代化桌面客户端，采用 Tauri + React + Rust 重构，遵循 AGPL-3.0 协议开源。",
+      "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的现代化客户端——前端 React、后端 Rust（tokio）全栈重写（原项目后端为 Python），遵循 AGPL-3.0 协议开源。",
 
     // 工作原理小卡
     howTitle: "工作原理",
@@ -190,7 +202,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutWebsite: "项目官网",
     aboutThanks: "致谢",
     aboutThanksDesc:
-      "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目在其基础上以 Tauri + Rust + React 重写了全部桌面客户端实现。",
+      "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目并非简单换壳——已将原以 Python 实现的分流引擎用 Rust（tokio）从零重写，并以 Tauri + React 打造全新桌面客户端。",
     aboutSponsor: "赞助支持",
     aboutSponsorDesc:
       "HypoMuxPlus 完全免费开源。如果它帮你省下了带宽与时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时欢迎备注您的昵称。",
@@ -311,6 +323,18 @@ export const DICT: Record<Lang, Record<string, string>> = {
     connEmpty: "No active connections",
     connTarget: "Target",
     connNic: "Adapter",
+    navStats: "Statistics",
+    topStatsDesc: "Acceleration traffic & session metrics",
+    statLifetime: "All-Time",
+    statSession: "Current Session",
+    statLifetimePeak: "All-Time Peak",
+    statLifetimeTime: "Total Boost Time",
+    statSessionData: "Session Download",
+    statSessionPeak: "Session Peak",
+    statSessionConn: "Active Connections",
+    statSessionUptime: "Session Uptime",
+    statStrategy: "Active Strategy",
+    statIdle: "Idle",
     linkDistTitle: "Link Load Distribution",
     linkDistEmpty: "Per-NIC real-time load share appears after boosting",
     sessionTitle: "Session Statistics",
@@ -341,7 +365,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutRepo: "Repositories",
     aboutDownload: "Download",
     aboutDesc:
-      "HypoMuxPlus is a modernized desktop client based on the open-source HypoMux by Hypostasis-Cat, rebuilt with Tauri + React + Rust and released under AGPL-3.0.",
+      "HypoMuxPlus is a modernized client derived from the open-source HypoMux by Hypostasis-Cat — a full-stack rewrite with a React frontend and a native Rust (tokio) backend (the original backend was Python), released under AGPL-3.0.",
 
     howTitle: "How It Works",
     howDesc:
@@ -378,7 +402,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutWebsite: "Official Website",
     aboutThanks: "Acknowledgments",
     aboutThanksDesc:
-      "The core multi-NIC physical binding approach and protocol design originate from the original HypoMux project. This project rewrites the entire desktop client with Tauri + Rust + React on top of it.",
+      "The core multi-NIC physical binding approach and protocol design originate from the original HypoMux project. This is not a reskin — the splitting engine, originally written in Python, has been fully rewritten from scratch in Rust (tokio), with a brand-new desktop client built on Tauri + React.",
     aboutSponsor: "Support the Project",
     aboutSponsorDesc:
       "HypoMuxPlus is completely free and open source. If it saved you bandwidth and time, feel free to buy the author a coffee — donations are entirely voluntary, and all features stay free forever regardless. Feel free to leave your nickname.",

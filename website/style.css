@@ -1288,3 +1288,18 @@ body {
     animation: none;
   }
 }
+
+/* ============================================================
+   防复制 / 防盗版保护（客户端层面的合理威慑）
+   ============================================================ */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+}
+img,
+svg {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: auto;
+}

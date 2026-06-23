@@ -6,6 +6,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
 import { Dashboard } from "./components/Dashboard";
+import { StatsPage } from "./components/StatsPage";
 import { TutorialPage } from "./components/TutorialPage";
 import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
@@ -32,6 +33,8 @@ const HISTORY_LEN = 60;
 const LOG_CAP = 300;
 const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
+const LIFE_PEAK_KEY = "hmx-lifetime-peak";
+const LIFE_SECS_KEY = "hmx-lifetime-secs";
 const HOTKEY = "CommandOrControl+Alt+H";
 
 function loadSelected(): Set<number> {
@@ -71,6 +74,10 @@ function AppInner() {
   const [benchmarking, setBenchmarking] = useState(false);
   const [connections, setConnections] = useState<ConnInfo[]>([]);
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
+  const [lifetimePeak, setLifetimePeak] = useState<number>(() => Number(localStorage.getItem(LIFE_PEAK_KEY)) || 0);
+  const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
+    () => Number(localStorage.getItem(LIFE_SECS_KEY)) || 0,
+  );
 
   const onBoostRef = useRef<() => void>(() => {});
 
@@ -117,6 +124,13 @@ function AppInner() {
         localStorage.setItem(LIFETIME_KEY, String(n));
         return n;
       });
+      setLifetimePeak((prev) => {
+        if (p.total.downMbps > prev) {
+          localStorage.setItem(LIFE_PEAK_KEY, String(p.total.downMbps));
+          return p.total.downMbps;
+        }
+        return prev;
+      });
     }).then((u) => unlisteners.push(u));
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
@@ -160,7 +174,14 @@ function AppInner() {
       return;
     }
     const start = Date.now();
-    const timer = setInterval(() => setUptime((Date.now() - start) / 1000), 1000);
+    const timer = setInterval(() => {
+      setUptime((Date.now() - start) / 1000);
+      setLifetimeSeconds((prev) => {
+        const n = prev + 1;
+        localStorage.setItem(LIFE_SECS_KEY, String(n));
+        return n;
+      });
+    }, 1000);
     return () => clearInterval(timer);
   }, [running]);
 
@@ -347,6 +368,17 @@ function AppInner() {
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
+                ) : view === "stats" ? (
+                  <StatsPage
+                    lifetimeMB={lifetimeMB}
+                    lifetimePeak={lifetimePeak}
+                    lifetimeSeconds={lifetimeSeconds}
+                    sessionMB={sessionMB}
+                    sessionPeak={peak}
+                    uptime={uptime}
+                    totalConn={totalConn}
+                    running={running}
+                  />
                 ) : view === "about" ? (
                   <AboutPage lifetimeMB={lifetimeMB} />
                 ) : (

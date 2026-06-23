@@ -16,12 +16,14 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
 
   const titleMap: Record<View, string> = {
     dashboard: t("navDashboard"),
+    stats: t("navStats"),
     tutorial: t("navTutorial"),
     settings: t("settingsTitle"),
     about: t("navAbout"),
   };
   const descMap: Record<View, string> = {
     dashboard: t("topDashDesc"),
+    stats: t("topStatsDesc"),
     tutorial: t("topTutorialDesc"),
     settings: t("topSettingsDesc"),
     about: t("topAboutDesc"),
