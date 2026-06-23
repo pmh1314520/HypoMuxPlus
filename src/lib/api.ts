@@ -32,6 +32,7 @@ export interface TelemetryPayload {
 
 export const api = {
   checkAdmin: () => invoke<boolean>("check_admin"),
+  checkSteamRunning: () => invoke<boolean>("check_steam_running"),
   scanAdapters: () => invoke<AdapterInfo[]>("scan_adapters"),
   getBoostState: () => invoke<boolean>("get_boost_state"),
   getSystemProxy: () => invoke<[boolean, string]>("get_system_proxy"),

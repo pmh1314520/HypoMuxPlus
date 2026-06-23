@@ -49,6 +49,50 @@ fn check_admin() -> bool {
     }
 }
 
+/// 检测 Steam 是否正在运行（开启加速前提醒用户重启 Steam，与原项目一致）。
+#[tauri::command]
+fn check_steam_running() -> bool {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+        use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+            TH32CS_SNAPPROCESS,
+        };
+
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snap == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = false;
+        if Process32FirstW(snap, &mut entry) != 0 {
+            loop {
+                let len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                let name = String::from_utf16_lossy(&entry.szExeFile[..len]);
+                if name.eq_ignore_ascii_case("steam.exe") {
+                    found = true;
+                    break;
+                }
+                if Process32NextW(snap, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snap);
+        found
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 /// 扫描所有 Up 且拥有 IPv4 的网卡。
 #[tauri::command]
 fn scan_adapters() -> Result<Vec<netadapter::AdapterInfo>, String> {
@@ -151,6 +195,7 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             check_admin,
+            check_steam_running,
             scan_adapters,
             get_boost_state,
             get_system_proxy,

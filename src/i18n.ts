@@ -7,6 +7,15 @@ export const DICT: Record<Lang, Record<string, string>> = {
   zh: {
     appName: "HypoMux Plus",
     appSubtitle: "多网卡带宽聚合 · 双协议分流加速引擎",
+    navSection: "导航",
+    topDashDesc: "多网卡分流调度与实时吞吐监控",
+    topSettingsDesc: "引擎参数、外观与应用兼容性配置",
+    stateActive: "运行中",
+    stateIdle: "空闲",
+    adminOk: "已获得管理员权限，全部功能可用",
+    adminBadgeOk: "管理员",
+    adminBadgeNo: "标准权限",
+    warnSteamRunning: "检测到 Steam 正在运行，建议重启 Steam 客户端以使多链路加速完全生效",
 
     // 标题栏 / 导航
     navDashboard: "加速控制台",
@@ -112,6 +121,16 @@ export const DICT: Record<Lang, Record<string, string>> = {
   en: {
     appName: "HypoMux Plus",
     appSubtitle: "Multi-NIC Bandwidth Aggregation · Dual-Protocol Splitting Engine",
+    navSection: "Navigation",
+    topDashDesc: "Multi-NIC dispatch & real-time throughput monitoring",
+    topSettingsDesc: "Engine parameters, appearance & app compatibility",
+    stateActive: "Active",
+    stateIdle: "Idle",
+    adminOk: "Running as administrator, all features available",
+    adminBadgeOk: "Administrator",
+    adminBadgeNo: "Standard",
+    warnSteamRunning:
+      "Steam is running. Restart the Steam client for multi-link acceleration to take full effect.",
 
     navDashboard: "Console",
     navSettings: "Settings",

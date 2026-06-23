@@ -1,57 +1,78 @@
 @import "tailwindcss";
 
 /* ============================================================
-   HypoMux Plus 设计系统
-   深色为主、可切换浅色的现代玻璃拟态风格，主色微光蓝 #0078d4
+   HypoMux Plus 设计系统 v2 —— "网络运维控制台"
+   深空导航底 + 蓝图点阵 + 电光蓝/青遥测色，工业级仪表盘观感
    ============================================================ */
 
 :root {
-  --accent: #0078d4;
-  --accent-soft: #2b9fff;
-  --accent-glow: rgba(0, 120, 212, 0.45);
+  /* 品牌主色：电光蓝 + 遥测青 */
+  --accent: #2f87ff;
+  --accent-deep: #0a64e0;
+  --accent-soft: #5aa8ff;
+  --accent-glow: rgba(47, 135, 255, 0.4);
+  --cyan: #22d3ee;
+  --cyan-glow: rgba(34, 211, 238, 0.35);
 
-  /* 深色主题（默认） */
-  --bg-0: #070b14;
-  --bg-1: #0c111d;
-  --bg-grad-a: #0b1322;
-  --bg-grad-b: #060912;
-  --surface: rgba(255, 255, 255, 0.035);
-  --surface-strong: rgba(255, 255, 255, 0.06);
-  --surface-hover: rgba(255, 255, 255, 0.09);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text-0: #eaf1fb;
-  --text-1: #aab6c8;
-  --text-2: #6b7888;
-  --ok: #2bd576;
-  --warn: #ffb02e;
-  --danger: #ff5d5d;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  /* 深色（默认） */
+  --bg-0: #05070d;
+  --bg-1: #0a0e18;
+  --aurora-a: rgba(47, 135, 255, 0.1);
+  --aurora-b: rgba(34, 211, 238, 0.07);
+  --grid: rgba(120, 160, 220, 0.045);
+
+  --surface: rgba(146, 170, 210, 0.045);
+  --surface-2: rgba(146, 170, 210, 0.07);
+  --surface-hover: rgba(146, 170, 210, 0.11);
+  --rail: rgba(8, 12, 22, 0.6);
+
+  --border: rgba(140, 170, 220, 0.1);
+  --border-strong: rgba(140, 170, 220, 0.2);
+  --hl: rgba(255, 255, 255, 0.06);
+
+  --text-0: #e9f0fb;
+  --text-1: #9fb0c8;
+  --text-2: #5f7088;
+
+  --ok: #36d399;
+  --warn: #fbbd23;
+  --danger: #f87272;
+
+  --shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 8px 24px -10px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="light"] {
-  --bg-0: #eef3fb;
-  --bg-1: #ffffff;
-  --bg-grad-a: #e7eefb;
-  --bg-grad-b: #f4f7fd;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-strong: rgba(255, 255, 255, 0.9);
-  --surface-hover: rgba(0, 120, 212, 0.06);
-  --border: rgba(15, 35, 70, 0.1);
-  --border-strong: rgba(15, 35, 70, 0.18);
-  --text-0: #15202e;
-  --text-1: #44566b;
-  --text-2: #8593a4;
-  --ok: #14a85a;
-  --warn: #d98300;
+  --bg-0: #e9eef7;
+  --bg-1: #f5f8fd;
+  --aurora-a: rgba(47, 135, 255, 0.12);
+  --aurora-b: rgba(34, 211, 238, 0.1);
+  --grid: rgba(30, 70, 130, 0.05);
+
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-2: rgba(255, 255, 255, 0.92);
+  --surface-hover: rgba(47, 135, 255, 0.08);
+  --rail: rgba(255, 255, 255, 0.7);
+
+  --border: rgba(20, 50, 100, 0.1);
+  --border-strong: rgba(20, 50, 100, 0.2);
+  --hl: rgba(255, 255, 255, 0.85);
+
+  --text-0: #0e1a2b;
+  --text-1: #3f5267;
+  --text-2: #7c8ba0;
+
+  --ok: #0fa968;
+  --warn: #d18a00;
   --danger: #e23b3b;
-  --shadow: 0 18px 50px rgba(40, 70, 120, 0.18);
+
+  --shadow: 0 24px 60px -20px rgba(40, 80, 140, 0.28);
+  --shadow-sm: 0 8px 22px -12px rgba(40, 80, 140, 0.25);
 }
 
 * {
   box-sizing: border-box;
 }
-
 html,
 body,
 #root {
@@ -60,24 +81,56 @@ body,
 }
 
 body {
-  font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, -apple-system,
-    sans-serif;
+  font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   color: var(--text-0);
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
 }
 
+/* 深空底 + 极光辉光 + 蓝图点阵 */
 #root {
-  background: radial-gradient(1200px 700px at 80% -10%, var(--bg-grad-a), transparent 60%),
-    radial-gradient(900px 600px at -10% 110%, var(--bg-grad-b), transparent 55%),
-    linear-gradient(160deg, var(--bg-0), var(--bg-1));
+  position: relative;
+  background:
+    radial-gradient(900px 520px at 78% -8%, var(--aurora-a), transparent 60%),
+    radial-gradient(820px 520px at -6% 108%, var(--aurora-b), transparent 55%),
+    linear-gradient(165deg, var(--bg-0), var(--bg-1));
+}
+#root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at 50% 40%, black, transparent 95%);
 }
 
-/* 自定义滚动条 */
+.mono {
+  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-feature-settings: "tnum";
+}
+
+/* 高级面板：玻璃 + 顶部 1px 内高光 + 精密描边 */
+.panel {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--hl), var(--shadow-sm);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+.panel-head {
+  border-bottom: 1px solid var(--border);
+}
+
+/* 滚动条 */
 ::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
@@ -90,40 +143,30 @@ body {
   background: transparent;
 }
 
-/* 玻璃卡片 */
-.glass {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-}
-
-/* 文本选区 */
 ::selection {
   background: var(--accent-glow);
   color: #fff;
 }
 
-/* 加速按钮的脉冲呼吸光环 */
+/* 发光数字 */
+.glow-text {
+  text-shadow: 0 0 26px var(--accent-glow);
+}
+
+/* 呼吸光环 */
 @keyframes pulse-ring {
   0% {
     box-shadow: 0 0 0 0 var(--accent-glow);
   }
   70% {
-    box-shadow: 0 0 0 18px rgba(0, 120, 212, 0);
+    box-shadow: 0 0 0 16px rgba(47, 135, 255, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 120, 212, 0);
+    box-shadow: 0 0 0 0 rgba(47, 135, 255, 0);
   }
 }
 .pulse-ring {
-  animation: pulse-ring 2s infinite;
-}
-
-/* 数字大屏发光 */
-.glow-text {
-  text-shadow: 0 0 22px var(--accent-glow);
+  animation: pulse-ring 2.2s infinite;
 }
 
 /* 运行态流动渐变描边 */
@@ -136,14 +179,48 @@ body {
   }
 }
 .flow-border {
-  background: linear-gradient(90deg, var(--accent), var(--accent-soft), var(--accent));
+  background: linear-gradient(90deg, var(--accent-deep), var(--cyan), var(--accent), var(--accent-deep));
   background-size: 200% 100%;
-  animation: flow 3s linear infinite;
+  animation: flow 4s linear infinite;
 }
 
-/* 隐藏 focus 轮廓但保留可访问性 */
+/* 状态指示灯呼吸 */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: blink 1.8s ease-in-out infinite;
+}
+
+/* 扫描线（图表运行态） */
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 button:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* 兼容别名：沿用 .glass 的组件统一获得高级面板观感 */
+.glass {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--hl), var(--shadow-sm);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
 }

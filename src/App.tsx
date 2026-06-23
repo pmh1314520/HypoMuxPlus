@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { TitleBar, type View } from "./components/TitleBar";
+import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
+import { StatusBar } from "./components/StatusBar";
 import { Dashboard } from "./components/Dashboard";
 import { SettingsPage } from "./components/SettingsPage";
 import { ToastProvider, useToast } from "./components/Toast";
+import type { View } from "./components/shell-types";
 import { useSettings } from "./store";
 import {
   api,
@@ -27,6 +30,7 @@ function AppInner() {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [admin, setAdmin] = useState(true);
 
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,16 +42,11 @@ function AppInner() {
   const [uptime, setUptime] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
 
-  const runningRef = useRef(running);
-  runningRef.current = running;
-
-  // ---- 扫描网卡 ----
   const scan = useCallback(async () => {
     setLoading(true);
     try {
       const list = await api.scanAdapters();
       setAdapters(list);
-      // 自动保留仍存在的已选项
       setSelected((prev) => new Set([...prev].filter((i) => list.some((a) => a.index === i))));
     } catch (e) {
       toast("error", t("msgScanFailed", { err: String(e) }));
@@ -56,10 +55,10 @@ function AppInner() {
     }
   }, [t, toast]);
 
-  // ---- 初始化：扫描 + 状态 + 事件订阅 ----
   useEffect(() => {
     scan();
     api.getBoostState().then(setRunning).catch(() => {});
+    api.checkAdmin().then(setAdmin).catch(() => setAdmin(true));
 
     const unlisteners: Array<() => void> = [];
     onLog((line) => {
@@ -83,12 +82,10 @@ function AppInner() {
     return () => unlisteners.forEach((u) => u());
   }, [scan]);
 
-  // ---- 同步关闭行为到后端 ----
   useEffect(() => {
     api.setCloseToTray(closeToTray).catch(() => {});
   }, [closeToTray]);
 
-  // ---- 运行计时 + 停止时清零 ----
   useEffect(() => {
     if (!running) {
       setUptime(0);
@@ -103,7 +100,6 @@ function AppInner() {
     return () => clearInterval(timer);
   }, [running]);
 
-  // ---- 勾选操作 ----
   const toggle = (index: number) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -115,7 +111,6 @@ function AppInner() {
     setSelected(new Set(adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0").map((a) => a.index)));
   const deselectAll = () => setSelected(new Set());
 
-  // ---- 加速 / 停止 ----
   const onBoost = async () => {
     if (busy) return;
     if (running) {
@@ -143,6 +138,10 @@ function AppInner() {
     setBusy(true);
     setLogs([]);
     try {
+      // 与原项目一致：开启前提醒 Steam 重启
+      const steam = await api.checkSteamRunning().catch(() => false);
+      if (steam) toast("warning", t("warnSteamRunning"));
+
       await api.startBoost(chosen, socksPort, httpPort);
       toast("success", t("msgBoostStarted"));
     } catch (e) {
@@ -153,48 +152,64 @@ function AppInner() {
   };
 
   const canBoost = running || selected.size > 0;
+  const totalConn = telemetry?.total.connections ?? 0;
 
   return (
     <div className="h-screen flex flex-col">
-      <TitleBar view={view} setView={setView} running={running} />
+      <div className="flex-1 min-h-0 flex">
+        <Sidebar view={view} setView={setView} running={running} />
 
-      <div className="flex-1 min-h-0 p-4">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={view}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-            className="h-full"
-          >
-            {view === "dashboard" ? (
-              <Dashboard
-                telemetry={telemetry}
-                history={history}
-                peak={peak}
-                uptime={uptime}
-                running={running}
-                busy={busy}
-                canBoost={canBoost}
-                onBoost={onBoost}
-                adapters={adapters}
-                selected={selected}
-                toggle={toggle}
-                selectAll={selectAll}
-                deselectAll={deselectAll}
-                refresh={scan}
-                perNic={perNic}
-                loading={loading}
-                logs={logs}
-                clearLogs={() => setLogs([])}
-              />
-            ) : (
-              <SettingsPage running={running} />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        <main className="flex-1 min-w-0 flex flex-col">
+          <TopBar view={view} running={running} loading={loading} onRefresh={scan} />
+
+          <div className="flex-1 min-h-0 px-5 pb-5">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="h-full"
+              >
+                {view === "dashboard" ? (
+                  <Dashboard
+                    telemetry={telemetry}
+                    history={history}
+                    peak={peak}
+                    uptime={uptime}
+                    running={running}
+                    busy={busy}
+                    canBoost={canBoost}
+                    onBoost={onBoost}
+                    adapters={adapters}
+                    selected={selected}
+                    toggle={toggle}
+                    selectAll={selectAll}
+                    deselectAll={deselectAll}
+                    refresh={scan}
+                    perNic={perNic}
+                    loading={loading}
+                    logs={logs}
+                    clearLogs={() => setLogs([])}
+                  />
+                ) : (
+                  <SettingsPage running={running} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
       </div>
+
+      <StatusBar
+        running={running}
+        admin={admin}
+        selectedCount={selected.size}
+        socksPort={socksPort}
+        httpPort={httpPort}
+        totalConn={totalConn}
+      />
     </div>
   );
 }
