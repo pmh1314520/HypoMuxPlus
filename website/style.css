@@ -1203,3 +1203,88 @@ body {
     font-size: 22px;
   }
 }
+
+/* ============================================================
+   工作原理动态管道流程图
+   ============================================================ */
+.diagram {
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  display: block;
+}
+.diagram .node {
+  fill: var(--surface-2);
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+}
+.diagram .node-accent {
+  fill: rgba(59, 130, 246, 0.14);
+  stroke: rgba(59, 130, 246, 0.5);
+  stroke-width: 1.4;
+}
+.diagram .nlabel {
+  fill: var(--text-0);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: "Inter", "Microsoft YaHei UI", system-ui, sans-serif;
+}
+.diagram .nsub {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-family: "JetBrains Mono", monospace;
+}
+.diagram .pipe {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2.4;
+}
+.diagram .flow {
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 11;
+  animation: flowMove 0.85s linear infinite;
+  filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+@keyframes flowMove {
+  to {
+    stroke-dashoffset: -11.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram .flow {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   高级动效点缀
+   ============================================================ */
+/* 标题渐变缓缓流动 */
+.grad {
+  background-size: 220% auto;
+  animation: gradShift 7s ease-in-out infinite;
+}
+[data-theme="light"] .grad {
+  background-size: 220% auto;
+}
+@keyframes gradShift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+/* 应用预览顶部高光流动 */
+.shot::before {
+  background-size: 220% 100%;
+  animation: shotScan 3.4s linear infinite;
+}
+@keyframes shotScan {
+  to { background-position: 220% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grad,
+  .shot::before {
+    animation: none;
+  }
+}

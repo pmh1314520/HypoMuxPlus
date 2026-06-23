@@ -93,18 +93,50 @@ export function TutorialPage() {
           <p className="text-[12.5px] leading-relaxed mb-4" style={{ color: "var(--text-1)" }}>
             {t("howDesc")}
           </p>
-          <pre
-            className="mono text-[11px] leading-relaxed p-4 rounded-lg overflow-x-auto"
-            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
-          >{`多线程下载流量
-      │  WinINet 系统代理接管
-      ▼  http/https → :10801 · socks → :10800
-分流引擎 (Rust · tokio)
-      │  Round-Robin 轮询
-      ▼  IP_UNICAST_IF 接口强绑定 + bind
-   ├─ 网卡 1 ─┐
-   ├─ 网卡 2 ─┼─►  物理带宽叠加
-   └─ 网卡 N ─┘`}</pre>
+          <svg className="hmx-diagram" viewBox="0 0 440 404" role="img" aria-label="data flow">
+            <g>
+              <path className="pipe" d="M220,62 V104" />
+              <path className="pipe" d="M220,152 V192" />
+              <path className="pipe" d="M220,240 C220,268 74,262 74,290" />
+              <path className="pipe" d="M220,240 V290" />
+              <path className="pipe" d="M220,240 C220,268 366,262 366,290" />
+              <path className="pipe" d="M74,334 C74,362 220,346 220,352" />
+              <path className="pipe" d="M220,334 V352" />
+              <path className="pipe" d="M366,334 C366,362 220,346 220,352" />
+            </g>
+            <g>
+              <path className="flow" d="M220,62 V104" />
+              <path className="flow" style={{ animationDelay: "-0.2s" }} d="M220,152 V192" />
+              <path className="flow" style={{ animationDelay: "-0.1s" }} d="M220,240 C220,268 74,262 74,290" />
+              <path className="flow" style={{ animationDelay: "-0.35s" }} d="M220,240 V290" />
+              <path className="flow" style={{ animationDelay: "-0.5s" }} d="M220,240 C220,268 366,262 366,290" />
+              <path className="flow" style={{ animationDelay: "-0.15s" }} d="M74,334 C74,362 220,346 220,352" />
+              <path className="flow" style={{ animationDelay: "-0.4s" }} d="M220,334 V352" />
+              <path className="flow" style={{ animationDelay: "-0.6s" }} d="M366,334 C366,362 220,346 220,352" />
+            </g>
+            <g>
+              <rect className="node" x="128" y="18" width="184" height="44" rx="12" />
+              <text className="nlabel" x="220" y="45" textAnchor="middle">{t("diagTraffic")}</text>
+
+              <rect className="node" x="116" y="100" width="208" height="52" rx="12" />
+              <text className="nlabel" x="220" y="122" textAnchor="middle">{t("diagProxy")}</text>
+              <text className="nsub" x="220" y="140" textAnchor="middle">:10801 · :10800</text>
+
+              <rect className="node node-accent" x="116" y="188" width="208" height="52" rx="12" />
+              <text className="nlabel" x="220" y="210" textAnchor="middle">{t("diagEngine")}</text>
+              <text className="nsub" x="220" y="228" textAnchor="middle">Round-Robin · tokio</text>
+
+              <rect className="node" x="14" y="290" width="120" height="44" rx="11" />
+              <text className="nlabel" x="74" y="317" textAnchor="middle">{t("diagNic1")}</text>
+              <rect className="node" x="160" y="290" width="120" height="44" rx="11" />
+              <text className="nlabel" x="220" y="317" textAnchor="middle">{t("diagNic2")}</text>
+              <rect className="node" x="306" y="290" width="120" height="44" rx="11" />
+              <text className="nlabel" x="366" y="317" textAnchor="middle">{t("diagNicN")}</text>
+
+              <rect className="node node-accent" x="116" y="352" width="208" height="44" rx="12" />
+              <text className="nlabel" x="220" y="379" textAnchor="middle">{t("diagStacked")}</text>
+            </g>
+          </svg>
         </div>
 
         {/* 重要提示 */}

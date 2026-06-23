@@ -205,3 +205,51 @@ input:focus-visible {
   outline: 1.5px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   工作原理动态管道流程图（教学页）
+   ============================================================ */
+.hmx-diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.hmx-diagram .node {
+  fill: var(--surface-2);
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+}
+.hmx-diagram .node-accent {
+  fill: rgba(59, 130, 246, 0.14);
+  stroke: rgba(59, 130, 246, 0.5);
+  stroke-width: 1.4;
+}
+.hmx-diagram .nlabel {
+  fill: var(--text-0);
+  font-size: 13px;
+  font-weight: 700;
+}
+.hmx-diagram .nsub {
+  fill: var(--text-2);
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", monospace;
+}
+.hmx-diagram .pipe {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2.4;
+}
+.hmx-diagram .flow {
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 11;
+  animation: hmxFlow 0.85s linear infinite;
+  filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+@keyframes hmxFlow {
+  to {
+    stroke-dashoffset: -11.5;
+  }
+}
