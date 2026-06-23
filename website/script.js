@@ -11,6 +11,8 @@ function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   const icon = document.getElementById("themeIcon");
   if (icon) icon.innerHTML = theme === "dark" ? SUN : MOON; // 图标表示“点击后切换到的模式”
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0e18" : "#eef2f8");
 }
 
 // 初始：优先用户手动选择，否则跟随系统
