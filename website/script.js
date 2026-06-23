@@ -118,20 +118,20 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
   if (!numEl || !lineEl) return;
 
   const MIN = 100,
-    MAX = 500,
+    MAX = 260,
     N = 30,
     W = 320,
     TOP = 8,
     BOT = 58;
 
   // 目标值（随机游走，不规律变化）与显示值（每帧缓动逼近）
-  let tTotal = 240 + Math.random() * 140;
+  let tTotal = 140 + Math.random() * 80;
   let dTotal = tTotal;
   const target = [];
   const disp = [];
   let seed = tTotal;
   for (let i = 0; i < N; i++) {
-    seed += (Math.random() - 0.5) * 80;
+    seed += (Math.random() - 0.5) * 55;
     seed = Math.min(MAX, Math.max(MIN, seed));
     target.push(seed);
     disp.push(seed);
@@ -179,8 +179,8 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
   // 不规律地推进目标：曲线左移一格 + 新样本，速度随机游走，权重抖动
   function mutate() {
-    const jump = Math.random() < 0.16 ? 1.6 : 0.6;
-    tTotal += (Math.random() - 0.5) * 150 * jump;
+    const jump = Math.random() < 0.16 ? 1.5 : 0.6;
+    tTotal += (Math.random() - 0.5) * 95 * jump;
     tTotal = Math.min(MAX, Math.max(MIN, tTotal));
     target.shift();
     target.push(tTotal + (Math.random() - 0.5) * 40);
