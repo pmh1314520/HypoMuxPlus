@@ -50,7 +50,8 @@ img {
 .container {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 0 28px;
+  padding-left: 28px;
+  padding-right: 28px;
 }
 .accent {
   color: var(--accent-soft);
@@ -246,7 +247,8 @@ nav.scrolled {
 
 /* ---------- Hero ---------- */
 .hero {
-  padding: 90px 0 80px;
+  padding-top: 92px;
+  padding-bottom: 88px;
   display: grid;
   grid-template-columns: 1.02fr 0.98fr;
   gap: 60px;
@@ -398,7 +400,8 @@ nav.scrolled {
 
 /* ---------- 区块 ---------- */
 section {
-  padding: 92px 0;
+  padding-top: 104px;
+  padding-bottom: 104px;
 }
 .sec-head {
   text-align: center;
@@ -632,5 +635,148 @@ footer {
   }
   .sec-head h2 {
     font-size: 30px;
+  }
+}
+
+/* ============================================================
+   浅色主题（跟随系统，亦可手动切换）
+   ============================================================ */
+[data-theme="light"] {
+  --accent: #2563eb;
+  --accent-deep: #1d4ed8;
+  --accent-soft: #2f6fe0;
+  --bg-0: #eef2f8;
+  --bg-1: #ffffff;
+  --surface: rgba(20, 45, 90, 0.032);
+  --surface-2: rgba(20, 45, 90, 0.058);
+  --border: rgba(20, 45, 90, 0.1);
+  --border-strong: rgba(20, 45, 90, 0.18);
+  --text-0: #0f1722;
+  --text-1: #4a5666;
+  --text-2: #7a8696;
+}
+[data-theme="light"] body {
+  background: var(--bg-0);
+}
+[data-theme="light"] .aurora {
+  background: linear-gradient(180deg, #ffffff, #eef2f8 62%);
+}
+[data-theme="light"] .aurora::before {
+  opacity: 0.28;
+}
+[data-theme="light"] .aurora::after {
+  opacity: 0.2;
+}
+[data-theme="light"] nav.scrolled {
+  background: rgba(255, 255, 255, 0.8);
+}
+[data-theme="light"] .grad {
+  background: linear-gradient(110deg, #2563eb, #1d4ed8 60%, #3b82f6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* 产品截图始终保持深色（代表应用本体），单独锁定文字色保证可读 */
+[data-theme="light"] .shot {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="light"] .shot-num {
+  color: #eef1f6;
+}
+[data-theme="light"] .shot-label,
+[data-theme="light"] .shot .bar .row,
+[data-theme="light"] .shot-num span {
+  color: #9aa5b4;
+}
+[data-theme="light"] .shot-rail .dot {
+  background: rgba(255, 255, 255, 0.06);
+}
+/* 代码块保持深色风格 */
+[data-theme="light"] .how pre {
+  background: #0c1320;
+  color: #aab6c6;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 图标按钮（主题切换） */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.icon-btn:hover {
+  color: var(--text-0);
+  border-color: var(--border-strong);
+}
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ============================================================
+   赞助区
+   ============================================================ */
+.sponsor-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.qr {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  text-align: center;
+  transition: transform 0.3s var(--ease), border-color 0.3s;
+}
+.qr:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-strong);
+}
+.qr .img {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+}
+.qr .img img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.qr .name {
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qr .name i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.sponsor-note {
+  text-align: center;
+  color: var(--text-2);
+  font-size: 13.5px;
+  margin-top: 26px;
+}
+@media (max-width: 900px) {
+  .sponsor-wrap {
+    max-width: 380px;
   }
 }
