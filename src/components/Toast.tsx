@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, AlertTriangle, Info, XCircle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Info, X, XCircle } from "lucide-react";
 
 type ToastKind = "success" | "warning" | "error" | "info";
 interface ToastItem {
@@ -27,12 +27,45 @@ const COLORS: Record<ToastKind, string> = {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  const push = useCallback((kind: ToastKind, msg: string) => {
-    const id = Date.now() + Math.random();
-    setItems((prev) => [...prev, { id, kind, msg }]);
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4200);
+  const remove = useCallback((id: number) => {
+    const tm = timers.current.get(id);
+    if (tm) {
+      clearTimeout(tm);
+      timers.current.delete(id);
+    }
+    setItems((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const schedule = useCallback(
+    (id: number) => {
+      const existing = timers.current.get(id);
+      if (existing) clearTimeout(existing);
+      timers.current.set(
+        id,
+        setTimeout(() => remove(id), 4200),
+      );
+    },
+    [remove],
+  );
+
+  const pause = useCallback((id: number) => {
+    const tm = timers.current.get(id);
+    if (tm) {
+      clearTimeout(tm);
+      timers.current.delete(id);
+    }
+  }, []);
+
+  const push = useCallback(
+    (kind: ToastKind, msg: string) => {
+      const id = Date.now() + Math.random();
+      setItems((prev) => [...prev, { id, kind, msg }]);
+      schedule(id);
+    },
+    [schedule],
+  );
 
   return (
     <ToastCtx.Provider value={push}>
@@ -46,13 +79,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 60, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              className="glass flex items-center gap-3 px-4 py-3 max-w-[360px] shadow-2xl"
+              onMouseEnter={() => pause(t.id)}
+              onMouseLeave={() => schedule(t.id)}
+              className="glass flex items-center gap-3 pl-4 pr-2.5 py-3 max-w-[360px] shadow-2xl pointer-events-auto"
               style={{ borderLeft: `3px solid ${COLORS[t.kind]}` }}
             >
               <span style={{ color: COLORS[t.kind] }}>{ICONS[t.kind]}</span>
-              <span className="text-[13px] leading-snug" style={{ color: "var(--text-0)" }}>
+              <span className="text-[13px] leading-snug flex-1" style={{ color: "var(--text-0)" }}>
                 {t.msg}
               </span>
+              <button
+                onClick={() => remove(t.id)}
+                className="grid place-items-center w-6 h-6 rounded-md shrink-0 transition-colors hover:[background:var(--surface-hover)]"
+                style={{ color: "var(--text-2)" }}
+              >
+                <X size={13} />
+              </button>
             </motion.div>
           ))}
         </AnimatePresence>

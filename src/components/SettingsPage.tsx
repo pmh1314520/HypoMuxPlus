@@ -370,7 +370,7 @@ export function SettingsPage({ running }: Props) {
                     <button
                       key={c}
                       onClick={() => emitHudSnap(c)}
-                      className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors whitespace-nowrap"
                       style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
                     >
                       {t("hudPos_" + c)}

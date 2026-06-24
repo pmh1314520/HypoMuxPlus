@@ -27,7 +27,7 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
 
   return (
     <div
-      className="flex items-center h-[28px] px-4 gap-5 shrink-0 text-[11px]"
+      className="flex items-center h-[28px] px-4 gap-5 shrink-0 text-[11px] whitespace-nowrap overflow-hidden"
       style={{ background: "var(--rail)", borderTop: "1px solid var(--border)", color: "var(--text-2)" }}
     >
       {/* 引擎状态 */}

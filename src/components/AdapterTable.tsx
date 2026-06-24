@@ -156,24 +156,27 @@ export function AdapterTable({
     <div className="glass flex flex-col overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
       {/* 卡片头 */}
       <div
-        className="flex items-center gap-3 px-5 py-3.5 shrink-0"
+        className="flex items-center gap-2 px-5 py-3.5 shrink-0"
         style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <Layers size={17} style={{ color: "var(--accent-soft)" }} />
-        <div className="flex flex-col leading-tight">
-          <span className="font-semibold text-[14px]">{t("adaptersTitle")}</span>
-          <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+        <Layers size={17} style={{ color: "var(--accent-soft)" }} className="shrink-0" />
+        <div className="flex flex-col leading-tight min-w-0">
+          <span className="font-semibold text-[14px] truncate">{t("adaptersTitle")}</span>
+          <span className="text-[11px] truncate" style={{ color: "var(--text-2)" }}>
             {t("adaptersHint")}
           </span>
         </div>
         <div className="flex-1" />
-        <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--surface-2)", color: "var(--text-1)" }}>
+        <span
+          className="text-[11px] px-2 py-1 rounded-md whitespace-nowrap shrink-0"
+          style={{ background: "var(--surface-2)", color: "var(--text-1)" }}
+        >
           {t("selectedCount", { n: selected.size })}
         </span>
         <Tooltip label={t("sortTip")} placement="top">
           <button
             onClick={cycleSort}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap shrink-0"
             style={{
               background: sort === "default" ? "var(--surface-strong)" : "color-mix(in srgb, var(--accent) 16%, transparent)",
               border: `1px solid ${sort === "default" ? "var(--border)" : "color-mix(in srgb, var(--accent) 35%, transparent)"}`,
@@ -183,15 +186,21 @@ export function AdapterTable({
             <ArrowDownUp size={13} /> {sortLabel}
           </button>
         </Tooltip>
-        <HeaderBtn onClick={selectAll} disabled={running}>
-          <CheckSquare size={14} /> {t("selectAll")}
-        </HeaderBtn>
-        <HeaderBtn onClick={deselectAll} disabled={running}>
-          <Square size={14} /> {t("deselectAll")}
-        </HeaderBtn>
-        <HeaderBtn onClick={refresh} disabled={running}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </HeaderBtn>
+        <Tooltip label={t("selectAll")} placement="top">
+          <HeaderBtn onClick={selectAll} disabled={running}>
+            <CheckSquare size={15} />
+          </HeaderBtn>
+        </Tooltip>
+        <Tooltip label={t("deselectAll")} placement="top">
+          <HeaderBtn onClick={deselectAll} disabled={running}>
+            <Square size={15} />
+          </HeaderBtn>
+        </Tooltip>
+        <Tooltip label={t("tipRefresh")} placement="top">
+          <HeaderBtn onClick={refresh} disabled={running}>
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+          </HeaderBtn>
+        </Tooltip>
       </div>
 
       {/* 网卡方案预设栏 */}
@@ -463,7 +472,7 @@ function HeaderBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap shrink-0"
       style={{
         background: "var(--surface-strong)",
         border: "1px solid var(--border)",
