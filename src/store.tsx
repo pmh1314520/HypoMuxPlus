@@ -30,6 +30,7 @@ interface Settings {
   globalHotkey: boolean;
   notifications: boolean;
   hotkeyCombo: string;
+  hotkeyStop: string;
   downLimit: number;
   bypassList: string;
 }
@@ -49,6 +50,7 @@ const DEFAULTS: Settings = {
   globalHotkey: false,
   notifications: false,
   hotkeyCombo: "Control+Alt+H",
+  hotkeyStop: "Control+Alt+J",
   downLimit: 0,
   bypassList: "",
 };

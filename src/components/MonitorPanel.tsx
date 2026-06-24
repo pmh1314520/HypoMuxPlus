@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ListTree, Terminal, Trash2 } from "lucide-react";
+import { ClipboardCopy, ListTree, Terminal, Trash2 } from "lucide-react";
 import { useSettings } from "../store";
 import { Tooltip } from "./Tooltip";
+import { useToast } from "./Toast";
 import type { ConnInfo } from "../lib/api";
 
 interface Props {
@@ -23,6 +24,7 @@ function lineColor(line: string): string {
 
 export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
   const { t } = useSettings();
+  const toast = useToast();
   const [tab, setTab] = useState<"log" | "conns">("log");
   const [nicFilter, setNicFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -38,6 +40,20 @@ export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
   const filteredConns = connections.filter(
     (c) => (!nicFilter || c.nic === nicFilter) && (!q || c.target.toLowerCase().includes(q)),
   );
+
+  const exportConns = async () => {
+    if (filteredConns.length === 0) {
+      toast("warning", t("connExportEmpty"));
+      return;
+    }
+    const text = filteredConns.map((c) => `[${c.proto}] ${c.target} -> ${c.nic}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("success", t("msgConnCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const tabs: { id: "log" | "conns"; label: string; icon: typeof Terminal; badge?: number }[] = [
     { id: "log", label: t("monitorLog"), icon: Terminal },
@@ -87,6 +103,17 @@ export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
               style={{ color: "var(--text-2)" }}
             >
               <Trash2 size={14} />
+            </button>
+          </Tooltip>
+        )}
+        {tab === "conns" && (
+          <Tooltip label={t("connExport")} placement="left">
+            <button
+              onClick={exportConns}
+              className="grid place-items-center w-7 h-7 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <ClipboardCopy size={14} />
             </button>
           </Tooltip>
         )}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bookmark, Check, CheckSquare, Layers, Plus, RefreshCw, Square, X } from "lucide-react";
+import { Bookmark, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Square, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
@@ -12,6 +12,7 @@ interface NicProfile {
 }
 
 const PROFILES_KEY = "hmx-nic-profiles";
+const NOTES_KEY = "hmx-nic-notes";
 
 function loadProfiles(): NicProfile[] {
   try {
@@ -24,6 +25,19 @@ function loadProfiles(): NicProfile[] {
     /* ignore */
   }
   return [];
+}
+
+function loadNotes(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(NOTES_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
 }
 
 interface Props {
@@ -58,6 +72,26 @@ export function AdapterTable({
   const [profiles, setProfiles] = useState<NicProfile[]>(loadProfiles);
   const [naming, setNaming] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>(loadNotes);
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  const startEditNote = (index: number) => {
+    setEditingNote(index);
+    setNoteDraft(notes[String(index)] ?? "");
+  };
+  const saveNote = (index: number) => {
+    const v = noteDraft.trim();
+    setNotes((prev) => {
+      const next = { ...prev };
+      if (v) next[String(index)] = v;
+      else delete next[String(index)];
+      localStorage.setItem(NOTES_KEY, JSON.stringify(next));
+      return next;
+    });
+    setEditingNote(null);
+    setNoteDraft("");
+  };
 
   const persist = (next: NicProfile[]) => {
     setProfiles(next);
@@ -258,9 +292,55 @@ export function AdapterTable({
                   {checked && <Check size={14} color="#fff" strokeWidth={3} />}
                 </div>
 
-                {/* 别名 + 描述 */}
+                {/* 别名 + 备注 + 描述 */}
                 <div className="flex flex-col leading-tight min-w-0 pr-2">
-                  <span className="text-[13px] font-medium truncate">{a.alias}</span>
+                  {editingNote === a.index ? (
+                    <input
+                      autoFocus
+                      value={noteDraft}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Enter") saveNote(a.index);
+                        if (e.key === "Escape") {
+                          setEditingNote(null);
+                          setNoteDraft("");
+                        }
+                      }}
+                      onBlur={() => saveNote(a.index)}
+                      maxLength={20}
+                      placeholder={t("nicNotePlaceholder")}
+                      className="px-2 py-0.5 rounded-md text-[12.5px] outline-none"
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--accent)", color: "var(--text-0)", width: "100%" }}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[13px] font-medium truncate">
+                        {notes[String(a.index)] || a.alias}
+                      </span>
+                      {notes[String(a.index)] && (
+                        <span
+                          className="text-[9px] px-1 py-px rounded mono shrink-0"
+                          style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+                        >
+                          {a.alias}
+                        </span>
+                      )}
+                      <Tooltip label={t("nicNoteTip")} placement="top">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditNote(a.index);
+                          }}
+                          className="grid place-items-center w-4 h-4 rounded shrink-0 transition-colors hover:[color:var(--accent-soft)]"
+                          style={{ color: "var(--text-2)" }}
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  )}
                   <span className="text-[10px] truncate" style={{ color: "var(--text-2)" }}>
                     {a.description}
                   </span>

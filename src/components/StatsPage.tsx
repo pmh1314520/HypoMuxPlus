@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { ArrowDownToLine, Clock, Database, Gauge, Network, Shuffle, TrendingUp, Zap } from "lucide-react";
+import { ArrowDownToLine, BarChart3, Clock, Database, Gauge, Network, Shuffle, TrendingUp, Zap } from "lucide-react";
 import { useSettings } from "../store";
 import { AnimatedNumber } from "./AnimatedNumber";
+import { Tooltip } from "./Tooltip";
 
 interface Props {
   lifetimeMB: number;
@@ -12,6 +13,7 @@ interface Props {
   uptime: number;
   totalConn: number;
   running: boolean;
+  dailyMB: Record<string, number>;
 }
 
 function fmtData(mb: number): string {
@@ -77,6 +79,9 @@ export function StatsPage(props: Props) {
           </div>
         </div>
 
+        {/* 近 14 天加速流量趋势 */}
+        <DailyChart dailyMB={props.dailyMB} />
+
         {/* 当前调度策略 */}
         <motion.div
           variants={item}
@@ -96,6 +101,67 @@ export function StatsPage(props: Props) {
         </motion.div>
       </motion.div>
     </div>
+  );
+}
+
+function DailyChart({ dailyMB }: { dailyMB: Record<string, number> }) {
+  const { t } = useSettings();
+  const days: { key: string; label: string; mb: number }[] = [];
+  const now = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const key = `${d.getFullYear()}-${m}-${day}`;
+    days.push({ key, label: `${m}/${day}`, mb: dailyMB[key] ?? 0 });
+  }
+  const max = Math.max(...days.map((d) => d.mb), 1);
+  const total = days.reduce((s, d) => s + d.mb, 0);
+
+  return (
+    <motion.div variants={item} className="panel p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="eyebrow flex items-center gap-2">
+          <BarChart3 size={13} style={{ color: "var(--accent-soft)" }} /> {t("statDailyTitle")}
+        </div>
+        <div className="text-[12px] mono" style={{ color: "var(--text-2)" }}>
+          {fmtData(total)}
+        </div>
+      </div>
+      {total <= 0 ? (
+        <div className="grid place-items-center py-10 text-[12.5px]" style={{ color: "var(--text-2)" }}>
+          {t("statDailyEmpty")}
+        </div>
+      ) : (
+        <div className="flex items-end gap-1.5 h-[120px]">
+          {days.map((d) => {
+            const h = Math.max(2, Math.round((d.mb / max) * 100));
+            return (
+              <div key={d.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
+                <Tooltip label={`${d.label} · ${fmtData(d.mb)}`} placement="top">
+                  <div className="w-full flex items-end justify-center" style={{ height: 96 }}>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${h}%` }}
+                      transition={{ type: "spring", stiffness: 200, damping: 26 }}
+                      className="w-full rounded-t-md"
+                      style={{
+                        background: d.mb > 0 ? "linear-gradient(var(--accent-soft), var(--accent))" : "var(--surface-2)",
+                        minHeight: 2,
+                      }}
+                    />
+                  </div>
+                </Tooltip>
+                <span className="text-[9px] tabular-nums" style={{ color: "var(--text-2)" }}>
+                  {d.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
   );
 }
 

@@ -33,7 +33,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, downLimit, bypassList, set } =
+  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -231,13 +231,22 @@ export function SettingsPage({ running }: Props) {
             <Switch checked={globalHotkey} onChange={(v) => set("globalHotkey", v)} />
           </Row>
           {globalHotkey && (
-            <Row label={t("settingHotkeyCombo")}>
-              <HotkeyCapture
-                value={hotkeyCombo}
-                onChange={(v) => set("hotkeyCombo", v)}
-                recordingLabel={t("hotkeyRecording")}
-              />
-            </Row>
+            <>
+              <Row label={t("settingHotkeyStart")}>
+                <HotkeyCapture
+                  value={hotkeyCombo}
+                  onChange={(v) => set("hotkeyCombo", v)}
+                  recordingLabel={t("hotkeyRecording")}
+                />
+              </Row>
+              <Row label={t("settingHotkeyStop")}>
+                <HotkeyCapture
+                  value={hotkeyStop}
+                  onChange={(v) => set("hotkeyStop", v)}
+                  recordingLabel={t("hotkeyRecording")}
+                />
+              </Row>
+            </>
           )}
           <Row icon={<Bell size={15} />} label={t("settingNotify")} hint={t("settingNotifyHint")}>
             <Switch checked={notifications} onChange={(v) => set("notifications", v)} />

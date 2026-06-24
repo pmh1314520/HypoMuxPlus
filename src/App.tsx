@@ -39,6 +39,27 @@ const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
 const LIFE_PEAK_KEY = "hmx-lifetime-peak";
 const LIFE_SECS_KEY = "hmx-lifetime-secs";
+const DAILY_KEY = "hmx-daily-mb";
+
+function todayKey(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function loadDaily(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(DAILY_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
 
 function loadSelected(): Set<number> {
   try {
@@ -51,7 +72,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, downLimit, bypassList } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList } =
     useSettings();
   const toast = useToast();
 
@@ -82,8 +103,13 @@ function AppInner() {
   const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
     () => Number(localStorage.getItem(LIFE_SECS_KEY)) || 0,
   );
+  const [dailyMB, setDailyMB] = useState<Record<string, number>>(loadDaily);
 
   const onBoostRef = useRef<() => void>(() => {});
+  const runningRef = useRef(false);
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
 
   const booted = useRef(false);
 
@@ -143,6 +169,19 @@ function AppInner() {
         }
         return prev;
       });
+      // 每日加速流量（跨会话持久化，仅保留最近 60 天）
+      if (p.total.downMbps > 0) {
+        setDailyMB((prev) => {
+          const key = todayKey();
+          const next = { ...prev, [key]: (prev[key] ?? 0) + p.total.downMbps };
+          const keys = Object.keys(next).sort();
+          while (keys.length > 60) {
+            delete next[keys.shift() as string];
+          }
+          localStorage.setItem(DAILY_KEY, JSON.stringify(next));
+          return next;
+        });
+      }
     }).then((u) => unlisteners.push(u));
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
@@ -332,27 +371,35 @@ function AppInner() {
 
   onBoostRef.current = onBoost;
 
-  // 全局热键：在任意界面一键加速 / 停止
+  // 全局热键：分别绑定「加速」与「停止」两组快捷键
   useEffect(() => {
-    if (!globalHotkey || !hotkeyCombo) return;
+    if (!globalHotkey) return;
     let cancelled = false;
+    const combos = [hotkeyCombo, hotkeyStop].filter(Boolean);
     (async () => {
       try {
-        await unregister(hotkeyCombo).catch(() => {});
+        for (const c of combos) await unregister(c).catch(() => {});
         if (cancelled) return;
-        await register(hotkeyCombo, (e) => {
-          if (!e || e.state === "Pressed") onBoostRef.current();
-        });
+        if (hotkeyCombo) {
+          await register(hotkeyCombo, (e) => {
+            if ((!e || e.state === "Pressed") && !runningRef.current) onBoostRef.current();
+          });
+        }
+        if (hotkeyStop && hotkeyStop !== hotkeyCombo) {
+          await register(hotkeyStop, (e) => {
+            if ((!e || e.state === "Pressed") && runningRef.current) onBoostRef.current();
+          });
+        }
       } catch (err) {
         toast("error", t("msgHotkeyFailed", { err: String(err) }));
       }
     })();
     return () => {
       cancelled = true;
-      unregister(hotkeyCombo).catch(() => {});
+      for (const c of combos) unregister(c).catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalHotkey, hotkeyCombo]);
+  }, [globalHotkey, hotkeyCombo, hotkeyStop]);
 
   const canBoost = running || selected.size > 0;
   const totalConn = telemetry?.total.connections ?? 0;
@@ -420,6 +467,7 @@ function AppInner() {
                     uptime={uptime}
                     totalConn={totalConn}
                     running={running}
+                    dailyMB={dailyMB}
                   />
                 ) : view === "about" ? (
                   <AboutPage lifetimeMB={lifetimeMB} />
