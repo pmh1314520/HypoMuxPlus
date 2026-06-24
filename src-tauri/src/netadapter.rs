@@ -118,13 +118,19 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
                 }
 
                 if let Some(ip) = ipv4 {
-                    adapters.push(AdapterInfo {
-                        index: if_index,
-                        alias: pwstr_to_string(adapter.FriendlyName),
-                        ipv4: ip.to_string(),
-                        description: pwstr_to_string(adapter.Description),
-                        is_up,
-                    });
+                    // 过滤无出口能力的地址：环回 127.0.0.0/8、链路本地 169.254.0.0/16（APIPA）
+                    let o = ip.octets();
+                    let is_loopback = o[0] == 127;
+                    let is_link_local = o[0] == 169 && o[1] == 254;
+                    if !is_loopback && !is_link_local {
+                        adapters.push(AdapterInfo {
+                            index: if_index,
+                            alias: pwstr_to_string(adapter.FriendlyName),
+                            ipv4: ip.to_string(),
+                            description: pwstr_to_string(adapter.Description),
+                            is_up,
+                        });
+                    }
                 }
             }
 

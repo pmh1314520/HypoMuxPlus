@@ -25,6 +25,8 @@ tokio-util = { version = "0.7", features = ["rt"] }
 socket2 = "0.5"
 winreg = "0.52"
 parking_lot = "0.12"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "0.26"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

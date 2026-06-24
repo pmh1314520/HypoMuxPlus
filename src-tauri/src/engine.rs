@@ -346,11 +346,26 @@ pub struct SpeedResult {
     pub ok: bool,
 }
 
-const BENCH_HOST: &str = "speedtest.tele2.net";
-const BENCH_PATH: &str = "/100MB.zip";
+const BENCH_HOST: &str = "speed.cloudflare.com";
+const BENCH_PATH: &str = "/__down?bytes=2000000000";
+const BENCH_PARALLEL: usize = 4;
 
-/// 逐张网卡跑分：经各网卡下载测速文件若干秒，测真实吞吐（MB/s）。
-/// 每张测完即通过 `hmx-speedtest` 事件回传，前端可渐进展示。
+fn tls_connector() -> tokio_rustls::TlsConnector {
+    use std::sync::OnceLock;
+    use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+    static CFG: OnceLock<Arc<ClientConfig>> = OnceLock::new();
+    let cfg = CFG
+        .get_or_init(|| {
+            let mut roots = RootCertStore::empty();
+            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+            Arc::new(ClientConfig::builder().with_root_certificates(roots).with_no_client_auth())
+        })
+        .clone();
+    tokio_rustls::TlsConnector::from(cfg)
+}
+
+/// 逐张网卡跑分：经各网卡用多条并发 HTTPS 连接从 Cloudflare CDN 下载测速，
+/// 测真实聚合吞吐（MB/s）。每张测完即通过 `hmx-speedtest` 事件回传。
 pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_secs: u64) -> Vec<SpeedResult> {
     let dur = std::time::Duration::from_secs(duration_secs.clamp(2, 15));
     let mut out = Vec::with_capacity(selected.len());
@@ -367,43 +382,78 @@ pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_sec
 
 async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
     let ip: Ipv4Addr = s.ip.parse().ok()?;
-    let nic = NicRuntime {
+    let nic = Arc::new(NicRuntime {
         name: s.name.clone(),
         ip,
         if_index: s.index,
         active: AtomicI64::new(0),
         speed: AtomicU64::new(0),
-    };
-    let addr = tokio::time::timeout(std::time::Duration::from_secs(3), resolve_ipv4(BENCH_HOST, 80))
+    });
+    let dst = tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(BENCH_HOST, 443))
         .await
         .ok()?
         .ok()?;
-    let mut stream =
-        tokio::time::timeout(std::time::Duration::from_secs(3), connect_via_nic(&nic, addr))
-            .await
-            .ok()?
-            .ok()?;
+
+    let total = Arc::new(AtomicU64::new(0));
+    let start = std::time::Instant::now();
+    let mut handles = Vec::with_capacity(BENCH_PARALLEL);
+    for _ in 0..BENCH_PARALLEL {
+        let nic = nic.clone();
+        let total = total.clone();
+        handles.push(tauri::async_runtime::spawn(async move {
+            let _ = bench_conn(&nic, dst, dur, &total).await;
+        }));
+    }
+    for h in handles {
+        let _ = tokio::time::timeout(dur + std::time::Duration::from_secs(5), h).await;
+    }
+
+    let secs = start.elapsed().as_secs_f64().max(0.001);
+    let bytes = total.load(Ordering::Relaxed);
+    if bytes == 0 {
+        return None;
+    }
+    Some(bytes as f64 / 1024.0 / 1024.0 / secs)
+}
+
+/// 单条 HTTPS 下载连接，绑定到指定网卡，持续读取并累加字节数。
+async fn bench_conn(
+    nic: &NicRuntime,
+    dst: SocketAddrV4,
+    dur: std::time::Duration,
+    total: &AtomicU64,
+) -> Option<()> {
+    let tcp = tokio::time::timeout(std::time::Duration::from_secs(4), connect_via_nic(nic, dst))
+        .await
+        .ok()?
+        .ok()?;
+    let connector = tls_connector();
+    let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(BENCH_HOST).ok()?;
+    let mut tls = tokio::time::timeout(std::time::Duration::from_secs(4), connector.connect(server_name, tcp))
+        .await
+        .ok()?
+        .ok()?;
     let req = format!(
         "GET {BENCH_PATH} HTTP/1.1\r\nHost: {BENCH_HOST}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
     );
-    stream.write_all(req.as_bytes()).await.ok()?;
+    tls.write_all(req.as_bytes()).await.ok()?;
 
     let start = std::time::Instant::now();
     let mut buf = vec![0u8; 65536];
-    let mut total: u64 = 0;
     loop {
         let elapsed = start.elapsed();
         if elapsed >= dur {
             break;
         }
-        match tokio::time::timeout(dur - elapsed, stream.read(&mut buf)).await {
+        match tokio::time::timeout(dur - elapsed, tls.read(&mut buf)).await {
             Ok(Ok(0)) => break,
-            Ok(Ok(n)) => total += n as u64,
+            Ok(Ok(n)) => {
+                total.fetch_add(n as u64, Ordering::Relaxed);
+            }
             _ => break,
         }
     }
-    let secs = start.elapsed().as_secs_f64().max(0.001);
-    Some((total as f64 / 1024.0 / 1024.0) / secs)
+    Some(())
 }
 
 #[derive(Clone, Copy)]
