@@ -902,11 +902,26 @@ async fn telemetry_loop(
         };
         let _ = app.emit("hmx-telemetry", payload);
 
+        // 托盘悬停提示：加速期间实时展示聚合下行速率
+        if let Some(tray) = app.tray_by_id("main") {
+            let tip = format!(
+                "HypoMuxPlus · ↓ {:.1} MB/s · {} 连接",
+                (total_down * 10.0).round() / 10.0,
+                total_conn
+            );
+            let _ = tray.set_tooltip(Some(tip.as_str()));
+        }
+
         // 实时连接列表快照（最多 80 条，避免高并发刷爆 webview）
         let snapshot: Vec<ConnInfo> = match conns.lock() {
             Ok(map) => map.values().take(80).cloned().collect(),
             Err(_) => Vec::new(),
         };
         let _ = app.emit("hmx-connections", snapshot);
+    }
+
+    // 停止后还原默认托盘提示
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some("HypoMuxPlus · 多网卡带宽聚合工具"));
     }
 }

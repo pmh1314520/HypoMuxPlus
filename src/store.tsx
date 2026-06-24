@@ -4,10 +4,21 @@ import { Lang, translate } from "./i18n";
 
 export type Theme = "dark" | "light";
 export type SchedStrategy = "rr" | "least" | "weighted";
+export type AccentKey = "blue" | "violet" | "emerald" | "amber" | "rose" | "cyan";
+
+export const ACCENTS: Record<AccentKey, { accent: string; deep: string; soft: string; glow: string }> = {
+  blue: { accent: "#3b82f6", deep: "#2563eb", soft: "#6ea8ff", glow: "rgba(59,130,246,0.25)" },
+  violet: { accent: "#8b5cf6", deep: "#7c3aed", soft: "#a78bfa", glow: "rgba(139,92,246,0.25)" },
+  emerald: { accent: "#10b981", deep: "#059669", soft: "#34d399", glow: "rgba(16,185,129,0.25)" },
+  amber: { accent: "#f59e0b", deep: "#d97706", soft: "#fbbf24", glow: "rgba(245,158,11,0.25)" },
+  rose: { accent: "#f43f5e", deep: "#e11d48", soft: "#fb7185", glow: "rgba(244,63,94,0.25)" },
+  cyan: { accent: "#06b6d4", deep: "#0891b2", soft: "#22d3ee", glow: "rgba(6,182,212,0.25)" },
+};
 
 interface Settings {
   lang: Lang;
   theme: Theme;
+  accent: AccentKey;
   socksPort: number;
   httpPort: number;
   closeToTray: boolean;
@@ -23,13 +34,14 @@ interface Settings {
 const DEFAULTS: Settings = {
   lang: "zh",
   theme: "dark",
+  accent: "blue",
   socksPort: 10800,
   httpPort: 10801,
   closeToTray: true,
   autostart: false,
   launchMinimized: false,
   autoBoost: false,
-  strategy: "rr",
+  strategy: "weighted",
   globalHotkey: false,
   notifications: false,
   hotkeyCombo: "Control+Alt+H",
@@ -62,8 +74,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    document.documentElement.setAttribute("data-theme", settings.theme);
-    document.documentElement.lang = settings.lang === "zh" ? "zh-CN" : "en";
+    const root = document.documentElement;
+    root.setAttribute("data-theme", settings.theme);
+    root.lang = settings.lang === "zh" ? "zh-CN" : "en";
+    const a = ACCENTS[settings.accent] ?? ACCENTS.blue;
+    root.style.setProperty("--accent", a.accent);
+    root.style.setProperty("--accent-deep", a.deep);
+    root.style.setProperty("--accent-soft", a.soft);
+    root.style.setProperty("--accent-glow", a.glow);
   }, [settings]);
 
   const value = useMemo<Ctx>(

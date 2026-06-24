@@ -215,6 +215,16 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                // 仅持久化尺寸与位置：避免保存"可见/最小化"状态导致
+                // 上次关闭到托盘后，下次启动窗口仍保持隐藏的问题
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::POSITION,
+                )
+                .build(),
+        )
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             check_admin,
@@ -239,9 +249,9 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "退出程序 / Exit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
-            let _tray = TrayIconBuilder::new()
+            let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("HypoMuxPlus · 多网卡加速")
+                .tooltip("HypoMuxPlus · 多网卡带宽聚合工具")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {

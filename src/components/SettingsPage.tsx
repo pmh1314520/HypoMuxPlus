@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
   Bell,
+  Droplet,
   Gamepad2,
   KeyRound,
   Languages,
@@ -15,7 +16,7 @@ import {
   Shuffle,
   Zap,
 } from "lucide-react";
-import { useSettings, type SchedStrategy, type Theme } from "../store";
+import { ACCENTS, useSettings, type AccentKey, type SchedStrategy, type Theme } from "../store";
 import { type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
+  const { t, lang, theme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -102,6 +103,28 @@ export function SettingsPage({ running }: Props) {
               ]}
               onChange={(v) => set("theme", v)}
             />
+          </Row>
+          <Row icon={<Droplet size={15} />} label={t("settingAccent")}>
+            <div className="flex items-center gap-2">
+              {(Object.keys(ACCENTS) as AccentKey[]).map((k) => {
+                const active = accent === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => set("accent", k)}
+                    aria-label={k}
+                    className="rounded-full transition-transform hover:scale-110"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      background: ACCENTS[k].accent,
+                      border: active ? "2px solid var(--text-0)" : "2px solid transparent",
+                      boxShadow: active ? `0 0 0 2px var(--surface-1), 0 0 8px ${ACCENTS[k].glow}` : "none",
+                    }}
+                  />
+                );
+              })}
+            </div>
           </Row>
           <Row icon={<Plug size={15} />} label={t("settingPorts")}>
             <div className="flex items-center gap-4">
