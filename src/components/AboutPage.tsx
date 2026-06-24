@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, MonitorSmartphone, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
+import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, Maximize2, MonitorSmartphone, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon } from "./BrandIcons";
@@ -237,19 +237,27 @@ function QrCard({
   return (
     <button
       onClick={() => onZoom({ src, label })}
-      className="flex flex-col items-center gap-2.5 p-3 rounded-xl transition-transform hover:scale-[1.02]"
+      className="group flex flex-col items-center gap-2.5 p-3 rounded-xl transition-all hover:scale-[1.03]"
       style={{ background: "var(--surface-2)", border: "1px solid var(--border)", cursor: "zoom-in" }}
     >
       <div
-        className="rounded-lg overflow-hidden bg-white p-2 w-full grid place-items-center"
+        className="relative rounded-lg overflow-hidden bg-white p-2 w-full grid place-items-center"
         style={{ aspectRatio: "3 / 4" }}
       >
         <img
           src={src}
           alt={label}
-          className="rounded-md"
+          className="rounded-md transition-transform duration-300 group-hover:scale-105"
           style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit: "contain" }}
         />
+        <span
+          className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: "rgba(0,0,0,0.18)" }}
+        >
+          <span className="grid place-items-center w-8 h-8 rounded-full" style={{ background: "rgba(255,255,255,0.9)", color: "#111" }}>
+            <Maximize2 size={15} />
+          </span>
+        </span>
       </div>
       <span className="flex items-center gap-1.5 text-[12.5px] font-semibold">
         <span className="w-2 h-2 rounded-full" style={{ background: color }} />

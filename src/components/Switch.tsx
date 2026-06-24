@@ -9,11 +9,13 @@ interface Props {
 /** 自研开关，统一设计语言，替代原生 checkbox。 */
 export function Switch({ checked, onChange, disabled }: Props) {
   return (
-    <button
+    <motion.button
       role="switch"
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
+      whileTap={disabled ? undefined : { scale: 0.92 }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
       className="relative w-[42px] h-[24px] rounded-full transition-colors shrink-0"
       style={{
         background: checked ? "linear-gradient(90deg, var(--accent-deep), var(--accent))" : "var(--surface-2)",
@@ -26,9 +28,9 @@ export function Switch({ checked, onChange, disabled }: Props) {
       <motion.span
         layout
         transition={{ type: "spring", stiffness: 520, damping: 32 }}
-        className="absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white"
-        style={{ left: checked ? 21 : 2, boxShadow: "0 2px 5px rgba(0,0,0,0.35)" }}
+        className="absolute top-[2px] h-[18px] rounded-full bg-white"
+        style={{ left: checked ? 21 : 2, width: 18, boxShadow: "0 2px 5px rgba(0,0,0,0.35)" }}
       />
-    </button>
+    </motion.button>
   );
 }
