@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ClipboardCopy, ListTree, Terminal, Trash2 } from "lucide-react";
+import { ClipboardCopy, History, ListTree, Terminal, Trash2 } from "lucide-react";
 import { useSettings } from "../store";
 import { Tooltip } from "./Tooltip";
 import { useToast } from "./Toast";
 import type { ConnInfo } from "../lib/api";
+import type { ClosedConn } from "../App";
 
 interface Props {
   logs: string[];
   clearLogs: () => void;
   connections: ConnInfo[];
+  connHistory: ClosedConn[];
   running: boolean;
 }
 
@@ -22,10 +24,10 @@ function lineColor(line: string): string {
   return "var(--text-1)";
 }
 
-export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
+export function MonitorPanel({ logs, clearLogs, connections, connHistory, running }: Props) {
   const { t } = useSettings();
   const toast = useToast();
-  const [tab, setTab] = useState<"log" | "conns">("log");
+  const [tab, setTab] = useState<"log" | "conns" | "history">("log");
   const [nicFilter, setNicFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
@@ -55,9 +57,10 @@ export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
     }
   };
 
-  const tabs: { id: "log" | "conns"; label: string; icon: typeof Terminal; badge?: number }[] = [
+  const tabs: { id: "log" | "conns" | "history"; label: string; icon: typeof Terminal; badge?: number }[] = [
     { id: "log", label: t("monitorLog"), icon: Terminal },
     { id: "conns", label: t("monitorConns"), icon: ListTree, badge: connections.length },
+    { id: "history", label: t("monitorHistory"), icon: History, badge: connHistory.length },
   ];
 
   return (
@@ -132,6 +135,41 @@ export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
             logs.map((line, i) => (
               <div key={i} style={{ color: lineColor(line) }} className="break-all">
                 {line}
+              </div>
+            ))
+          )}
+        </div>
+      ) : tab === "history" ? (
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {connHistory.length === 0 ? (
+            <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
+              {t("historyEmpty")}
+            </div>
+          ) : (
+            connHistory.map((c, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <span
+                  className="mono text-[9px] px-1.5 py-0.5 rounded shrink-0"
+                  style={{
+                    background: c.proto === "SOCKS" ? "rgba(59,130,246,0.14)" : "rgba(34,197,94,0.14)",
+                    color: c.proto === "SOCKS" ? "var(--accent-soft)" : "var(--ok)",
+                  }}
+                >
+                  {c.proto}
+                </span>
+                <span className="mono text-[11.5px] truncate flex-1" style={{ color: "var(--text-1)" }}>
+                  {c.target}
+                </span>
+                <span className="text-[11px] font-medium shrink-0" style={{ color: "var(--accent-soft)" }}>
+                  {c.nic}
+                </span>
+                <span className="mono text-[10px] shrink-0" style={{ color: "var(--text-2)" }}>
+                  {new Date(c.at).toLocaleTimeString()}
+                </span>
               </div>
             ))
           )}

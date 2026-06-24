@@ -76,6 +76,8 @@ export const api = {
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
+  isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
+  suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
 };
 
 // ---- 事件订阅 ----
@@ -99,6 +101,9 @@ export const onTrayToggle = (cb: () => void): Promise<UnlistenFn> =>
 
 export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): Promise<UnlistenFn> =>
   listen<{ name: string; alive: boolean }>("hmx-nic-alert", (e) => cb(e.payload));
+
+export const onConnClosed = (cb: (c: ConnInfo) => void): Promise<UnlistenFn> =>
+  listen<ConnInfo>("hmx-conn-closed", (e) => cb(e.payload));
 
 // ---- 窗口控制 ----
 export const win = {

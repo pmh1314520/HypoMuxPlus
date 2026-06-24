@@ -203,6 +203,28 @@ fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+/// 检测本地端口是否可用（127.0.0.1 能否成功监听）。
+#[tauri::command]
+fn is_port_free(port: u16) -> bool {
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+/// 从 start 起向上寻找一个可用端口（最多探测 2000 个）。
+#[tauri::command]
+fn suggest_free_port(start: u16) -> u16 {
+    let mut p = start.max(1024);
+    for _ in 0..2000 {
+        if std::net::TcpListener::bind(("127.0.0.1", p)).is_ok() {
+            return p;
+        }
+        match p.checked_add(1) {
+            Some(n) => p = n,
+            None => break,
+        }
+    }
+    start
+}
+
 /// 逐张网卡探测出口连通性与延迟（Plus 专属链路体检）。
 #[tauri::command]
 async fn test_latency(nics: Vec<engine::SelectedNic>) -> Result<Vec<engine::LatencyResult>, String> {
@@ -265,6 +287,8 @@ pub fn run() {
             configure_idm,
             read_text_file,
             write_text_file,
+            is_port_free,
+            suggest_free_port,
             test_latency,
             speed_test,
         ])

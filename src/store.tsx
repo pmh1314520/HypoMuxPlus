@@ -19,6 +19,7 @@ interface Settings {
   lang: Lang;
   theme: Theme;
   autoTheme: boolean;
+  highContrast: boolean;
   accent: AccentKey;
   socksPort: number;
   httpPort: number;
@@ -39,6 +40,7 @@ const DEFAULTS: Settings = {
   lang: "zh",
   theme: "dark",
   autoTheme: false,
+  highContrast: false,
   accent: "blue",
   socksPort: 10800,
   httpPort: 10801,
@@ -95,6 +97,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     const root = document.documentElement;
     root.setAttribute("data-theme", settings.theme);
+    root.setAttribute("data-contrast", settings.highContrast ? "on" : "off");
     root.lang = settings.lang === "zh" ? "zh-CN" : "en";
     const a = ACCENTS[settings.accent] ?? ACCENTS.blue;
     root.style.setProperty("--accent", a.accent);

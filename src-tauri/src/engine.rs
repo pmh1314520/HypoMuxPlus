@@ -312,23 +312,32 @@ impl Engine {
 
     fn register_conn(&self, target: String, nic: String, proto: &'static str) -> ConnTableGuard {
         let id = self.conn_id.fetch_add(1, Ordering::Relaxed);
+        let info = ConnInfo { target, nic, proto };
         if let Ok(mut map) = self.conns.lock() {
-            map.insert(id, ConnInfo { target, nic, proto });
+            map.insert(id, info.clone());
         }
-        ConnTableGuard { conns: self.conns.clone(), id }
+        ConnTableGuard {
+            conns: self.conns.clone(),
+            id,
+            app: self.app.clone(),
+            info,
+        }
     }
 }
 
-/// 活跃连接表 RAII 守卫：drop 时移除该连接记录
+/// 活跃连接表 RAII 守卫：drop 时移除该连接记录，并推送一条"已结束连接"用于历史留存
 struct ConnTableGuard {
     conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
     id: u64,
+    app: AppHandle,
+    info: ConnInfo,
 }
 impl Drop for ConnTableGuard {
     fn drop(&mut self) {
         if let Ok(mut map) = self.conns.lock() {
             map.remove(&self.id);
         }
+        let _ = self.app.emit("hmx-conn-closed", self.info.clone());
     }
 }
 

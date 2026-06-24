@@ -4,6 +4,7 @@ import { AdapterTable } from "./AdapterTable";
 import { MonitorPanel } from "./MonitorPanel";
 import { LinkDistribution } from "./LinkDistribution";
 import type { AdapterInfo, ConnInfo, NicTelemetry, TelemetryPayload } from "../lib/api";
+import type { ClosedConn } from "../App";
 
 interface Props {
   telemetry: TelemetryPayload | null;
@@ -30,6 +31,7 @@ interface Props {
   logs: string[];
   clearLogs: () => void;
   connections: ConnInfo[];
+  connHistory: ClosedConn[];
 }
 
 export function Dashboard(props: Props) {
@@ -71,6 +73,7 @@ export function Dashboard(props: Props) {
             logs={props.logs}
             clearLogs={props.clearLogs}
             connections={props.connections}
+            connHistory={props.connHistory}
             running={props.running}
           />
         </div>

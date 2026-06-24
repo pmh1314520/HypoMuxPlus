@@ -3,6 +3,7 @@ import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnable
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   Bell,
+  Contrast,
   Droplet,
   Gamepad2,
   Gauge,
@@ -19,6 +20,7 @@ import {
   Save,
   ServerCog,
   Shuffle,
+  Wand2,
   Zap,
 } from "lucide-react";
 import { ACCENTS, useSettings, type AccentKey, type SchedStrategy, type Theme } from "../store";
@@ -27,13 +29,14 @@ import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { NumberField } from "./NumberField";
 import { Switch } from "./Switch";
+import { Tooltip } from "./Tooltip";
 
 interface Props {
   running: boolean;
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -122,6 +125,20 @@ export function SettingsPage({ running }: Props) {
     }
   };
 
+  // 自动选择两个互不相同的可用端口并填入
+  const autoPickPorts = async () => {
+    try {
+      const http = await api.suggestFreePort(httpPort);
+      let socks = await api.suggestFreePort(socksPort === http ? http + 1 : socksPort);
+      if (socks === http) socks = await api.suggestFreePort(http + 1);
+      set("httpPort", http);
+      set("socksPort", socks);
+      toast("success", t("msgPortsPicked", { http, socks }));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto px-1 pb-6">
       <div className="max-w-[860px] mx-auto flex flex-col gap-5">
@@ -162,6 +179,9 @@ export function SettingsPage({ running }: Props) {
           <Row icon={<MonitorCog size={15} />} label={t("settingAutoTheme")} hint={t("settingAutoThemeHint")}>
             <Switch checked={autoTheme} onChange={(v) => set("autoTheme", v)} />
           </Row>
+          <Row icon={<Contrast size={15} />} label={t("settingHighContrast")} hint={t("settingHighContrastHint")}>
+            <Switch checked={highContrast} onChange={(v) => set("highContrast", v)} />
+          </Row>
           <Row icon={<Droplet size={15} />} label={t("settingAccent")}>
             <div className="flex items-center gap-2">
               {(Object.keys(ACCENTS) as AccentKey[]).map((k) => {
@@ -185,7 +205,7 @@ export function SettingsPage({ running }: Props) {
             </div>
           </Row>
           <Row icon={<Plug size={15} />} label={t("settingPorts")}>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
                   {t("portHttp")}
@@ -198,6 +218,22 @@ export function SettingsPage({ running }: Props) {
                 </span>
                 <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} />
               </div>
+              <Tooltip label={t("btnAutoPort")} placement="top">
+                <button
+                  onClick={autoPickPorts}
+                  disabled={running}
+                  className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
+                  style={{
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    color: "var(--accent-soft)",
+                    opacity: running ? 0.4 : 1,
+                    cursor: running ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <Wand2 size={15} />
+                </button>
+              </Tooltip>
             </div>
           </Row>
           <Row icon={<MonitorDown size={15} />} label={t("settingCloseBehavior")}>

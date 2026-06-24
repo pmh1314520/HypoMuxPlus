@@ -87,8 +87,26 @@
   --radius: 12px;
 }
 
-* {
-  box-sizing: border-box;
+/* 高对比模式：叠加在深 / 浅色之上，强化描边与文字，提升可读性与可访问性 */
+[data-contrast="on"] {
+  --border: rgba(255, 255, 255, 0.2);
+  --border-strong: rgba(255, 255, 255, 0.34);
+  --text-1: #c4ccd6;
+  --text-2: #8b95a1;
+  --surface-2: rgba(255, 255, 255, 0.09);
+  --surface-hover: rgba(255, 255, 255, 0.13);
+}
+[data-theme="light"][data-contrast="on"] {
+  --border: rgba(15, 30, 60, 0.28);
+  --border-strong: rgba(15, 30, 60, 0.45);
+  --text-1: #2b3543;
+  --text-2: #59647a;
+  --surface-2: #ffffff;
+  --surface-hover: rgba(15, 30, 60, 0.08);
+}
+[data-contrast="on"] .panel,
+[data-contrast="on"] .glass {
+  border-width: 1.5px;
 }
 html,
 body,

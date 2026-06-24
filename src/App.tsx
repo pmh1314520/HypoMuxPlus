@@ -11,6 +11,7 @@ import { DiagnosticsPage } from "./components/DiagnosticsPage";
 import { TutorialPage } from "./components/TutorialPage";
 import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
+import { Onboarding } from "./components/Onboarding";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
 import { useSettings } from "./store";
@@ -18,6 +19,7 @@ import {
   api,
   onBoostState,
   onConnections,
+  onConnClosed,
   onLog,
   onSpeedTest,
   onTelemetry,
@@ -32,9 +34,17 @@ import {
   type TelemetryPayload,
 } from "./lib/api";
 
+export interface ClosedConn {
+  proto: string;
+  target: string;
+  nic: string;
+  at: number;
+}
+
 const HISTORY_LEN = 60;
 const NIC_SPARK_LEN = 24;
 const LOG_CAP = 300;
+const CONN_HISTORY_CAP = 200;
 const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
 const LIFE_PEAK_KEY = "hmx-lifetime-peak";
@@ -98,6 +108,8 @@ function AppInner() {
   const [speedResults, setSpeedResults] = useState<Record<number, { mbps: number; ok: boolean }>>({});
   const [benchmarking, setBenchmarking] = useState(false);
   const [connections, setConnections] = useState<ConnInfo[]>([]);
+  const [connHistory, setConnHistory] = useState<ClosedConn[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("hmx-onboarded"));
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
   const [lifetimePeak, setLifetimePeak] = useState<number>(() => Number(localStorage.getItem(LIFE_PEAK_KEY)) || 0);
   const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
@@ -186,6 +198,12 @@ function AppInner() {
 
     onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
     onConnections((c) => setConnections(c)).then((u) => unlisteners.push(u));
+    onConnClosed((c) =>
+      setConnHistory((prev) => {
+        const next = [{ proto: c.proto, target: c.target, nic: c.nic, at: Date.now() }, ...prev];
+        return next.length > CONN_HISTORY_CAP ? next.slice(0, CONN_HISTORY_CAP) : next;
+      }),
+    ).then((u) => unlisteners.push(u));
     onSpeedTest((r) =>
       setSpeedResults((prev) => ({ ...prev, [r.index]: { mbps: r.mbps, ok: r.ok } })),
     ).then((u) => unlisteners.push(u));
@@ -351,6 +369,22 @@ function AppInner() {
     setBusy(true);
     setLogs([]);
     try {
+      // 启动前端口预检：被占用则给出明确提示与可用端口建议，避免难懂的绑定失败
+      const [socksFree, httpFree] = await Promise.all([
+        api.isPortFree(socksPort).catch(() => true),
+        api.isPortFree(httpPort).catch(() => true),
+      ]);
+      if (!socksFree || !httpFree) {
+        const busyPort = !socksFree ? socksPort : httpPort;
+        const suggest = await api.suggestFreePort(busyPort + 1).catch(() => 0);
+        toast(
+          "error",
+          t("msgPortBusy", { port: busyPort, suggest: suggest || busyPort + 1 }),
+        );
+        setBusy(false);
+        return;
+      }
+
       // 与原项目一致：开启前提醒 Steam 重启
       const steam = await api.checkSteamRunning().catch(() => false);
       if (steam) toast("warning", t("warnSteamRunning"));
@@ -446,6 +480,7 @@ function AppInner() {
                     logs={logs}
                     clearLogs={() => setLogs([])}
                     connections={connections}
+                    connHistory={connHistory}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
@@ -488,6 +523,15 @@ function AppInner() {
         httpPort={httpPort}
         totalConn={totalConn}
       />
+
+      {showOnboarding && (
+        <Onboarding
+          onClose={() => {
+            localStorage.setItem("hmx-onboarded", "1");
+            setShowOnboarding(false);
+          }}
+        />
+      )}
     </div>
   );
 }
