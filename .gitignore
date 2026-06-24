@@ -28,3 +28,7 @@ HypoMux/
 
 # 图标生成中间产物
 appicon.png
+
+# 打包产物
+website/website.zip
+*.zip
