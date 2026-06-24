@@ -126,12 +126,13 @@ async fn start_boost(
     socks_port: u16,
     http_port: u16,
     strategy: String,
+    lang: String,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
     }
 
-    let handle = engine::start(app.clone(), nics, socks_port, http_port, strategy).await?;
+    let handle = engine::start(app.clone(), nics, socks_port, http_port, strategy, lang).await?;
 
     let socks_addr = format!("127.0.0.1:{socks_port}");
     let http_addr = format!("127.0.0.1:{http_port}");

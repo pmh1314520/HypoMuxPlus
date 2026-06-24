@@ -57,8 +57,8 @@ export const api = {
   getBoostState: () => invoke<boolean>("get_boost_state"),
   getSystemProxy: () => invoke<[boolean, string]>("get_system_proxy"),
   setCloseToTray: (enabled: boolean) => invoke<void>("set_close_to_tray", { enabled }),
-  startBoost: (nics: SelectedNic[], socksPort: number, httpPort: number, strategy: string) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy }),
+  startBoost: (nics: SelectedNic[], socksPort: number, httpPort: number, strategy: string, lang: string) =>
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>

@@ -48,7 +48,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo } =
     useSettings();
   const toast = useToast();
 
@@ -288,7 +288,7 @@ function AppInner() {
       const steam = await api.checkSteamRunning().catch(() => false);
       if (steam) toast("warning", t("warnSteamRunning"));
 
-      await api.startBoost(chosen, socksPort, httpPort, strategy);
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang);
       toast("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {

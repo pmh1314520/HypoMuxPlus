@@ -13,10 +13,11 @@ interface Props {
 }
 
 function lineColor(line: string): string {
-  if (line.includes("失败") || line.includes("异常") || line.includes("failed") || line.includes("Error"))
+  const l = line.toLowerCase();
+  if (l.includes("失败") || l.includes("异常") || l.includes("failed") || l.includes("error"))
     return "var(--danger)";
-  if (line.includes("调度") || line.includes("dispatch")) return "var(--accent-soft)";
-  if (line.includes("启动") || line.includes("started") || line.includes("HypoMux")) return "var(--ok)";
+  if (l.includes("调度") || l.includes("dispatch")) return "var(--accent-soft)";
+  if (l.includes("启动") || l.includes("started") || l.includes("hypomux")) return "var(--ok)";
   return "var(--text-1)";
 }
 

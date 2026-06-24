@@ -75,6 +75,13 @@ impl Strategy {
             Strategy::WeightedSpeed => "按速度加权",
         }
     }
+    fn label_en(&self) -> &'static str {
+        match self {
+            Strategy::RoundRobin => "Round-Robin",
+            Strategy::LeastConn => "Least-Connections",
+            Strategy::WeightedSpeed => "Weighted-Speed",
+        }
+    }
 }
 
 /// 遥测载荷（emit 给前端）
@@ -123,6 +130,8 @@ pub struct Engine {
     conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
     conn_id: AtomicU64,
     app: AppHandle,
+    /// 日志语言：true=中文，false=英文（跟随前端界面语言）
+    zh: bool,
 }
 
 impl Engine {
@@ -214,11 +223,13 @@ pub async fn start(
     socks_port: u16,
     http_port: u16,
     strategy: String,
+    lang: String,
 ) -> Result<EngineHandle, String> {
     if selected.is_empty() {
         return Err("至少需要选择一张网卡".into());
     }
     let strategy = Strategy::parse(&strategy);
+    let zh = lang != "en";
 
     let mut nics: Vec<Arc<NicRuntime>> = Vec::with_capacity(selected.len());
     for s in &selected {
@@ -251,14 +262,23 @@ pub async fn start(
         conns: Arc::new(Mutex::new(HashMap::new())),
         conn_id: AtomicU64::new(0),
         app: app.clone(),
+        zh,
     });
 
     let nic_names: Vec<&str> = nics.iter().map(|n| n.name.as_str()).collect();
-    engine.log(format!(
-        "[HypoMux] SOCKS5+HTTP 分流引擎已启动 | SOCKS 127.0.0.1:{socks_port} | HTTP 127.0.0.1:{http_port} | 调度策略: {} | 参与分流网卡: {}",
-        strategy.label(),
-        nic_names.join(", ")
-    ));
+    engine.log(if zh {
+        format!(
+            "[HypoMux] SOCKS5+HTTP 分流引擎已启动 | SOCKS 127.0.0.1:{socks_port} | HTTP 127.0.0.1:{http_port} | 调度策略: {} | 参与分流网卡: {}",
+            strategy.label(),
+            nic_names.join(", ")
+        )
+    } else {
+        format!(
+            "[HypoMux] SOCKS5+HTTP splitting engine started | SOCKS 127.0.0.1:{socks_port} | HTTP 127.0.0.1:{http_port} | strategy: {} | adapters: {}",
+            strategy.label_en(),
+            nic_names.join(", ")
+        )
+    });
 
     // SOCKS5 接受循环
     {
@@ -489,7 +509,8 @@ async fn accept_loop(
                                         // 仅记录非常规错误，常见的连接重置忽略
                                         let s = e.to_string();
                                         if !s.is_empty() {
-                                            eng.log(format!("[连接异常] {s}"));
+                                            let pfx = if eng.zh { "[连接异常] " } else { "[Connection error] " };
+                                            eng.log(format!("{pfx}{s}"));
                                         }
                                     }
                                 } => {}
@@ -637,7 +658,11 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         match resolve_ipv4(&host, port).await {
             Ok(v4) => v4,
             Err(e) => {
-                engine.log(format!("[DNS失败] 无法解析域名 {host}: {e}"));
+                engine.log(if engine.zh {
+                    format!("[DNS失败] 无法解析域名 {host}: {e}")
+                } else {
+                    format!("[DNS failed] cannot resolve {host}: {e}")
+                });
                 client
                     .write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
                     .await?;
@@ -652,19 +677,21 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
-    engine.log(format!(
-        "[调度分配] 新连接 -> [{}] | 目标: {}:{}",
-        nic.name, target_display, port
-    ));
+    engine.log(if engine.zh {
+        format!("[调度分配] 新连接 -> [{}] | 目标: {}:{}", nic.name, target_display, port)
+    } else {
+        format!("[Dispatch] new connection -> [{}] | target: {}:{}", nic.name, target_display, port)
+    });
     let _ctg = engine.register_conn(format!("{target_display}:{port}"), nic.name.clone(), "SOCKS");
 
     let mut upstream = match connect_via_nic(&nic, dst).await {
         Ok(s) => s,
         Err(e) => {
-            engine.log(format!(
-                "[连通失败] 网卡: {} 无法连接目标 {}:{}: {}",
-                nic.name, target_display, port, e
-            ));
+            engine.log(if engine.zh {
+                format!("[连通失败] 网卡: {} 无法连接目标 {}:{}: {}", nic.name, target_display, port, e)
+            } else {
+                format!("[Connect failed] adapter {} cannot reach {}:{}: {}", nic.name, target_display, port, e)
+            });
             client
                 .write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
                 .await?;
@@ -756,7 +783,11 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
     let dst = match resolve_ipv4(&dst_host, dst_port).await {
         Ok(v4) => v4,
         Err(e) => {
-            engine.log(format!("[HTTP DNS失败] {dst_host}:{dst_port} -- {e}"));
+            engine.log(if engine.zh {
+                format!("[HTTP DNS失败] {dst_host}:{dst_port} -- {e}")
+            } else {
+                format!("[HTTP DNS failed] {dst_host}:{dst_port} -- {e}")
+            });
             let _ = client
                 .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
                 .await;
@@ -768,16 +799,21 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
-    engine.log(format!(
-        "[HTTP 调度分配] 新连接 -> [{}] | 目标: {}({}):{}",
-        nic.name, dst_host, dst.ip(), dst_port
-    ));
+    engine.log(if engine.zh {
+        format!("[HTTP 调度分配] 新连接 -> [{}] | 目标: {}({}):{}", nic.name, dst_host, dst.ip(), dst_port)
+    } else {
+        format!("[HTTP Dispatch] new connection -> [{}] | target: {}({}):{}", nic.name, dst_host, dst.ip(), dst_port)
+    });
     let _ctg = engine.register_conn(format!("{dst_host}:{dst_port}"), nic.name.clone(), "HTTP");
 
     let mut upstream = match connect_via_nic(&nic, dst).await {
         Ok(s) => s,
         Err(e) => {
-            engine.log(format!("[HTTP 连通失败] {dst_host}:{dst_port} -- {e}"));
+            engine.log(if engine.zh {
+                format!("[HTTP 连通失败] {dst_host}:{dst_port} -- {e}")
+            } else {
+                format!("[HTTP Connect failed] {dst_host}:{dst_port} -- {e}")
+            });
             let _ = client
                 .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
                 .await;
