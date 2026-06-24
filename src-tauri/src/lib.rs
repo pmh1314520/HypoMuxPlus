@@ -24,6 +24,8 @@ pub struct AppState {
     engine: Mutex<Option<engine::EngineHandle>>,
     boosting: AtomicBool,
     close_to_tray: AtomicBool,
+    /// 悬浮窗是否启用（前端配置同步而来）
+    hud_enabled: AtomicBool,
     /// 托盘「加速/停止」菜单项句柄，用于随状态动态更新文字
     tray_toggle: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
 }
@@ -34,8 +36,44 @@ impl Default for AppState {
             engine: Mutex::new(None),
             boosting: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(true),
+            hud_enabled: AtomicBool::new(false),
             tray_toggle: Mutex::new(None),
         }
+    }
+}
+
+/// 显示悬浮窗（HUD）。
+fn show_hud(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("hud") {
+        let _ = w.show();
+        let _ = w.set_always_on_top(true);
+    }
+}
+
+/// 隐藏悬浮窗（HUD）。
+fn hide_hud(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("hud") {
+        let _ = w.hide();
+    }
+}
+
+/// 进入托盘模式：隐藏主窗口，按需显示 HUD。
+fn enter_tray(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+    if app.state::<AppState>().hud_enabled.load(Ordering::Relaxed) {
+        show_hud(app);
+    }
+}
+
+/// 退出托盘模式：显示主窗口并隐藏 HUD。
+fn leave_tray(app: &AppHandle) {
+    hide_hud(app);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
     }
 }
 
@@ -130,6 +168,37 @@ fn get_system_proxy() -> (bool, String) {
 #[tauri::command]
 fn set_close_to_tray(state: State<'_, AppState>, enabled: bool) {
     state.close_to_tray.store(enabled, Ordering::Relaxed);
+}
+
+/// 同步悬浮窗启用状态：禁用时立即隐藏；启用且主窗口当前不可见时立即显示。
+#[tauri::command]
+fn set_hud_enabled(app: AppHandle, enabled: bool) {
+    let state = app.state::<AppState>();
+    state.hud_enabled.store(enabled, Ordering::Relaxed);
+    if !enabled {
+        hide_hud(&app);
+        return;
+    }
+    // 启用：仅当主窗口已隐藏（托盘模式）时才显示 HUD
+    let main_visible = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(true);
+    if !main_visible {
+        show_hud(&app);
+    }
+}
+
+/// 最小化到托盘（隐藏主窗口，按需显示 HUD）。
+#[tauri::command]
+fn hide_to_tray(app: AppHandle) {
+    enter_tray(&app);
+}
+
+/// 从托盘 / 悬浮窗恢复主窗口。
+#[tauri::command]
+fn restore_main(app: AppHandle) {
+    leave_tray(&app);
 }
 
 /// 一键加速：启动分流引擎并接管系统代理。
@@ -298,6 +367,9 @@ pub fn run() {
             get_boost_state,
             get_system_proxy,
             set_close_to_tray,
+            set_hud_enabled,
+            hide_to_tray,
+            restore_main,
             start_boost,
             stop_boost,
             configure_steam,
@@ -328,11 +400,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.unminimize();
-                            let _ = w.set_focus();
-                        }
+                        leave_tray(app);
                     }
                     "toggle" => {
                         // 通知前端执行一键加速 / 停止（沿用主界面的完整加速流程）
@@ -351,12 +419,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.unminimize();
-                            let _ = w.set_focus();
-                        }
+                        leave_tray(tray.app_handle());
                     }
                 })
                 .build(app)?;
@@ -365,10 +428,14 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 仅主窗口的关闭走"最小化到托盘"逻辑；HUD 窗口关闭不拦截
+                if window.label() != "main" {
+                    return;
+                }
                 let state = window.state::<AppState>();
                 if state.close_to_tray.load(Ordering::Relaxed) {
                     api.prevent_close();
-                    let _ = window.hide();
+                    enter_tray(&window.app_handle());
                 }
             }
         })

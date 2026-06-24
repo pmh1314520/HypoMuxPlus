@@ -14,6 +14,7 @@ import {
   MonitorDown,
   Network,
   Palette,
+  PictureInPicture2,
   Plug,
   Power,
   Rocket,
@@ -25,7 +26,7 @@ import {
 } from "lucide-react";
 import { ACCENTS, useSettings, type AccentKey, type SchedStrategy, type Theme } from "../store";
 import { type Lang } from "../i18n";
-import { api } from "../lib/api";
+import { api, emitHudSnap } from "../lib/api";
 import { useToast } from "./Toast";
 import { NumberField } from "./NumberField";
 import { Switch } from "./Switch";
@@ -36,7 +37,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -311,6 +312,76 @@ export function SettingsPage({ running }: Props) {
           </p>
         </Section>
 
+        {/* 悬浮窗 HUD（Plus 专属） */}
+        <Section icon={<PictureInPicture2 size={16} />} title={t("settingsHud")} hint={t("settingsHudHint")}>
+          <Row icon={<PictureInPicture2 size={15} />} label={t("settingHudEnable")} hint={t("settingHudEnableHint")}>
+            <Switch checked={hudEnabled} onChange={(v) => set("hudEnabled", v)} />
+          </Row>
+          {hudEnabled && (
+            <>
+              <Row label={t("settingHudOpacity")}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0.4}
+                    max={1}
+                    step={0.02}
+                    value={hudOpacity}
+                    onChange={(e) => set("hudOpacity", parseFloat(e.target.value))}
+                    style={{ accentColor: "var(--accent)", width: 150 }}
+                  />
+                  <span className="text-[12px] mono w-[42px] text-right" style={{ color: "var(--text-1)" }}>
+                    {Math.round(hudOpacity * 100)}%
+                  </span>
+                </div>
+              </Row>
+              <Row label={t("settingHudLock")} hint={t("settingHudLockHint")}>
+                <Switch checked={hudLocked} onChange={(v) => set("hudLocked", v)} />
+              </Row>
+              <Row label={t("settingHudUnit")}>
+                <Segmented<string>
+                  value={hudUnit}
+                  options={[
+                    { value: "mbps", label: "MB/s" },
+                    { value: "mbit", label: "Mbps" },
+                  ]}
+                  onChange={(v) => set("hudUnit", v as typeof hudUnit)}
+                />
+              </Row>
+              <Row label={t("settingHudMetrics")}>
+                <div className="flex items-center gap-2">
+                  <ToggleChip active={hudShowDown} onClick={() => set("hudShowDown", !hudShowDown)}>
+                    {t("hudMetricDown")}
+                  </ToggleChip>
+                  <ToggleChip active={hudShowUp} onClick={() => set("hudShowUp", !hudShowUp)}>
+                    {t("hudMetricUp")}
+                  </ToggleChip>
+                  <ToggleChip active={hudShowConns} onClick={() => set("hudShowConns", !hudShowConns)}>
+                    {t("hudMetricConns")}
+                  </ToggleChip>
+                </div>
+              </Row>
+              <Row label={t("settingHudPosition")}>
+                <div className="flex items-center gap-2">
+                  {(["tl", "tr", "bl", "br"] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => emitHudSnap(c)}
+                      className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors"
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+                    >
+                      {t("hudPos_" + c)}
+                    </button>
+                  ))}
+                </div>
+              </Row>
+              <p className="text-[11px] mt-2 pt-3" style={{ color: "var(--text-2)", borderTop: "1px solid var(--border)" }}>
+                {t("hudTipDrag")}
+              </p>
+            </>
+          )}
+        </Section>
+
         {/* 流量控制（Plus 专属） */}
         <Section icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
           <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
@@ -457,6 +528,22 @@ function Segmented<T extends string | boolean>({
         );
       })}
     </div>
+  );
+}
+
+function ToggleChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+      style={{
+        background: active ? "var(--accent)" : "var(--surface-2)",
+        color: active ? "#fff" : "var(--text-1)",
+        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

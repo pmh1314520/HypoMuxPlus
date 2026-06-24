@@ -23,6 +23,21 @@
         "resizable": true,
         "center": true,
         "shadow": true
+      },
+      {
+        "label": "hud",
+        "title": "HypoMuxPlus HUD",
+        "url": "index.html?hud=1",
+        "width": 232,
+        "height": 150,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {

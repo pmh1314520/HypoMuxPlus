@@ -5,6 +5,7 @@ import { Lang, translate } from "./i18n";
 export type Theme = "dark" | "light";
 export type SchedStrategy = "rr" | "least" | "weighted";
 export type AccentKey = "blue" | "violet" | "emerald" | "amber" | "rose" | "cyan";
+export type HudUnit = "mbps" | "mbit";
 
 export const ACCENTS: Record<AccentKey, { accent: string; deep: string; soft: string; glow: string }> = {
   blue: { accent: "#3b82f6", deep: "#2563eb", soft: "#6ea8ff", glow: "rgba(59,130,246,0.25)" },
@@ -35,6 +36,13 @@ interface Settings {
   downLimit: number;
   bypassList: string;
   alwaysOnTop: boolean;
+  hudEnabled: boolean;
+  hudOpacity: number;
+  hudLocked: boolean;
+  hudUnit: HudUnit;
+  hudShowDown: boolean;
+  hudShowUp: boolean;
+  hudShowConns: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -57,6 +65,13 @@ const DEFAULTS: Settings = {
   downLimit: 0,
   bypassList: "",
   alwaysOnTop: false,
+  hudEnabled: false,
+  hudOpacity: 0.92,
+  hudLocked: false,
+  hudUnit: "mbps",
+  hudShowDown: true,
+  hudShowUp: true,
+  hudShowConns: true,
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

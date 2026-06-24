@@ -14,9 +14,10 @@ import { SettingsPage } from "./components/SettingsPage";
 import { Onboarding } from "./components/Onboarding";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
-import { useSettings } from "./store";
+import { useSettings, ACCENTS } from "./store";
 import {
   api,
+  emitHudConfig,
   onBoostState,
   onConnections,
   onConnClosed,
@@ -82,7 +83,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns } =
     useSettings();
   const toast = useToast();
 
@@ -228,6 +229,27 @@ function AppInner() {
     win.setAlwaysOnTop(alwaysOnTop).catch(() => {});
   }, [alwaysOnTop]);
 
+  // 同步 HUD 启用状态到后端（控制托盘模式下是否显示悬浮窗）
+  useEffect(() => {
+    api.setHudEnabled(hudEnabled).catch(() => {});
+  }, [hudEnabled]);
+
+  // 推送 HUD 配置到悬浮窗（透明度 / 锁定 / 单位 / 显示项 / 配色 / 主题）
+  useEffect(() => {
+    const a = ACCENTS[accent] ?? ACCENTS.blue;
+    emitHudConfig({
+      opacity: hudOpacity,
+      locked: hudLocked,
+      unit: hudUnit,
+      showDown: hudShowDown,
+      showUp: hudShowUp,
+      showConns: hudShowConns,
+      accent: a.accent,
+      accentSoft: a.soft,
+      theme,
+    }).catch(() => {});
+  }, [hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, accent, theme]);
+
   // 持久化已选网卡（供"启动后自动加速"复用）
   useEffect(() => {
     localStorage.setItem(SELECTED_KEY, JSON.stringify([...selected]));
@@ -237,7 +259,7 @@ function AppInner() {
   useEffect(() => {
     if (booted.current || loading) return;
     booted.current = true;
-    if (launchMinimized) win.hide().catch(() => {});
+    if (launchMinimized) api.hideToTray().catch(() => {});
     if (autoBoost && selected.size > 0 && !running) {
       void onBoost();
     }

@@ -1,6 +1,6 @@
 // 与 Rust 后端交互的类型化封装层
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export interface AdapterInfo {
@@ -78,7 +78,31 @@ export const api = {
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
+  setHudEnabled: (enabled: boolean) => invoke<void>("set_hud_enabled", { enabled }),
+  hideToTray: () => invoke<void>("hide_to_tray"),
+  restoreMain: () => invoke<void>("restore_main"),
 };
+
+export interface HudConfig {
+  opacity: number;
+  locked: boolean;
+  unit: string;
+  showDown: boolean;
+  showUp: boolean;
+  showConns: boolean;
+  accent: string;
+  accentSoft: string;
+  theme: string;
+}
+
+/** 主窗口推送 HUD 配置；HUD 窗口订阅以实时应用 */
+export const emitHudConfig = (cfg: HudConfig) => emit("hmx-hud-config", cfg);
+export const onHudConfig = (cb: (cfg: HudConfig) => void): Promise<UnlistenFn> =>
+  listen<HudConfig>("hmx-hud-config", (e) => cb(e.payload));
+/** 主窗口请求 HUD 吸附到指定角落 */
+export const emitHudSnap = (corner: string) => emit("hmx-hud-snap", corner);
+export const onHudSnap = (cb: (corner: string) => void): Promise<UnlistenFn> =>
+  listen<string>("hmx-hud-snap", (e) => cb(e.payload));
 
 // ---- 事件订阅 ----
 export const onLog = (cb: (line: string) => void): Promise<UnlistenFn> =>
