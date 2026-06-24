@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bookmark, Cable, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
+import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
@@ -93,6 +93,20 @@ export function AdapterTable({
   const [notes, setNotes] = useState<Record<string, string>>(loadNotes);
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [sort, setSort] = useState<"default" | "speed" | "conns">("default");
+
+  const sortLabel = sort === "speed" ? t("sortSpeed") : sort === "conns" ? t("sortConns") : t("sortDefault");
+  const cycleSort = () => setSort((s) => (s === "default" ? "speed" : s === "speed" ? "conns" : "default"));
+  const sortedAdapters =
+    sort === "default"
+      ? adapters
+      : [...adapters].sort((a, b) => {
+          const ta = perNic[a.alias];
+          const tb = perNic[b.alias];
+          const va = sort === "speed" ? ta?.downMbps ?? 0 : ta?.connections ?? 0;
+          const vb = sort === "speed" ? tb?.downMbps ?? 0 : tb?.connections ?? 0;
+          return vb - va;
+        });
 
   const startEditNote = (index: number) => {
     setEditingNote(index);
@@ -156,6 +170,19 @@ export function AdapterTable({
         <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--surface-2)", color: "var(--text-1)" }}>
           {t("selectedCount", { n: selected.size })}
         </span>
+        <Tooltip label={t("sortTip")} placement="top">
+          <button
+            onClick={cycleSort}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+            style={{
+              background: sort === "default" ? "var(--surface-strong)" : "color-mix(in srgb, var(--accent) 16%, transparent)",
+              border: `1px solid ${sort === "default" ? "var(--border)" : "color-mix(in srgb, var(--accent) 35%, transparent)"}`,
+              color: sort === "default" ? "var(--text-1)" : "var(--accent-soft)",
+            }}
+          >
+            <ArrowDownUp size={13} /> {sortLabel}
+          </button>
+        </Tooltip>
         <HeaderBtn onClick={selectAll} disabled={running}>
           <CheckSquare size={14} /> {t("selectAll")}
         </HeaderBtn>
@@ -274,7 +301,7 @@ export function AdapterTable({
             {loading ? t("statusLoading") : t("statusNoAdapters")}
           </div>
         ) : (
-          adapters.map((a) => {
+          sortedAdapters.map((a) => {
             const checked = selected.has(a.index);
             const tele = perNic[a.alias];
             const hasIp = a.ipv4 && a.ipv4 !== "0.0.0.0";

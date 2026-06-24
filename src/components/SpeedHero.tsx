@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Clock, Database, Network, TrendingUp } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Clock, Database, Gauge, Network, Shuffle, TrendingUp } from "lucide-react";
 import { useSettings } from "../store";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { AreaChart } from "./AreaChart";
@@ -25,8 +25,12 @@ function fmtUptime(sec: number): string {
 }
 
 export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running, busy, canBoost, onBoost }: Props) {
-  const { t } = useSettings();
+  const { t, strategy, downLimit, bypassList } = useSettings();
   const total = telemetry?.total ?? { downMbps: 0, upMbps: 0, connections: 0 };
+
+  const stratLabel =
+    strategy === "rr" ? t("schedRR") : strategy === "least" ? t("schedLeast") : t("schedWeighted");
+  const bypassCount = bypassList.split(/[\s,;]+/).filter((x) => x.trim()).length;
 
   const sessionVal = sessionMB >= 1024 ? (sessionMB / 1024).toFixed(2) : sessionMB.toFixed(0);
   const sessionUnit = sessionMB >= 1024 ? "GB" : "MB";
@@ -87,6 +91,17 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
                 {t("unitMbps")}
               </span>
             </div>
+
+            {/* 活动配置徽章 */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <HeroBadge icon={<Shuffle size={11} />} text={stratLabel} />
+              {downLimit > 0 && (
+                <HeroBadge icon={<Gauge size={11} />} text={`${downLimit} ${t("unitMbps")}`} accent />
+              )}
+              {bypassCount > 0 && (
+                <HeroBadge icon={<Network size={11} />} text={t("heroBypassN", { n: bypassCount })} />
+              )}
+            </div>
           </div>
 
           {/* 右上：端点 + 加速按钮 */}
@@ -123,5 +138,21 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
         </div>
       </div>
     </div>
+  );
+}
+
+function HeroBadge({ icon, text, accent }: { icon: React.ReactNode; text: string; accent?: boolean }) {
+  return (
+    <span
+      className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium"
+      style={{
+        background: accent ? "color-mix(in srgb, var(--accent) 16%, transparent)" : "var(--surface-2)",
+        border: `1px solid ${accent ? "color-mix(in srgb, var(--accent) 35%, transparent)" : "var(--border)"}`,
+        color: accent ? "var(--accent-soft)" : "var(--text-1)",
+      }}
+    >
+      {icon}
+      {text}
+    </span>
   );
 }

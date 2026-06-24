@@ -170,8 +170,9 @@ function DailyChart({ dailyMB }: { dailyMB: Record<string, number> }) {
         </div>
       ) : (
         <div className="flex items-end gap-1.5 h-[120px]">
-          {days.map((d) => {
+          {days.map((d, i) => {
             const h = Math.max(2, Math.round((d.mb / max) * 100));
+            const isToday = i === days.length - 1;
             return (
               <div key={d.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
                 <Tooltip label={`${d.label} · ${fmtData(d.mb)}`} placement="top">
@@ -184,11 +185,16 @@ function DailyChart({ dailyMB }: { dailyMB: Record<string, number> }) {
                       style={{
                         background: d.mb > 0 ? "linear-gradient(var(--accent-soft), var(--accent))" : "var(--surface-2)",
                         minHeight: 2,
+                        outline: isToday ? "1px solid var(--accent-soft)" : "none",
+                        outlineOffset: 1,
                       }}
                     />
                   </div>
                 </Tooltip>
-                <span className="text-[9px] tabular-nums" style={{ color: "var(--text-2)" }}>
+                <span
+                  className="text-[9px] tabular-nums"
+                  style={{ color: isToday ? "var(--accent-soft)" : "var(--text-2)", fontWeight: isToday ? 700 : 400 }}
+                >
                   {d.label}
                 </span>
               </div>

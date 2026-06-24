@@ -42,6 +42,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
 
     // 数据大屏
     combinedDown: "合并下行总速度",
+    heroBypassN: "直连 {n}",
     unitMbps: "MB/s",
     uplink: "上行",
     totalConn: "总连接数",
@@ -69,6 +70,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     profileSaved: "网卡方案已保存",
     profileApplied: "已套用方案：{name}",
     profileNoSel: "请先勾选要保存的网卡",
+    sortDefault: "默认排序",
+    sortSpeed: "按速度",
+    sortConns: "按连接",
+    sortTip: "切换网卡排序方式",
     btnConfirm: "确定",
     btnCancel: "取消",
 
@@ -353,6 +358,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     msgCopied: "Copied to clipboard",
 
     combinedDown: "Combined Download Speed",
+    heroBypassN: "{n} direct",
     unitMbps: "MB/s",
     uplink: "Upload",
     totalConn: "Connections",
@@ -379,6 +385,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     profileSaved: "Adapter profile saved",
     profileApplied: "Applied profile: {name}",
     profileNoSel: "Select adapters to save first",
+    sortDefault: "Default",
+    sortSpeed: "By Speed",
+    sortConns: "By Conns",
+    sortTip: "Change adapter sorting",
     btnConfirm: "OK",
     btnCancel: "Cancel",
 
