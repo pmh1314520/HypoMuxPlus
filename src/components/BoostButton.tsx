@@ -36,14 +36,34 @@ export function BoostButton({ running, busy, disabled, onClick }: Props) {
         cursor: disabled || busy ? "not-allowed" : "pointer",
       }}
     >
-      {busy ? (
-        <Loader2 size={19} className="animate-spin" />
-      ) : running ? (
-        <Power size={19} />
-      ) : (
-        <Zap size={19} fill="currentColor" />
+      {/* 运行态柔和脉冲光晕 */}
+      {running && !busy && (
+        <motion.span
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2), transparent 62%)" }}
+          animate={{ opacity: [0.25, 0.6, 0.25] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
       )}
-      {label}
+      {/* 待机态轻扫光泽，提示可点击 */}
+      {!running && !busy && !disabled && (
+        <motion.span
+          className="absolute top-0 bottom-0 w-1/3 pointer-events-none"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)" }}
+          animate={{ x: ["-160%", "360%"] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.4 }}
+        />
+      )}
+      <span className="relative z-10 flex items-center justify-center gap-2.5">
+        {busy ? (
+          <Loader2 size={19} className="animate-spin" />
+        ) : running ? (
+          <Power size={19} />
+        ) : (
+          <Zap size={19} fill="currentColor" />
+        )}
+        {label}
+      </span>
     </motion.button>
   );
 }
