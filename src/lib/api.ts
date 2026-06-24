@@ -90,6 +90,7 @@ export interface HudConfig {
   showDown: boolean;
   showUp: boolean;
   showConns: boolean;
+  showNics: boolean;
   accent: string;
   accentSoft: string;
   theme: string;
@@ -122,6 +123,8 @@ export const onSpeedTest = (cb: (r: SpeedResult) => void): Promise<UnlistenFn> =
 
 export const onTrayToggle = (cb: () => void): Promise<UnlistenFn> =>
   listen("hmx-tray-toggle", () => cb());
+/** HUD 触发一键加速 / 停止（复用主窗口的切换流程） */
+export const emitTrayToggle = () => emit("hmx-tray-toggle");
 
 export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): Promise<UnlistenFn> =>
   listen<{ name: string; alive: boolean }>("hmx-nic-alert", (e) => cb(e.payload));

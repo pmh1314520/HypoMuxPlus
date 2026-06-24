@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Cpu, Download, Zap } from "lucide-react";
 import { useSettings } from "../store";
@@ -10,6 +11,12 @@ interface Props {
 /** 首屏使用引导：仅首次启动时展示一次（localStorage 标记），三步快速上手。 */
 export function Onboarding({ onClose }: Props) {
   const { t } = useSettings();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const steps = [
     { icon: <Cpu size={16} />, text: t("obStep1") },

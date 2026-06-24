@@ -37,7 +37,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -360,6 +360,9 @@ export function SettingsPage({ running }: Props) {
                     {t("hudMetricConns")}
                   </ToggleChip>
                 </div>
+              </Row>
+              <Row label={t("settingHudNics")} hint={t("settingHudNicsHint")}>
+                <Switch checked={hudShowNics} onChange={(v) => set("hudShowNics", v)} />
               </Row>
               <Row label={t("settingHudPosition")}>
                 <div className="flex items-center gap-2">

@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react";
-import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
+import { useEffect, useRef, useState } from "react";
+import {
+  getCurrentWindow,
+  currentMonitor,
+  PhysicalPosition,
+  LogicalSize,
+} from "@tauri-apps/api/window";
+import { Pause, Play } from "lucide-react";
 import {
   api,
+  emitTrayToggle,
   onBoostState,
   onHudConfig,
   onHudSnap,
@@ -13,8 +20,8 @@ import { ACCENTS, type AccentKey } from "../store";
 
 const HUD_POS_KEY = "hmx-hud-pos";
 const SPARK_LEN = 28;
+const HUD_WIDTH = 232;
 
-// 从主设置 localStorage 读取初始 HUD 配置（与主窗口同源共享）
 function initialConfig(): HudConfig {
   let s: Record<string, unknown> = {};
   try {
@@ -31,6 +38,7 @@ function initialConfig(): HudConfig {
     showDown: s.hudShowDown !== false,
     showUp: s.hudShowUp !== false,
     showConns: s.hudShowConns !== false,
+    showNics: !!s.hudShowNics,
     accent: a.accent,
     accentSoft: a.soft,
     theme: (s.theme as string) || "dark",
@@ -50,8 +58,8 @@ export function Hud() {
   const [running, setRunning] = useState(false);
   const [tele, setTele] = useState<TelemetryPayload | null>(null);
   const [hist, setHist] = useState<number[]>(new Array(SPARK_LEN).fill(0));
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  // 透明背景：HUD 文档根透明
   useEffect(() => {
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
@@ -99,6 +107,20 @@ export function Hud() {
     return () => un?.();
   }, []);
 
+  // 内容高度自适应：随显示项 / 分网卡数量动态调整窗口高度
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const resize = () => {
+      const h = Math.ceil(el.offsetHeight) + 12; // 12 = 外层 p-1.5 上下内边距
+      getCurrentWindow().setSize(new LogicalSize(HUD_WIDTH, h)).catch(() => {});
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(el);
+    resize();
+    return () => ro.disconnect();
+  }, []);
+
   const snapTo = async (corner: string) => {
     try {
       const mon = await currentMonitor();
@@ -106,14 +128,10 @@ export function Hud() {
       const win = getCurrentWindow();
       const size = await win.outerSize();
       const m = 16 * (mon.scaleFactor || 1);
-      const sx = mon.position.x;
-      const sy = mon.position.y;
-      const sw = mon.size.width;
-      const sh = mon.size.height;
-      let x = sx + m;
-      let y = sy + m;
-      if (corner.includes("r")) x = sx + sw - size.width - m;
-      if (corner.includes("b")) y = sy + sh - size.height - m;
+      let x = mon.position.x + m;
+      let y = mon.position.y + m;
+      if (corner.includes("r")) x = mon.position.x + mon.size.width - size.width - m;
+      if (corner.includes("b")) y = mon.position.y + mon.size.height - size.height - m;
       await win.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
       localStorage.setItem(HUD_POS_KEY, JSON.stringify({ x: Math.round(x), y: Math.round(y) }));
     } catch {
@@ -135,43 +153,53 @@ export function Hud() {
     .join(" ");
 
   const light = cfg.theme === "light";
-  const cardBg = light ? "rgba(255,255,255,VAR)" : "rgba(16,19,26,VAR)";
   const txt0 = light ? "#111722" : "#e7eaee";
   const txt2 = light ? "#8995a4" : "#5b636d";
+  const cardBg = (light ? "rgba(255,255,255," : "rgba(16,19,26,") + cfg.opacity + ")";
+
+  const nics = cfg.showNics ? (tele?.perNic ?? []).slice(0, 4) : [];
+  const nicMax = Math.max(...nics.map((n) => n.downMbps), 0.001);
+  const drag = !cfg.locked ? "" : undefined;
 
   return (
     <div
-      data-tauri-drag-region={!cfg.locked ? "" : undefined}
+      data-tauri-drag-region={drag}
       onDoubleClick={() => api.restoreMain().catch(() => {})}
-      className="w-screen h-screen p-1.5 select-none"
+      className="w-screen p-1.5 select-none"
       style={{ cursor: cfg.locked ? "default" : "grab" }}
     >
       <div
-        data-tauri-drag-region={!cfg.locked ? "" : undefined}
-        className="w-full h-full rounded-2xl px-3.5 py-3 flex flex-col gap-1.5 pointer-events-auto"
+        ref={cardRef}
+        data-tauri-drag-region={drag}
+        className="w-full rounded-2xl px-3.5 py-3 flex flex-col gap-1.5"
         style={{
-          background: cardBg.replace("VAR", String(cfg.opacity)),
+          background: cardBg,
           border: `1px solid ${light ? "rgba(15,30,60,0.12)" : "rgba(255,255,255,0.1)"}`,
           boxShadow: "0 12px 34px -14px rgba(0,0,0,0.6)",
           backdropFilter: "blur(14px)",
         }}
       >
-        {/* 顶部：品牌 + 状态点 */}
-        <div data-tauri-drag-region={!cfg.locked ? "" : undefined} className="flex items-center gap-2">
+        {/* 顶部：状态 + 品牌 + 启停按钮 */}
+        <div data-tauri-drag-region={drag} className="flex items-center gap-2">
           <span
             className="w-2 h-2 rounded-full"
-            style={{
-              background: running ? "#3ecf8e" : txt2,
-              boxShadow: running ? "0 0 7px #3ecf8e" : "none",
-            }}
+            style={{ background: running ? "#3ecf8e" : txt2, boxShadow: running ? "0 0 7px #3ecf8e" : "none" }}
           />
           <span className="text-[11px] font-bold tracking-tight" style={{ color: txt0 }}>
             HypoMux<span style={{ color: cfg.accentSoft }}>Plus</span>
           </span>
           <div className="flex-1" />
-          <span className="text-[9px] mono" style={{ color: txt2 }}>
-            {running ? "LIVE" : "IDLE"}
-          </span>
+          <button
+            onClick={() => emitTrayToggle()}
+            title={running ? "Stop" : "Boost"}
+            className="grid place-items-center w-[22px] h-[22px] rounded-md transition-transform hover:scale-110"
+            style={{
+              background: running ? "rgba(240,97,109,0.16)" : cfg.accent,
+              color: running ? "#f0616d" : "#fff",
+            }}
+          >
+            {running ? <Pause size={12} /> : <Play size={12} />}
+          </button>
         </div>
 
         {/* 迷你曲线 */}
@@ -187,16 +215,40 @@ export function Hud() {
           />
         </svg>
 
-        {/* 指标 */}
-        <div className="flex items-end justify-between gap-2">
-          {cfg.showDown && (
-            <Metric label="↓" value={d.value} unit={d.label} color={cfg.accentSoft} txt0={txt0} txt2={txt2} />
-          )}
-          {cfg.showUp && <Metric label="↑" value={u.value} unit={u.label} color={txt0} txt0={txt0} txt2={txt2} />}
-          {cfg.showConns && (
-            <Metric label="⇄" value={String(conns)} unit="conns" color={txt0} txt0={txt0} txt2={txt2} />
-          )}
-        </div>
+        {/* 总览指标 */}
+        {(cfg.showDown || cfg.showUp || cfg.showConns) && (
+          <div className="flex items-end justify-between gap-2">
+            {cfg.showDown && (
+              <Metric label="↓" value={d.value} unit={d.label} color={cfg.accentSoft} txt0={txt0} txt2={txt2} />
+            )}
+            {cfg.showUp && <Metric label="↑" value={u.value} unit={u.label} color={txt0} txt0={txt0} txt2={txt2} />}
+            {cfg.showConns && (
+              <Metric label="⇄" value={String(conns)} unit="conns" color={txt0} txt0={txt0} txt2={txt2} />
+            )}
+          </div>
+        )}
+
+        {/* 分网卡明细 */}
+        {nics.length > 0 && (
+          <div className="flex flex-col gap-1 mt-0.5 pt-1.5" style={{ borderTop: `1px solid ${light ? "rgba(15,30,60,0.08)" : "rgba(255,255,255,0.06)"}` }}>
+            {nics.map((n) => (
+              <div key={n.index} className="flex items-center gap-2">
+                <span className="text-[9px] truncate flex-1" style={{ color: txt2 }}>
+                  {n.name}
+                </span>
+                <div className="w-[64px] h-[3px] rounded-full overflow-hidden" style={{ background: light ? "rgba(15,30,60,0.1)" : "rgba(255,255,255,0.1)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.min(100, (n.downMbps / nicMax) * 100)}%`, background: cfg.accentSoft }}
+                  />
+                </div>
+                <span className="text-[9px] mono w-[34px] text-right" style={{ color: txt0 }}>
+                  {fmtSpeed(n.downMbps, cfg.unit).value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
