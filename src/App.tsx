@@ -21,6 +21,7 @@ import {
   onLog,
   onSpeedTest,
   onTelemetry,
+  onTrayToggle,
   win,
   type AdapterInfo,
   type ConnInfo,
@@ -139,6 +140,9 @@ function AppInner() {
       setSpeedResults((prev) => ({ ...prev, [r.index]: { mbps: r.mbps, ok: r.ok } })),
     ).then((u) => unlisteners.push(u));
 
+    // 托盘菜单「切换加速」：触发与主界面一致的一键加速 / 停止流程
+    onTrayToggle(() => onBoostRef.current()).then((u) => unlisteners.push(u));
+
     return () => unlisteners.forEach((u) => u());
   }, [scan]);
 
@@ -195,6 +199,13 @@ function AppInner() {
   const selectAll = () =>
     setSelected(new Set(adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0").map((a) => a.index)));
   const deselectAll = () => setSelected(new Set());
+  // 套用网卡方案：仅纳入仍存在且具备有效 IPv4 的网卡
+  const applySelection = (indices: number[]) =>
+    setSelected(
+      new Set(
+        indices.filter((i) => adapters.some((a) => a.index === i && a.ipv4 && a.ipv4 !== "0.0.0.0")),
+      ),
+    );
 
   // 链路体检：逐张网卡探测出口延迟
   const onTest = async () => {
@@ -359,6 +370,7 @@ function AppInner() {
                     toggle={toggle}
                     selectAll={selectAll}
                     deselectAll={deselectAll}
+                    applySelection={applySelection}
                     refresh={scan}
                     perNic={perNic}
                     loading={loading}

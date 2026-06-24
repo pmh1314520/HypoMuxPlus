@@ -21,6 +21,7 @@ interface Props {
   toggle: (i: number) => void;
   selectAll: () => void;
   deselectAll: () => void;
+  applySelection: (indices: number[]) => void;
   refresh: () => void;
   perNic: Record<string, NicTelemetry>;
   loading: boolean;
@@ -56,6 +57,7 @@ export function Dashboard(props: Props) {
           toggle={props.toggle}
           selectAll={props.selectAll}
           deselectAll={props.deselectAll}
+          applySelection={props.applySelection}
           refresh={props.refresh}
           perNic={props.perNic}
           running={props.running}

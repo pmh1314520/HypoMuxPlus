@@ -84,6 +84,9 @@ export const onConnections = (cb: (c: ConnInfo[]) => void): Promise<UnlistenFn> 
 export const onSpeedTest = (cb: (r: SpeedResult) => void): Promise<UnlistenFn> =>
   listen<SpeedResult>("hmx-speedtest", (e) => cb(e.payload));
 
+export const onTrayToggle = (cb: () => void): Promise<UnlistenFn> =>
+  listen("hmx-tray-toggle", () => cb());
+
 // ---- 窗口控制 ----
 export const win = {
   minimize: () => getCurrentWindow().minimize(),

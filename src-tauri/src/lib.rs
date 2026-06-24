@@ -247,8 +247,9 @@ pub fn run() {
 
             // 构建系统托盘
             let show = MenuItem::with_id(app, "show", "显示主界面 / Show", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(app, "toggle", "加速 / 停止 切换 · Toggle Boost", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出程序 / Exit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &toggle, &quit])?;
 
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -262,6 +263,10 @@ pub fn run() {
                             let _ = w.unminimize();
                             let _ = w.set_focus();
                         }
+                    }
+                    "toggle" => {
+                        // 通知前端执行一键加速 / 停止（沿用主界面的完整加速流程）
+                        let _ = app.emit("hmx-tray-toggle", ());
                     }
                     "quit" => {
                         cleanup(app);

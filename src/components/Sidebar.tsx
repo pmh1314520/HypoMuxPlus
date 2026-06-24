@@ -93,7 +93,10 @@ export function Sidebar({ view, setView, running }: Props) {
       {/* 底部：主题切换 + 版本 */}
       <div className="px-4 py-4 flex flex-col gap-3">
         <button
-          onClick={() => set("theme", theme === "dark" ? "light" : "dark")}
+          onClick={() => {
+            set("autoTheme", false);
+            set("theme", theme === "dark" ? "light" : "dark");
+          }}
           className="flex items-center justify-between px-3 py-2 rounded-xl text-[12.5px] font-medium transition-colors hover:[background:var(--surface-hover)]"
           style={{ color: "var(--text-1)", border: "1px solid var(--border)" }}
         >

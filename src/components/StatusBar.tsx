@@ -1,6 +1,7 @@
 import { Cpu, Network, ShieldAlert, ShieldCheck, Wifi } from "lucide-react";
 import { useSettings } from "../store";
 import { Tooltip } from "./Tooltip";
+import { useToast } from "./Toast";
 
 interface Props {
   running: boolean;
@@ -13,6 +14,16 @@ interface Props {
 
 export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, totalConn }: Props) {
   const { t } = useSettings();
+  const toast = useToast();
+
+  const copyAddr = async (addr: string) => {
+    try {
+      await navigator.clipboard.writeText(addr);
+      toast("success", t("msgCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <div
@@ -32,15 +43,25 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
 
       <Sep />
 
-      {/* 监听端点 */}
-      <span className="flex items-center gap-1.5">
-        <Network size={12} />
-        <span className="mono">SOCKS5 127.0.0.1:{socksPort}</span>
-      </span>
-      <span className="flex items-center gap-1.5">
-        <Wifi size={12} />
-        <span className="mono">HTTP 127.0.0.1:{httpPort}</span>
-      </span>
+      {/* 监听端点（点击复制） */}
+      <Tooltip label={t("tipCopyAddr")} placement="top">
+        <button
+          onClick={() => copyAddr(`127.0.0.1:${socksPort}`)}
+          className="flex items-center gap-1.5 transition-colors hover:[color:var(--accent-soft)]"
+        >
+          <Network size={12} />
+          <span className="mono">SOCKS5 127.0.0.1:{socksPort}</span>
+        </button>
+      </Tooltip>
+      <Tooltip label={t("tipCopyAddr")} placement="top">
+        <button
+          onClick={() => copyAddr(`127.0.0.1:${httpPort}`)}
+          className="flex items-center gap-1.5 transition-colors hover:[color:var(--accent-soft)]"
+        >
+          <Wifi size={12} />
+          <span className="mono">HTTP 127.0.0.1:{httpPort}</span>
+        </button>
+      </Tooltip>
 
       <Sep />
 

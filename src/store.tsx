@@ -18,6 +18,7 @@ export const ACCENTS: Record<AccentKey, { accent: string; deep: string; soft: st
 interface Settings {
   lang: Lang;
   theme: Theme;
+  autoTheme: boolean;
   accent: AccentKey;
   socksPort: number;
   httpPort: number;
@@ -34,6 +35,7 @@ interface Settings {
 const DEFAULTS: Settings = {
   lang: "zh",
   theme: "dark",
+  autoTheme: false,
   accent: "blue",
   socksPort: 10800,
   httpPort: 10801,
@@ -71,6 +73,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings((s) => ({ ...s, [key]: value }));
+
+  // 跟随系统主题：开启后实时同步 Windows 深 / 浅色，并监听系统切换
+  useEffect(() => {
+    if (!settings.autoTheme) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () =>
+      setSettings((s) => (s.autoTheme ? { ...s, theme: mq.matches ? "dark" : "light" } : s));
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [settings.autoTheme]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));

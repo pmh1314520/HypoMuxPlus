@@ -7,6 +7,7 @@ import {
   KeyRound,
   Languages,
   MinusSquare,
+  MonitorCog,
   MonitorDown,
   Palette,
   Plug,
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
+  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -101,8 +102,14 @@ export function SettingsPage({ running }: Props) {
                 { value: "dark", label: t("themeDark") },
                 { value: "light", label: t("themeLight") },
               ]}
-              onChange={(v) => set("theme", v)}
+              onChange={(v) => {
+                set("autoTheme", false);
+                set("theme", v);
+              }}
             />
+          </Row>
+          <Row icon={<MonitorCog size={15} />} label={t("settingAutoTheme")} hint={t("settingAutoThemeHint")}>
+            <Switch checked={autoTheme} onChange={(v) => set("autoTheme", v)} />
           </Row>
           <Row icon={<Droplet size={15} />} label={t("settingAccent")}>
             <div className="flex items-center gap-2">
