@@ -30,7 +30,7 @@ export function Sidebar({ view, setView, running }: Props) {
       {/* 品牌区（可拖拽） */}
       <div data-tauri-drag-region className="flex items-center gap-3 px-5 h-[58px] shrink-0">
         <div className="relative pointer-events-none">
-          <Logo size={38} />
+          <Logo size={38} running={running} />
           {running && (
             <span
               className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full live-dot"

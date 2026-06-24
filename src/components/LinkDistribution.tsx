@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { GitFork } from "lucide-react";
 import { useSettings } from "../store";
+import { EmptyState } from "./EmptyState";
 import type { NicTelemetry } from "../lib/api";
 
 interface Props {
@@ -25,9 +26,7 @@ export function LinkDistribution({ perNic, running }: Props) {
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
         {!running || list.length === 0 ? (
-          <div className="grid place-items-center h-full text-center text-[12.5px] px-4" style={{ color: "var(--text-2)" }}>
-            {t("linkDistEmpty")}
-          </div>
+          <EmptyState icon={<GitFork size={20} />} text={t("linkDistEmpty")} />
         ) : (
           <div className="flex flex-col gap-3.5">
             {list.map((n, i) => {

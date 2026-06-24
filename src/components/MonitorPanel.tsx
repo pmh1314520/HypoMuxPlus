@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ClipboardCopy, History, ListTree, Terminal, Trash2 } from "lucide-react";
+import { ClipboardCopy, History, Inbox, ListTree, Search, Terminal, Trash2 } from "lucide-react";
 import { useSettings } from "../store";
 import { Tooltip } from "./Tooltip";
 import { useToast } from "./Toast";
+import { EmptyState } from "./EmptyState";
 import type { ConnInfo } from "../lib/api";
 import type { ClosedConn } from "../App";
 
@@ -153,9 +154,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
           className="flex-1 overflow-y-auto px-4 py-3 font-mono text-[11.5px] leading-[1.7] space-y-0.5"
         >
           {logs.length === 0 ? (
-            <div className="grid place-items-center h-full" style={{ color: "var(--text-2)" }}>
-              {t("consoleEmpty")}
-            </div>
+            <EmptyState icon={<Terminal size={20} />} text={t("consoleEmpty")} compact />
           ) : (
             logs.map((line, i) => (
               <div key={i} style={{ color: lineColor(line) }} className="break-all">
@@ -180,13 +179,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
           )}
           <div className="flex-1 overflow-y-auto px-3 py-2">
             {connHistory.length === 0 ? (
-              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
-                {t("historyEmpty")}
-              </div>
+              <EmptyState icon={<History size={20} />} text={t("historyEmpty")} compact />
             ) : filteredHistory.length === 0 ? (
-              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
-                {t("connNoMatch")}
-              </div>
+              <EmptyState icon={<Search size={20} />} text={t("connNoMatch")} compact />
             ) : (
               filteredHistory.map((c, i) => (
                 <div
@@ -221,7 +216,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          {/* 过滤栏：按协�?/ 出口网卡 + 目标搜索 */}
+          {/* 过滤栏：按协�?/ 出口网卡 + 目标搜索 */}
           {running && connections.length > 0 && (
             <FilterBar
               nicNames={connNicNames}
@@ -236,13 +231,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
           )}
           <div className="flex-1 overflow-y-auto px-3 py-2">
             {!running || connections.length === 0 ? (
-              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
-                {t("connEmpty")}
-              </div>
+              <EmptyState icon={<Inbox size={20} />} text={t("connEmpty")} compact />
             ) : filteredConns.length === 0 ? (
-              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
-                {t("connNoMatch")}
-              </div>
+              <EmptyState icon={<Search size={20} />} text={t("connNoMatch")} compact />
             ) : (
               filteredConns.map((c, i) => (
                 <div

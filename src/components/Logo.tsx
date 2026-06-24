@@ -5,6 +5,8 @@ interface Props {
   /** 圆角半径（相对 48 坐标系） */
   radius?: number;
   glow?: boolean;
+  /** 加速运行中：中心汇聚节点发出脉冲波纹 */
+  running?: boolean;
 }
 
 /**
@@ -12,7 +14,7 @@ interface Props {
  * 视觉概念：三路独立链路（多网卡）经中心节点汇聚为一条高带宽主干 ——
  * 直观隐喻"多网卡带宽聚合 / 链路多路复用"。深蓝→遥测青渐变，工业精密感。
  */
-export function Logo({ size = 40, radius = 13, glow = true }: Props) {
+export function Logo({ size = 40, radius = 13, glow = true, running = false }: Props) {
   const id = useId();
   return (
     <svg
@@ -64,6 +66,13 @@ export function Logo({ size = 40, radius = 13, glow = true }: Props) {
       {/* 中心汇聚节点（带光晕） */}
       <circle cx="24" cy="24" r="6" fill="#ffffff" fillOpacity="0.18" />
       <circle cx="24" cy="24" r="3.6" fill="#ffffff" />
+      {/* 运行态：中心节点向外扩散的脉冲波纹 */}
+      {running && (
+        <circle cx="24" cy="24" r="6" fill="none" stroke="#ffffff" strokeWidth="1.2">
+          <animate attributeName="r" values="5;11;5" dur="2.2s" repeatCount="indefinite" />
+          <animate attributeName="stroke-opacity" values="0.55;0;0.55" dur="2.2s" repeatCount="indefinite" />
+        </circle>
+      )}
       {/* 主干输出节点 */}
       <circle cx="39" cy="24" r="3.6" fill="#ffffff" />
       <circle cx="39" cy="24" r="6" fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="1.4" />
