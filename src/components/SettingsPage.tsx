@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
@@ -151,24 +151,48 @@ export function SettingsPage({ running }: Props) {
   ];
   const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeSec, setActiveSec] = useState("sec-general");
+  const onScroll = () => {
+    const c = scrollRef.current;
+    if (!c) return;
+    const ct = c.getBoundingClientRect().top;
+    let cur = sectionNav[0].id;
+    for (const s of sectionNav) {
+      const el = document.getElementById(s.id);
+      if (el && el.getBoundingClientRect().top - ct <= 80) cur = s.id;
+    }
+    setActiveSec(cur);
+  };
+
   return (
-    <div className="h-full overflow-y-auto px-1 pb-6">
+    <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-1 pb-6">
       <div className="max-w-[860px] mx-auto flex flex-col gap-5">
         {/* 分组快速跳转 */}
         <div
           className="sticky top-0 z-20 -mx-1 px-1 py-2 flex items-center gap-2 flex-wrap"
           style={{ background: "color-mix(in srgb, var(--bg-0) 82%, transparent)", backdropFilter: "blur(8px)" }}
         >
-          {sectionNav.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => jumpTo(s.id)}
-              className="px-2.5 py-1 rounded-lg text-[11.5px] font-medium transition-colors whitespace-nowrap"
-              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
-            >
-              {s.label}
-            </button>
-          ))}
+          {sectionNav.map((s) => {
+            const active = activeSec === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setActiveSec(s.id);
+                  jumpTo(s.id);
+                }}
+                className="px-2.5 py-1 rounded-lg text-[11.5px] font-medium transition-colors whitespace-nowrap"
+                style={{
+                  background: active ? "var(--accent)" : "var(--surface-2)",
+                  border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                  color: active ? "#fff" : "var(--text-1)",
+                }}
+              >
+                {s.label}
+              </button>
+            );
+          })}
         </div>
 
         {!admin && (

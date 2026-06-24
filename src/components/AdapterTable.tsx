@@ -333,8 +333,23 @@ export function AdapterTable({
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {adapters.length === 0 ? (
           loading ? (
-            <div className="grid place-items-center h-full text-[13px]" style={{ color: "var(--text-2)" }}>
-              {t("statusLoading")}
+            <div className="px-1 pt-1">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="grid items-center px-3 py-2.5 my-0.5 rounded-xl animate-pulse"
+                  style={{ gridTemplateColumns: "44px 1fr 130px 134px 60px", opacity: 1 - i * 0.18 }}
+                >
+                  <div className="w-[22px] h-[22px] rounded-md" style={{ background: "var(--surface-2)" }} />
+                  <div className="flex flex-col gap-1.5 pr-2">
+                    <div className="h-3 rounded" style={{ background: "var(--surface-2)", width: "55%" }} />
+                    <div className="h-2 rounded" style={{ background: "var(--surface)", width: "75%" }} />
+                  </div>
+                  <div className="h-3 rounded" style={{ background: "var(--surface-2)", width: "70%" }} />
+                  <div className="h-3 rounded justify-self-end" style={{ background: "var(--surface-2)", width: "60%" }} />
+                  <div className="h-3 rounded justify-self-end" style={{ background: "var(--surface-2)", width: "50%" }} />
+                </div>
+              ))}
             </div>
           ) : (
             <div className="grid place-items-center h-full px-6">
