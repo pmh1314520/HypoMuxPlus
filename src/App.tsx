@@ -22,6 +22,7 @@ import {
   onSpeedTest,
   onTelemetry,
   onTrayToggle,
+  onNicAlert,
   win,
   type AdapterInfo,
   type ConnInfo,
@@ -152,6 +153,11 @@ function AppInner() {
 
     // 托盘菜单「切换加速」：触发与主界面一致的一键加速 / 停止流程
     onTrayToggle(() => onBoostRef.current()).then((u) => unlisteners.push(u));
+
+    // 网卡掉线守护：失联 / 恢复时提示用户
+    onNicAlert((a) =>
+      toast(a.alive ? "success" : "warning", t(a.alive ? "nicUpToast" : "nicDownToast", { name: a.name })),
+    ).then((u) => unlisteners.push(u));
 
     return () => unlisteners.forEach((u) => u());
   }, [scan]);

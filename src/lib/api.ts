@@ -97,6 +97,9 @@ export const onSpeedTest = (cb: (r: SpeedResult) => void): Promise<UnlistenFn> =
 export const onTrayToggle = (cb: () => void): Promise<UnlistenFn> =>
   listen("hmx-tray-toggle", () => cb());
 
+export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): Promise<UnlistenFn> =>
+  listen<{ name: string; alive: boolean }>("hmx-nic-alert", (e) => cb(e.payload));
+
 // ---- 窗口控制 ----
 export const win = {
   minimize: () => getCurrentWindow().minimize(),

@@ -24,11 +24,20 @@ function lineColor(line: string): string {
 export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
   const { t } = useSettings();
   const [tab, setTab] = useState<"log" | "conns">("log");
+  const [nicFilter, setNicFilter] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (tab === "log" && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs, tab]);
+
+  // 当前连接涉及的出口网卡集合（用于按网卡过滤）
+  const nicNames = Array.from(new Set(connections.map((c) => c.nic)));
+  const q = query.trim().toLowerCase();
+  const filteredConns = connections.filter(
+    (c) => (!nicFilter || c.nic === nicFilter) && (!q || c.target.toLowerCase().includes(q)),
+  );
 
   const tabs: { id: "log" | "conns"; label: string; icon: typeof Terminal; badge?: number }[] = [
     { id: "log", label: t("monitorLog"), icon: Terminal },
@@ -101,38 +110,82 @@ export function MonitorPanel({ logs, clearLogs, connections, running }: Props) {
           )}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto px-3 py-2">
-          {!running || connections.length === 0 ? (
-            <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
-              {t("connEmpty")}
+        <div className="flex-1 min-h-0 flex flex-col">
+          {/* 过滤栏：按出口网卡 + 目标搜索 */}
+          {running && connections.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 shrink-0 flex-wrap" style={{ borderBottom: "1px solid var(--border)" }}>
+              <FilterChip active={!nicFilter} onClick={() => setNicFilter(null)}>
+                {t("connFilterAll")}
+              </FilterChip>
+              {nicNames.map((n) => (
+                <FilterChip key={n} active={nicFilter === n} onClick={() => setNicFilter(n)}>
+                  {n}
+                </FilterChip>
+              ))}
+              <div className="flex-1 min-w-[80px]" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("connSearchPlaceholder")}
+                spellCheck={false}
+                className="px-2.5 py-1 rounded-lg text-[11.5px] outline-none"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)", width: 150 }}
+              />
             </div>
-          ) : (
-            connections.map((c, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                <span
-                  className="mono text-[9px] px-1.5 py-0.5 rounded shrink-0"
-                  style={{
-                    background: c.proto === "SOCKS" ? "rgba(59,130,246,0.14)" : "rgba(34,197,94,0.14)",
-                    color: c.proto === "SOCKS" ? "var(--accent-soft)" : "var(--ok)",
-                  }}
-                >
-                  {c.proto}
-                </span>
-                <span className="mono text-[11.5px] truncate flex-1" style={{ color: "var(--text-1)" }}>
-                  {c.target}
-                </span>
-                <span className="text-[11px] font-medium shrink-0" style={{ color: "var(--accent-soft)" }}>
-                  {c.nic}
-                </span>
-              </div>
-            ))
           )}
+          <div className="flex-1 overflow-y-auto px-3 py-2">
+            {!running || connections.length === 0 ? (
+              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                {t("connEmpty")}
+              </div>
+            ) : filteredConns.length === 0 ? (
+              <div className="grid place-items-center h-full text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                {t("connNoMatch")}
+              </div>
+            ) : (
+              filteredConns.map((c, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                  style={{ borderBottom: "1px solid var(--border)" }}
+                >
+                  <span
+                    className="mono text-[9px] px-1.5 py-0.5 rounded shrink-0"
+                    style={{
+                      background: c.proto === "SOCKS" ? "rgba(59,130,246,0.14)" : "rgba(34,197,94,0.14)",
+                      color: c.proto === "SOCKS" ? "var(--accent-soft)" : "var(--ok)",
+                    }}
+                  >
+                    {c.proto}
+                  </span>
+                  <span className="mono text-[11.5px] truncate flex-1" style={{ color: "var(--text-1)" }}>
+                    {c.target}
+                  </span>
+                  <span className="text-[11px] font-medium shrink-0" style={{ color: "var(--accent-soft)" }}>
+                    {c.nic}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
+      style={{
+        background: active ? "var(--accent)" : "var(--surface-2)",
+        color: active ? "#fff" : "var(--text-1)",
+        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+      }}
+    >
+      {children}
+    </button>
   );
 }

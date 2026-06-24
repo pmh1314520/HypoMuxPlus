@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::atomic::{AtomicI64, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -47,6 +47,8 @@ pub struct NicRuntime {
     pub active: AtomicI64,
     /// 最近一秒下行速率（MB/s × 100），供按速度加权调度使用
     pub speed: AtomicU64,
+    /// 是否在线（掉线守护：失联时置 false 并移出调度轮换）
+    pub alive: AtomicBool,
 }
 
 /// 连接调度策略
@@ -108,6 +110,14 @@ struct TotalTelemetry {
 struct TelemetryPayload {
     per_nic: Vec<NicTelemetry>,
     total: TotalTelemetry,
+}
+
+/// 网卡上下线告警（掉线守护推送给前端）
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NicAlert {
+    name: String,
+    alive: bool,
 }
 
 /// 全局下行令牌桶限速器：限制所有连接合计的下载速率（字节/秒）。
@@ -246,16 +256,26 @@ impl Engine {
 
 impl Engine {
     fn next_nic(&self) -> Arc<NicRuntime> {
+        // 仅在存活网卡间调度；若全部掉线则回退到全部，保证仍有出口可用
+        let alive: Vec<usize> = (0..self.nics.len())
+            .filter(|&i| self.nics[i].alive.load(Ordering::Relaxed))
+            .collect();
+        let pool: Vec<usize> = if alive.is_empty() {
+            (0..self.nics.len()).collect()
+        } else {
+            alive
+        };
+
         match self.strategy {
             Strategy::RoundRobin => {
-                let i = self.rr.fetch_add(1, Ordering::Relaxed) % self.nics.len();
-                self.nics[i].clone()
+                let k = self.rr.fetch_add(1, Ordering::Relaxed) % pool.len();
+                self.nics[pool[k]].clone()
             }
             Strategy::LeastConn => {
-                let mut best = 0usize;
+                let mut best = pool[0];
                 let mut best_v = i64::MAX;
-                for (i, n) in self.nics.iter().enumerate() {
-                    let v = n.active.load(Ordering::Relaxed);
+                for &i in &pool {
+                    let v = self.nics[i].active.load(Ordering::Relaxed);
                     if v < best_v {
                         best_v = v;
                         best = i;
@@ -264,19 +284,17 @@ impl Engine {
                 self.nics[best].clone()
             }
             Strategy::WeightedSpeed => {
-                // 有效权重 = 实时速度(MB/s×100) + 基准 100，保证慢/空闲网卡也有最低份额
-                let eff: Vec<i64> = self
-                    .nics
-                    .iter()
-                    .map(|n| n.speed.load(Ordering::Relaxed) as i64 + 100)
-                    .collect();
-                let total: i64 = eff.iter().sum();
-                // 平滑加权轮询（nginx SWRR 算法），分配均匀且按权重倾斜
+                // 平滑加权轮询（nginx SWRR），仅在存活网卡间按实时速度倾斜分配
                 let mut cur = self.wrr.lock().unwrap();
-                let mut best = 0usize;
+                let total: i64 = pool
+                    .iter()
+                    .map(|&i| self.nics[i].speed.load(Ordering::Relaxed) as i64 + 100)
+                    .sum();
+                let mut best = pool[0];
                 let mut best_v = i64::MIN;
-                for i in 0..eff.len() {
-                    cur[i] += eff[i];
+                for &i in &pool {
+                    let eff = self.nics[i].speed.load(Ordering::Relaxed) as i64 + 100;
+                    cur[i] += eff;
                     if cur[i] > best_v {
                         best_v = cur[i];
                         best = i;
@@ -369,6 +387,7 @@ pub async fn start(
             if_index: s.index,
             active: AtomicI64::new(0),
             speed: AtomicU64::new(0),
+            alive: AtomicBool::new(true),
         }));
     }
 
@@ -430,7 +449,7 @@ pub async fn start(
         let c = cancel.clone();
         let conns = engine.conns.clone();
         tauri::async_runtime::spawn(async move {
-            telemetry_loop(app2, nics, conns, c).await;
+            telemetry_loop(app2, nics, conns, c, zh).await;
         });
     }
 
@@ -467,6 +486,7 @@ pub async fn test_latency(selected: Vec<SelectedNic>) -> Vec<LatencyResult> {
             if_index: s.index,
             active: AtomicI64::new(0),
             speed: AtomicU64::new(0),
+            alive: AtomicBool::new(true),
         };
         let start = std::time::Instant::now();
         let res =
@@ -536,6 +556,7 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         if_index: s.index,
         active: AtomicI64::new(0),
         speed: AtomicU64::new(0),
+        alive: AtomicBool::new(true),
     });
     let dst = tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(BENCH_HOST, 443))
         .await
@@ -1071,16 +1092,61 @@ async fn telemetry_loop(
     nics: Vec<Arc<NicRuntime>>,
     conns: Arc<Mutex<HashMap<u64, ConnInfo>>>,
     cancel: CancellationToken,
+    zh: bool,
 ) {
     let mut last: Vec<(u64, u64)> = nics
         .iter()
         .map(|n| crate::telemetry::read_octets(n.if_index))
         .collect();
 
+    let mut tick: u32 = 0;
+
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+        }
+
+        tick = tick.wrapping_add(1);
+
+        // 掉线守护：每 3 秒巡检一次参与分流的网卡是否仍在线（IfIndex + 绑定 IP 仍存在）
+        if tick % 3 == 0 {
+            if let Ok(current) = crate::netadapter::scan_adapters() {
+                for nic in &nics {
+                    let ip_str = nic.ip.to_string();
+                    let present = current
+                        .iter()
+                        .any(|a| a.index == nic.if_index && a.ipv4 == ip_str);
+                    let was = nic.alive.swap(present, Ordering::Relaxed);
+                    if was && !present {
+                        let _ = app.emit(
+                            "hmx-nic-alert",
+                            NicAlert { name: nic.name.clone(), alive: false },
+                        );
+                        let _ = app.emit(
+                            "hmx-log",
+                            if zh {
+                                format!("[网卡掉线] {} 已失去连接，自动移出分流轮换", nic.name)
+                            } else {
+                                format!("[NIC down] {} lost connectivity, removed from rotation", nic.name)
+                            },
+                        );
+                    } else if !was && present {
+                        let _ = app.emit(
+                            "hmx-nic-alert",
+                            NicAlert { name: nic.name.clone(), alive: true },
+                        );
+                        let _ = app.emit(
+                            "hmx-log",
+                            if zh {
+                                format!("[网卡恢复] {} 已恢复连接，重新纳入分流", nic.name)
+                            } else {
+                                format!("[NIC up] {} recovered, back in rotation", nic.name)
+                            },
+                        );
+                    }
+                }
+            }
         }
 
         let mut per_nic = Vec::with_capacity(nics.len());

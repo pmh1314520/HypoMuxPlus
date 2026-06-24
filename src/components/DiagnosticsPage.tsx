@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Activity, ArrowDownToLine, Loader2, Stethoscope } from "lucide-react";
+import { Activity, ArrowDownToLine, ClipboardList, Loader2, Stethoscope } from "lucide-react";
 import { useSettings } from "../store";
+import { useToast } from "./Toast";
 import type { AdapterInfo, LatencyResult } from "../lib/api";
 
 interface Props {
@@ -37,7 +38,33 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing, onDiagnose }: Props) {
   const { t } = useSettings();
+  const toast = useToast();
   const valid = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
+  const hasResults = valid.some((a) => latencies[a.index] || speedResults[a.index]);
+
+  // 生成纯文本体检报告并复制到剪贴板
+  const copyReport = async () => {
+    if (!hasResults) {
+      toast("warning", t("diagReportNoData"));
+      return;
+    }
+    const lines: string[] = [t("diagReportTitle"), new Date().toLocaleString(), ""];
+    for (const a of valid) {
+      const lat = latencies[a.index];
+      const sp = speedResults[a.index];
+      const g = gradeOf(lat, sp);
+      const latStr = lat ? (lat.ok ? `${lat.latencyMs} ms` : t("latencyTimeout")) : "—";
+      const spStr = sp ? (sp.ok ? `${sp.mbps.toFixed(1)} MB/s` : t("latencyTimeout")) : "—";
+      lines.push(`• ${a.alias} (${a.ipv4})`);
+      lines.push(`    ${t("diagLatency")}: ${latStr}  ${t("diagSpeed")}: ${spStr}  ${t("diagGrade")}: ${t(g.key)}`);
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      toast("success", t("msgReportCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto px-1 pb-8">
@@ -60,6 +87,22 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
           >
             {diagnosing ? <Loader2 size={17} className="animate-spin" /> : <Stethoscope size={17} />}
             {diagnosing ? t("diagRunning") : t("diagRun")}
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={!hasResults}
+            onClick={copyReport}
+            className="flex items-center gap-2 h-[42px] px-4 rounded-xl font-semibold text-[13.5px] shrink-0 transition-colors"
+            style={{
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-1)",
+              opacity: hasResults ? 1 : 0.5,
+              cursor: hasResults ? "pointer" : "not-allowed",
+            }}
+          >
+            <ClipboardList size={16} />
+            {t("diagCopyReport")}
           </motion.button>
         </div>
 
