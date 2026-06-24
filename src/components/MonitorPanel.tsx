@@ -12,6 +12,7 @@ interface Props {
   clearLogs: () => void;
   connections: ConnInfo[];
   connHistory: ClosedConn[];
+  clearHistory: () => void;
   running: boolean;
 }
 
@@ -24,7 +25,7 @@ function lineColor(line: string): string {
   return "var(--text-1)";
 }
 
-export function MonitorPanel({ logs, clearLogs, connections, connHistory, running }: Props) {
+export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearHistory, running }: Props) {
   const { t } = useSettings();
   const toast = useToast();
   const [tab, setTab] = useState<"log" | "conns" | "history">("log");
@@ -121,6 +122,17 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, runnin
               style={{ color: "var(--text-2)" }}
             >
               <ClipboardCopy size={14} />
+            </button>
+          </Tooltip>
+        )}
+        {tab === "history" && connHistory.length > 0 && (
+          <Tooltip label={t("historyClear")} placement="left">
+            <button
+              onClick={clearHistory}
+              className="grid place-items-center w-7 h-7 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <Trash2 size={14} />
             </button>
           </Tooltip>
         )}

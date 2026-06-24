@@ -34,6 +34,7 @@ interface Settings {
   hotkeyStop: string;
   downLimit: number;
   bypassList: string;
+  alwaysOnTop: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -55,6 +56,7 @@ const DEFAULTS: Settings = {
   hotkeyStop: "Control+Alt+J",
   downLimit: 0,
   bypassList: "",
+  alwaysOnTop: false,
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

@@ -32,6 +32,7 @@ interface Props {
   clearLogs: () => void;
   connections: ConnInfo[];
   connHistory: ClosedConn[];
+  clearHistory: () => void;
 }
 
 export function Dashboard(props: Props) {
@@ -74,6 +75,7 @@ export function Dashboard(props: Props) {
             clearLogs={props.clearLogs}
             connections={props.connections}
             connHistory={props.connHistory}
+            clearHistory={props.clearHistory}
             running={props.running}
           />
         </div>

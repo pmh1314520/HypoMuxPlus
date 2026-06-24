@@ -1,10 +1,28 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bookmark, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Square, X } from "lucide-react";
+import { Bookmark, Cable, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
 import type { AdapterInfo, NicTelemetry } from "../lib/api";
+
+/** 依据网卡别名/描述推断链路类型图标（仅作直观标识，不影响调度） */
+function LinkIcon({ alias, description }: { alias: string; description: string }) {
+  const s = `${alias} ${description}`.toLowerCase();
+  let Icon = Cable;
+  let color = "var(--text-2)";
+  if (/wi-?fi|wlan|wireless|无线/.test(s)) {
+    Icon = Wifi;
+    color = "var(--accent-soft)";
+  } else if (/usb|cellular|rndis|tether|蜂窝|移动宽带|手机/.test(s)) {
+    Icon = Smartphone;
+    color = "var(--series-3)";
+  } else if (/virtual|vpn|tap|tun|hyper-v|vethernet|loopback|虚拟/.test(s)) {
+    Icon = Server;
+    color = "var(--series-4)";
+  }
+  return <Icon size={13} style={{ color }} className="shrink-0" />;
+}
 
 interface NicProfile {
   name: string;
@@ -316,6 +334,7 @@ export function AdapterTable({
                     />
                   ) : (
                     <div className="flex items-center gap-1.5 min-w-0">
+                      <LinkIcon alias={a.alias} description={a.description} />
                       <span className="text-[13px] font-medium truncate">
                         {notes[String(a.index)] || a.alias}
                       </span>

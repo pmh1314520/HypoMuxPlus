@@ -112,4 +112,5 @@ export const win = {
   close: () => getCurrentWindow().close(),
   hide: () => getCurrentWindow().hide(),
   startDragging: () => getCurrentWindow().startDragging(),
+  setAlwaysOnTop: (v: boolean) => getCurrentWindow().setAlwaysOnTop(v),
 };

@@ -82,7 +82,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop } =
     useSettings();
   const toast = useToast();
 
@@ -223,6 +223,11 @@ function AppInner() {
     api.setCloseToTray(closeToTray).catch(() => {});
   }, [closeToTray]);
 
+  // 窗口置顶开关
+  useEffect(() => {
+    win.setAlwaysOnTop(alwaysOnTop).catch(() => {});
+  }, [alwaysOnTop]);
+
   // 持久化已选网卡（供"启动后自动加速"复用）
   useEffect(() => {
     localStorage.setItem(SELECTED_KEY, JSON.stringify([...selected]));
@@ -280,6 +285,22 @@ function AppInner() {
         indices.filter((i) => adapters.some((a) => a.index === i && a.ipv4 && a.ipv4 !== "0.0.0.0")),
       ),
     );
+
+  // 重置全部累计统计与每日趋势
+  const resetStats = () => {
+    setLifetimeMB(0);
+    setLifetimePeak(0);
+    setLifetimeSeconds(0);
+    setDailyMB({});
+    localStorage.removeItem(LIFETIME_KEY);
+    localStorage.removeItem(LIFE_PEAK_KEY);
+    localStorage.removeItem(LIFE_SECS_KEY);
+    localStorage.removeItem(DAILY_KEY);
+    toast("success", t("msgStatsReset"));
+  };
+
+  // 清空连接历史
+  const clearConnHistory = () => setConnHistory([]);
 
   // 链路体检：逐张网卡探测出口延迟
   const onTest = async () => {
@@ -481,6 +502,7 @@ function AppInner() {
                     clearLogs={() => setLogs([])}
                     connections={connections}
                     connHistory={connHistory}
+                    clearHistory={clearConnHistory}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
@@ -503,6 +525,7 @@ function AppInner() {
                     totalConn={totalConn}
                     running={running}
                     dailyMB={dailyMB}
+                    onReset={resetStats}
                   />
                 ) : view === "about" ? (
                   <AboutPage lifetimeMB={lifetimeMB} onReplayGuide={() => setShowOnboarding(true)} />

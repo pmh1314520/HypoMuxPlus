@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownToLine, BarChart3, Clock, Database, Gauge, Network, Shuffle, TrendingUp, Zap } from "lucide-react";
+import { ArrowDownToLine, BarChart3, Clock, Database, Gauge, Network, RotateCcw, Shuffle, TrendingUp, Zap } from "lucide-react";
 import { useSettings } from "../store";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { Tooltip } from "./Tooltip";
@@ -14,6 +15,7 @@ interface Props {
   totalConn: number;
   running: boolean;
   dailyMB: Record<string, number>;
+  onReset: () => void;
 }
 
 function fmtData(mb: number): string {
@@ -35,6 +37,7 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export function StatsPage(props: Props) {
   const { t, strategy } = useSettings();
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const stratLabel =
     strategy === "rr" ? t("schedRR") : strategy === "least" ? t("schedLeast") : t("schedWeighted");
@@ -59,6 +62,38 @@ export function StatsPage(props: Props) {
         <div>
           <div className="eyebrow mb-3 flex items-center gap-2">
             <Gauge size={13} /> {t("statLifetime")}
+            <div className="flex-1" />
+            {confirmReset ? (
+              <span className="flex items-center gap-2 normal-case">
+                <button
+                  onClick={() => {
+                    props.onReset();
+                    setConfirmReset(false);
+                  }}
+                  className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
+                  style={{ background: "var(--danger)", color: "#fff" }}
+                >
+                  {t("statResetConfirm")}
+                </button>
+                <button
+                  onClick={() => setConfirmReset(false)}
+                  className="text-[11px] px-2 py-0.5 rounded-md"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+                >
+                  {t("btnCancel")}
+                </button>
+              </span>
+            ) : (
+              <Tooltip label={t("statReset")} placement="left">
+                <button
+                  onClick={() => setConfirmReset(true)}
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md normal-case transition-colors"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
+                >
+                  <RotateCcw size={11} /> {t("statReset")}
+                </button>
+              </Tooltip>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-4">
             {lifetime.map((s) => (

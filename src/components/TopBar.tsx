@@ -1,4 +1,4 @@
-import { Minus, RefreshCw, Square, X } from "lucide-react";
+import { Minus, Pin, PinOff, RefreshCw, Square, X } from "lucide-react";
 import { useSettings } from "../store";
 import { win } from "../lib/api";
 import { Tooltip } from "./Tooltip";
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function TopBar({ view, running, loading, onRefresh }: Props) {
-  const { t } = useSettings();
+  const { t, alwaysOnTop, set } = useSettings();
 
   const titleMap: Record<View, string> = {
     dashboard: t("navDashboard"),
@@ -61,6 +61,16 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
       </div>
 
       <div className="flex-1" />
+
+      <Tooltip label={alwaysOnTop ? t("tipUnpin") : t("tipPin")} placement="bottom">
+        <button
+          onClick={() => set("alwaysOnTop", !alwaysOnTop)}
+          className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+          style={{ color: alwaysOnTop ? "var(--accent-soft)" : "var(--text-1)" }}
+        >
+          {alwaysOnTop ? <Pin size={15} /> : <PinOff size={15} />}
+        </button>
+      </Tooltip>
 
       {view === "dashboard" && (
         <Tooltip label={t("tipRefresh")} placement="bottom">
