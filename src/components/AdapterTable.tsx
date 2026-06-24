@@ -306,9 +306,33 @@ export function AdapterTable({
       {/* 行 */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {adapters.length === 0 ? (
-          <div className="grid place-items-center h-full text-[13px]" style={{ color: "var(--text-2)" }}>
-            {loading ? t("statusLoading") : t("statusNoAdapters")}
-          </div>
+          loading ? (
+            <div className="grid place-items-center h-full text-[13px]" style={{ color: "var(--text-2)" }}>
+              {t("statusLoading")}
+            </div>
+          ) : (
+            <div className="grid place-items-center h-full px-6">
+              <div className="flex flex-col items-center text-center max-w-[360px]">
+                <span
+                  className="grid place-items-center w-12 h-12 rounded-2xl mb-3"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
+                >
+                  <Cable size={22} />
+                </span>
+                <div className="text-[14px] font-semibold mb-1.5">{t("statusNoAdapters")}</div>
+                <p className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--text-2)" }}>
+                  {t("noNicHint")}
+                </p>
+                <button
+                  onClick={refresh}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
+                  style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
+                >
+                  <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {t("btnRescan")}
+                </button>
+              </div>
+            </div>
+          )
         ) : (
           sortedAdapters.map((a) => {
             const checked = selected.has(a.index);

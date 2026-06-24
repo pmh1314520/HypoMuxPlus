@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, ArrowDownToLine, ClipboardList, Loader2, Stethoscope } from "lucide-react";
+import { Activity, ArrowDownToLine, ClipboardList, Loader2, RotateCw, Stethoscope } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
+import { Tooltip } from "./Tooltip";
 import type { AdapterInfo, LatencyResult } from "../lib/api";
 
 interface Props {
@@ -10,6 +12,7 @@ interface Props {
   speedResults: Record<number, { mbps: number; ok: boolean }>;
   diagnosing: boolean;
   onDiagnose: () => void;
+  onTestOne: (a: AdapterInfo) => Promise<void>;
 }
 
 type Grade = { key: string; color: string };
@@ -36,11 +39,22 @@ function gradeOf(lat: LatencyResult | undefined, sp: { mbps: number; ok: boolean
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
-export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing, onDiagnose }: Props) {
+export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing, onDiagnose, onTestOne }: Props) {
   const { t } = useSettings();
   const toast = useToast();
+  const [testingIdx, setTestingIdx] = useState<number | null>(null);
   const valid = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
   const hasResults = valid.some((a) => latencies[a.index] || speedResults[a.index]);
+
+  const retestOne = async (a: AdapterInfo) => {
+    if (diagnosing || testingIdx !== null) return;
+    setTestingIdx(a.index);
+    try {
+      await onTestOne(a);
+    } finally {
+      setTestingIdx(null);
+    }
+  };
 
   // 生成纯文本体检报告并复制到剪贴板
   const copyReport = async () => {
@@ -131,12 +145,28 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
                         {a.ipv4}
                       </div>
                     </div>
-                    <span
-                      className="shrink-0 text-[12px] font-bold px-2.5 py-1 rounded-lg"
-                      style={{ background: `color-mix(in srgb, ${g.color} 16%, transparent)`, color: g.color }}
-                    >
-                      {t(g.key)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="text-[12px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap"
+                        style={{ background: `color-mix(in srgb, ${g.color} 16%, transparent)`, color: g.color }}
+                      >
+                        {t(g.key)}
+                      </span>
+                      <Tooltip label={t("diagRetest")} placement="top">
+                        <button
+                          onClick={() => retestOne(a)}
+                          disabled={diagnosing || testingIdx !== null}
+                          className="grid place-items-center w-7 h-7 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
+                          style={{
+                            color: "var(--text-2)",
+                            opacity: diagnosing || (testingIdx !== null && testingIdx !== a.index) ? 0.4 : 1,
+                            cursor: diagnosing || testingIdx !== null ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <RotateCw size={14} className={testingIdx === a.index ? "animate-spin" : ""} />
+                        </button>
+                      </Tooltip>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <Metric

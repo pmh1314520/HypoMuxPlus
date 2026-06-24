@@ -373,6 +373,23 @@ function AppInner() {
     await onBench();
   };
 
+  // 单张网卡重测（诊断页卡片用）
+  const onTestOne = async (a: AdapterInfo) => {
+    if (!a.ipv4 || a.ipv4 === "0.0.0.0") return;
+    const nic: SelectedNic = { index: a.index, name: a.alias, ip: a.ipv4 };
+    try {
+      const res = await api.testLatency([nic]);
+      setLatencies((prev) => {
+        const next = { ...prev };
+        for (const r of res) next[r.index] = r;
+        return next;
+      });
+      await api.speedTest([nic], 6);
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   // 系统通知
   const notify = async (body: string) => {
     if (!notifications) return;
@@ -536,6 +553,7 @@ function AppInner() {
                     speedResults={speedResults}
                     diagnosing={testing || benchmarking}
                     onDiagnose={onDiagnose}
+                    onTestOne={onTestOne}
                   />
                 ) : view === "stats" ? (
                   <StatsPage
