@@ -24,6 +24,8 @@ pub struct AppState {
     engine: Mutex<Option<engine::EngineHandle>>,
     boosting: AtomicBool,
     close_to_tray: AtomicBool,
+    /// 托盘「加速/停止」菜单项句柄，用于随状态动态更新文字
+    tray_toggle: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
 }
 
 impl Default for AppState {
@@ -32,7 +34,20 @@ impl Default for AppState {
             engine: Mutex::new(None),
             boosting: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(true),
+            tray_toggle: Mutex::new(None),
         }
+    }
+}
+
+/// 根据运行状态更新托盘「加速/停止」菜单项文字。
+fn update_tray_toggle(app: &AppHandle, running: bool) {
+    let item = app.state::<AppState>().tray_toggle.lock().clone();
+    if let Some(item) = item {
+        let _ = item.set_text(if running {
+            "停止加速 · Stop Boost"
+        } else {
+            "开始加速 · Start Boost"
+        });
     }
 }
 
@@ -162,6 +177,7 @@ async fn start_boost(
     *state.engine.lock() = Some(handle);
     state.boosting.store(true, Ordering::Relaxed);
     let _ = app.emit("hmx-boost-state", true);
+    update_tray_toggle(&app, true);
 
     Ok(format!("http={http_addr};https={http_addr};socks={socks_addr}"))
 }
@@ -176,6 +192,7 @@ fn stop_boost(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> 
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
     let _ = app.emit("hmx-boost-state", false);
+    update_tray_toggle(&app, false);
     Ok(())
 }
 
@@ -298,9 +315,11 @@ pub fn run() {
 
             // 构建系统托盘
             let show = MenuItem::with_id(app, "show", "显示主界面 / Show", true, None::<&str>)?;
-            let toggle = MenuItem::with_id(app, "toggle", "加速 / 停止 切换 · Toggle Boost", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(app, "toggle", "开始加速 · Start Boost", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出程序 / Exit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &toggle, &quit])?;
+            // 保存句柄以便随加速状态动态更新文字
+            app.state::<AppState>().tray_toggle.lock().replace(toggle.clone());
 
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())

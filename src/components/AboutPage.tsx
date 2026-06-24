@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coffee, Database, ExternalLink, FolderGit2, GitFork, Heart, ScrollText, User, X } from "lucide-react";
+import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, ScrollText, User, X } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon } from "./BrandIcons";
@@ -22,7 +22,7 @@ function fmtData(mb: number): string {
   return mb.toFixed(0) + " MB";
 }
 
-export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
+export function AboutPage({ lifetimeMB, onReplayGuide }: { lifetimeMB: number; onReplayGuide: () => void }) {
   const { t } = useSettings();
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
 
@@ -57,6 +57,14 @@ export function AboutPage({ lifetimeMB }: { lifetimeMB: number }) {
             <p className="text-[13px] mt-1.5" style={{ color: "var(--text-1)" }}>
               {t("aboutTagline")}
             </p>
+            <button
+              onClick={onReplayGuide}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+            >
+              <Compass size={13} style={{ color: "var(--accent-soft)" }} />
+              {t("aboutReplayGuide")}
+            </button>
           </div>
         </motion.div>
 

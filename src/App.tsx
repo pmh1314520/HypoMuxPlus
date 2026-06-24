@@ -505,7 +505,7 @@ function AppInner() {
                     dailyMB={dailyMB}
                   />
                 ) : view === "about" ? (
-                  <AboutPage lifetimeMB={lifetimeMB} />
+                  <AboutPage lifetimeMB={lifetimeMB} onReplayGuide={() => setShowOnboarding(true)} />
                 ) : (
                   <SettingsPage running={running} />
                 )}
