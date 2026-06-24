@@ -57,8 +57,16 @@ export const api = {
   getBoostState: () => invoke<boolean>("get_boost_state"),
   getSystemProxy: () => invoke<[boolean, string]>("get_system_proxy"),
   setCloseToTray: (enabled: boolean) => invoke<void>("set_close_to_tray", { enabled }),
-  startBoost: (nics: SelectedNic[], socksPort: number, httpPort: number, strategy: string, lang: string) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang }),
+  startBoost: (
+    nics: SelectedNic[],
+    socksPort: number,
+    httpPort: number,
+    strategy: string,
+    lang: string,
+    downLimitMbps: number,
+    bypass: string[],
+  ) =>
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>
@@ -66,6 +74,8 @@ export const api = {
   configureSteam: (enable: boolean, port: number) =>
     invoke<void>("configure_steam", { enable, port }),
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),
+  readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
+  writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
 };
 
 // ---- 事件订阅 ----

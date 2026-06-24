@@ -24,6 +24,7 @@ interface Props {
   applySelection: (indices: number[]) => void;
   refresh: () => void;
   perNic: Record<string, NicTelemetry>;
+  nicHistory: Record<string, number[]>;
   loading: boolean;
 
   logs: string[];
@@ -60,6 +61,7 @@ export function Dashboard(props: Props) {
           applySelection={props.applySelection}
           refresh={props.refresh}
           perNic={props.perNic}
+          nicHistory={props.nicHistory}
           running={props.running}
           loading={props.loading}
         />

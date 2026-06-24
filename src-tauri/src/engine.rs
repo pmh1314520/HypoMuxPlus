@@ -110,6 +110,99 @@ struct TelemetryPayload {
     total: TotalTelemetry,
 }
 
+/// 全局下行令牌桶限速器：限制所有连接合计的下载速率（字节/秒）。
+/// 仅在用户设置了限速（>0）时启用，cap=0 时引擎走零开销的直通中继。
+struct RateLimiter {
+    rate: f64,            // 每秒补充的令牌（字节）
+    capacity: f64,        // 桶容量（允许 1 秒突发）
+    tokens: Mutex<f64>,
+    last: Mutex<std::time::Instant>,
+}
+
+impl RateLimiter {
+    fn new(bytes_per_sec: u64) -> Self {
+        let r = bytes_per_sec as f64;
+        Self {
+            rate: r,
+            capacity: r,
+            tokens: Mutex::new(r),
+            last: Mutex::new(std::time::Instant::now()),
+        }
+    }
+
+    /// 获取 want 字节的下载额度；不足时返回需等待的时长，调用方 sleep 后重试。
+    fn try_take(&self, want: f64) -> Result<(), std::time::Duration> {
+        let mut tokens = match self.tokens.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        {
+            let mut last = match self.last.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(*last).as_secs_f64();
+            *last = now;
+            *tokens = (*tokens + elapsed * self.rate).min(self.capacity);
+        }
+        if *tokens >= want {
+            *tokens -= want;
+            Ok(())
+        } else {
+            let deficit = want - *tokens;
+            *tokens = 0.0;
+            Err(std::time::Duration::from_secs_f64((deficit / self.rate).min(1.0)))
+        }
+    }
+
+    async fn acquire(&self, want: usize) {
+        let mut remaining = want as f64;
+        while remaining > 0.0 {
+            let chunk = remaining.min(self.capacity.max(1.0));
+            loop {
+                match self.try_take(chunk) {
+                    Ok(()) => break,
+                    Err(d) => tokio::time::sleep(d).await,
+                }
+            }
+            remaining -= chunk;
+        }
+    }
+}
+
+/// 中继客户端与上游之间的双向流量。limiter 存在时对下行（上游→客户端）限速。
+async fn relay(client: &mut TcpStream, upstream: &mut TcpStream, limiter: Option<Arc<RateLimiter>>) {
+    match limiter {
+        None => {
+            let _ = copy_bidirectional(client, upstream).await;
+        }
+        Some(lim) => {
+            let (mut cr, mut cw) = client.split();
+            let (mut ur, mut uw) = upstream.split();
+            // 下行：上游 -> 客户端（限速）
+            let down = async {
+                let mut buf = vec![0u8; 65536];
+                loop {
+                    let n = match ur.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    };
+                    lim.acquire(n).await;
+                    if cw.write_all(&buf[..n]).await.is_err() {
+                        break;
+                    }
+                }
+            };
+            // 上行：客户端 -> 上游（不限速）
+            let up = async {
+                let _ = tokio::io::copy(&mut cr, &mut uw).await;
+            };
+            tokio::join!(down, up);
+        }
+    }
+}
+
 /// 活跃连接信息（实时连接列表用）
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +225,23 @@ pub struct Engine {
     app: AppHandle,
     /// 日志语言：true=中文，false=英文（跟随前端界面语言）
     zh: bool,
+    /// 全局下行限速器（None=不限速）
+    limiter: Option<Arc<RateLimiter>>,
+    /// 直连白名单（小写域名，命中则走默认网关直连、不参与分流）
+    bypass: Vec<String>,
+}
+
+impl Engine {
+    /// 判断目标主机是否命中直连白名单（精确或子域匹配）
+    fn is_bypass(&self, host: &str) -> bool {
+        if self.bypass.is_empty() {
+            return false;
+        }
+        let h = host.to_lowercase();
+        self.bypass
+            .iter()
+            .any(|b| h == *b || h.ends_with(&format!(".{b}")))
+    }
 }
 
 impl Engine {
@@ -224,12 +334,28 @@ pub async fn start(
     http_port: u16,
     strategy: String,
     lang: String,
+    down_limit_mbps: f64,
+    bypass: Vec<String>,
 ) -> Result<EngineHandle, String> {
     if selected.is_empty() {
         return Err("至少需要选择一张网卡".into());
     }
     let strategy = Strategy::parse(&strategy);
     let zh = lang != "en";
+    // 下行限速：MB/s 转字节/秒；<=0 表示不限速
+    let limiter = if down_limit_mbps > 0.0 {
+        Some(Arc::new(RateLimiter::new(
+            (down_limit_mbps * 1024.0 * 1024.0) as u64,
+        )))
+    } else {
+        None
+    };
+    // 规整白名单：去空白、转小写、去空项
+    let bypass: Vec<String> = bypass
+        .into_iter()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
 
     let mut nics: Vec<Arc<NicRuntime>> = Vec::with_capacity(selected.len());
     for s in &selected {
@@ -263,6 +389,8 @@ pub async fn start(
         conn_id: AtomicU64::new(0),
         app: app.clone(),
         zh,
+        limiter,
+        bypass,
     });
 
     let nic_names: Vec<&str> = nics.iter().map(|n| n.name.as_str()).collect();
@@ -546,6 +674,13 @@ async fn resolve_ipv4(host: &str, port: u16) -> std::io::Result<SocketAddrV4> {
     ))
 }
 
+/// 直连：不绑定物理网卡，交由系统默认网关连接（用于白名单命中的目标）。
+async fn connect_direct(dst: SocketAddrV4) -> std::io::Result<TcpStream> {
+    let stream = TcpStream::connect(SocketAddr::V4(dst)).await?;
+    let _ = stream.set_nodelay(true);
+    Ok(stream)
+}
+
 /// 【神圣地基】创建出站 socket：先 IP_UNICAST_IF 锁死网卡，再 bind 源地址，
 /// 最后异步连接目标。根治同网段 WinError 10049。
 async fn connect_via_nic(nic: &NicRuntime, dst: SocketAddrV4) -> std::io::Result<TcpStream> {
@@ -673,6 +808,30 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
 
     let target_display = domain.unwrap_or_else(|| dst.ip().to_string());
 
+    // 白名单命中：走默认网关直连，不参与多网卡分流
+    if engine.is_bypass(&target_display) {
+        let _ctg = engine.register_conn(format!("{target_display}:{port}"), "Direct".to_string(), "SOCKS");
+        engine.log(if engine.zh {
+            format!("[直连] 白名单命中 -> 默认网关 | 目标: {target_display}:{port}")
+        } else {
+            format!("[Direct] bypass match -> default gateway | target: {target_display}:{port}")
+        });
+        match connect_direct(dst).await {
+            Ok(mut upstream) => {
+                client
+                    .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await?;
+                relay(&mut client, &mut upstream, engine.limiter.clone()).await;
+            }
+            Err(_) => {
+                client
+                    .write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await?;
+            }
+        }
+        return Ok(());
+    }
+
     // 调度 + 物理绑定连接
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
@@ -704,7 +863,7 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
         .await?;
 
-    let _ = copy_bidirectional(&mut client, &mut upstream).await;
+    relay(&mut client, &mut upstream, engine.limiter.clone()).await;
     Ok(())
 }
 
@@ -795,6 +954,34 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         }
     };
 
+    // 白名单命中：走默认网关直连，不参与多网卡分流
+    if engine.is_bypass(&dst_host) {
+        let _ctg = engine.register_conn(format!("{dst_host}:{dst_port}"), "Direct".to_string(), "HTTP");
+        engine.log(if engine.zh {
+            format!("[HTTP 直连] 白名单命中 -> 默认网关 | 目标: {dst_host}:{dst_port}")
+        } else {
+            format!("[HTTP Direct] bypass match -> default gateway | target: {dst_host}:{dst_port}")
+        });
+        match connect_direct(dst).await {
+            Ok(mut upstream) => {
+                if is_connect {
+                    client
+                        .write_all(b"HTTP/1.1 200 Connection Established\r\nProxy-Agent: HypoMuxPlus\r\n\r\n")
+                        .await?;
+                } else if let Some(hdr) = outbound_header {
+                    upstream.write_all(&hdr).await?;
+                }
+                relay(&mut client, &mut upstream, engine.limiter.clone()).await;
+            }
+            Err(_) => {
+                let _ = client
+                    .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                    .await;
+            }
+        }
+        return Ok(());
+    }
+
     // 调度 + 物理绑定连接
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
@@ -829,7 +1016,7 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         upstream.write_all(&hdr).await?;
     }
 
-    let _ = copy_bidirectional(&mut client, &mut upstream).await;
+    relay(&mut client, &mut upstream, engine.limiter.clone()).await;
     Ok(())
 }
 

@@ -1,18 +1,22 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { disable as autoDisable, enable as autoEnable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   Bell,
   Droplet,
   Gamepad2,
+  Gauge,
   KeyRound,
   Languages,
   MinusSquare,
   MonitorCog,
   MonitorDown,
+  Network,
   Palette,
   Plug,
   Power,
   Rocket,
+  Save,
   ServerCog,
   Shuffle,
   Zap,
@@ -29,7 +33,7 @@ interface Props {
 }
 
 export function SettingsPage({ running }: Props) {
-  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, set } =
+  const { t, lang, theme, autoTheme, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, downLimit, bypassList, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -68,6 +72,53 @@ export function SettingsPage({ running }: Props) {
       toast("success", t(key));
     } catch (e) {
       toast("error", t("msgConfigFailed", { err: String(e) }));
+    }
+  };
+
+  // 导出全部配置（设置 + 网卡方案 + 已选网卡）为 JSON 文件
+  const exportConfig = async () => {
+    try {
+      const data = {
+        app: "HypoMuxPlus",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        settings: JSON.parse(localStorage.getItem("hmx-plus-settings") || "{}"),
+        profiles: JSON.parse(localStorage.getItem("hmx-nic-profiles") || "[]"),
+        selected: JSON.parse(localStorage.getItem("hmx-plus-selected") || "[]"),
+      };
+      const path = await saveDialog({
+        defaultPath: "hypomuxplus-config.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!path) return;
+      await api.writeTextFile(path, JSON.stringify(data, null, 2));
+      toast("success", t("msgExported"));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
+  // 从 JSON 文件导入配置，写回 localStorage 后重新加载界面以全量生效
+  const importConfig = async () => {
+    try {
+      const path = await openDialog({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!path || typeof path !== "string") return;
+      const text = await api.readTextFile(path);
+      const data = JSON.parse(text);
+      if (data?.app !== "HypoMuxPlus" || typeof data.settings !== "object" || !data.settings) {
+        throw new Error("invalid");
+      }
+      localStorage.setItem("hmx-plus-settings", JSON.stringify(data.settings));
+      if (Array.isArray(data.profiles)) localStorage.setItem("hmx-nic-profiles", JSON.stringify(data.profiles));
+      if (Array.isArray(data.selected)) localStorage.setItem("hmx-plus-selected", JSON.stringify(data.selected));
+      toast("success", t("msgImported"));
+      setTimeout(() => window.location.reload(), 900);
+    } catch {
+      toast("error", t("msgImportFailed"));
     }
   };
 
@@ -213,6 +264,64 @@ export function SettingsPage({ running }: Props) {
               ? t("schedLeastDesc")
               : t("schedWeightedDesc")}
           </p>
+        </Section>
+
+        {/* 流量控制（Plus 专属） */}
+        <Section icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
+          <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
+            <div className="flex items-center gap-2">
+              <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} />
+              <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+                {t("unitMbps")}
+              </span>
+            </div>
+          </Row>
+          <div className="flex flex-col gap-2 py-3" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-1)" }}>
+              <span style={{ color: "var(--text-2)" }}>
+                <Network size={15} />
+              </span>
+              {t("settingBypass")}
+            </div>
+            <div className="text-[11px] ml-[22px]" style={{ color: "var(--text-2)" }}>
+              {t("settingBypassHint")}
+            </div>
+            <textarea
+              value={bypassList}
+              disabled={running}
+              onChange={(e) => set("bypassList", e.target.value)}
+              placeholder={t("bypassPlaceholder")}
+              spellCheck={false}
+              rows={4}
+              className="mt-1 ml-[22px] px-3 py-2 rounded-lg text-[12px] mono resize-none outline-none"
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                color: "var(--text-0)",
+                opacity: running ? 0.5 : 1,
+              }}
+            />
+          </div>
+        </Section>
+
+        {/* 配置备份（Plus 专属） */}
+        <Section icon={<Save size={16} />} title={t("settingsBackup")} hint={t("settingsBackupHint")}>
+          <div className="pt-1 flex items-center gap-2.5">
+            <button
+              onClick={exportConfig}
+              className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
+              style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
+            >
+              {t("btnExportConfig")}
+            </button>
+            <button
+              onClick={importConfig}
+              className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+            >
+              {t("btnImportConfig")}
+            </button>
+          </div>
         </Section>
 
         {/* 应用兼容性 */}

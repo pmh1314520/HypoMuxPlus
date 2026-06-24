@@ -32,6 +32,7 @@ import {
 } from "./lib/api";
 
 const HISTORY_LEN = 60;
+const NIC_SPARK_LEN = 24;
 const LOG_CAP = 300;
 const SELECTED_KEY = "hmx-plus-selected";
 const LIFETIME_KEY = "hmx-lifetime-mb";
@@ -49,7 +50,7 @@ function loadSelected(): Set<number> {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, downLimit, bypassList } =
     useSettings();
   const toast = useToast();
 
@@ -64,6 +65,7 @@ function AppInner() {
 
   const [telemetry, setTelemetry] = useState<TelemetryPayload | null>(null);
   const [perNic, setPerNic] = useState<Record<string, NicTelemetry>>({});
+  const [nicHistory, setNicHistory] = useState<Record<string, number[]>>({});
   const [history, setHistory] = useState<number[]>(new Array(HISTORY_LEN).fill(0));
   const [peak, setPeak] = useState(0);
   const [uptime, setUptime] = useState(0);
@@ -115,6 +117,14 @@ function AppInner() {
       const map: Record<string, NicTelemetry> = {};
       for (const n of p.perNic) map[n.name] = n;
       setPerNic(map);
+      setNicHistory((prev) => {
+        const next: Record<string, number[]> = {};
+        for (const n of p.perNic) {
+          const base = prev[n.name] ?? new Array(NIC_SPARK_LEN).fill(0);
+          next[n.name] = [...base.slice(-(NIC_SPARK_LEN - 1)), n.downMbps];
+        }
+        return next;
+      });
       setHistory((prev) => [...prev.slice(1), p.total.downMbps]);
       setPeak((prev) => Math.max(prev, p.total.downMbps));
       // 每秒一次采样，downMbps(MB/s) × 1s ≈ 本秒下载量(MB)
@@ -170,6 +180,7 @@ function AppInner() {
     if (!running) {
       setUptime(0);
       setPerNic({});
+      setNicHistory({});
       setTelemetry(null);
       setHistory(new Array(HISTORY_LEN).fill(0));
       setPeak(0);
@@ -299,7 +310,11 @@ function AppInner() {
       const steam = await api.checkSteamRunning().catch(() => false);
       if (steam) toast("warning", t("warnSteamRunning"));
 
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang);
+      const bypass = bypassList
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass);
       toast("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {
@@ -373,6 +388,7 @@ function AppInner() {
                     applySelection={applySelection}
                     refresh={scan}
                     perNic={perNic}
+                    nicHistory={nicHistory}
                     loading={loading}
                     logs={logs}
                     clearLogs={() => setLogs([])}

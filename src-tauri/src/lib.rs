@@ -127,12 +127,24 @@ async fn start_boost(
     http_port: u16,
     strategy: String,
     lang: String,
+    down_limit_mbps: f64,
+    bypass: Vec<String>,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
     }
 
-    let handle = engine::start(app.clone(), nics, socks_port, http_port, strategy, lang).await?;
+    let handle = engine::start(
+        app.clone(),
+        nics,
+        socks_port,
+        http_port,
+        strategy,
+        lang,
+        down_limit_mbps,
+        bypass,
+    )
+    .await?;
 
     let socks_addr = format!("127.0.0.1:{socks_port}");
     let http_addr = format!("127.0.0.1:{http_port}");
@@ -179,6 +191,18 @@ fn configure_idm(enable: bool, port: u16) -> Result<(), String> {
     appcompat::configure_idm(enable, "127.0.0.1", port)
 }
 
+/// 读取文本文件（用于配置导入，路径由原生文件对话框提供）。
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+/// 写入文本文件（用于配置导出，路径由原生文件对话框提供）。
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| e.to_string())
+}
+
 /// 逐张网卡探测出口连通性与延迟（Plus 专属链路体检）。
 #[tauri::command]
 async fn test_latency(nics: Vec<engine::SelectedNic>) -> Result<Vec<engine::LatencyResult>, String> {
@@ -216,6 +240,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 // 仅持久化尺寸与位置：避免保存"可见/最小化"状态导致
@@ -238,6 +263,8 @@ pub fn run() {
             stop_boost,
             configure_steam,
             configure_idm,
+            read_text_file,
+            write_text_file,
             test_latency,
             speed_test,
         ])

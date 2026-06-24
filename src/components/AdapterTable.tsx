@@ -35,6 +35,7 @@ interface Props {
   applySelection: (indices: number[]) => void;
   refresh: () => void;
   perNic: Record<string, NicTelemetry>;
+  nicHistory: Record<string, number[]>;
   running: boolean;
   loading: boolean;
 }
@@ -48,6 +49,7 @@ export function AdapterTable({
   applySelection,
   refresh,
   perNic,
+  nicHistory,
   running,
   loading,
 }: Props) {
@@ -204,7 +206,7 @@ export function AdapterTable({
       {/* 列头 */}
       <div
         className="grid items-center px-5 py-2.5 text-[11px] font-medium shrink-0"
-        style={{ gridTemplateColumns: "44px 1fr 140px 110px 70px", color: "var(--text-2)" }}
+        style={{ gridTemplateColumns: "44px 1fr 130px 134px 60px", color: "var(--text-2)" }}
       >
         <span>{t("colSelect")}</span>
         <span>{t("colAlias")}</span>
@@ -231,7 +233,7 @@ export function AdapterTable({
                 onClick={() => hasIp && !running && toggle(a.index)}
                 className="grid items-center px-3 py-2.5 my-0.5 rounded-xl cursor-pointer transition-colors"
                 style={{
-                  gridTemplateColumns: "44px 1fr 140px 110px 70px",
+                  gridTemplateColumns: "44px 1fr 130px 134px 60px",
                   background: checked ? "var(--surface-hover)" : "transparent",
                   border: checked ? "1px solid var(--border-strong)" : "1px solid transparent",
                   boxShadow: checked ? "inset 3px 0 0 var(--accent)" : "none",
@@ -269,13 +271,16 @@ export function AdapterTable({
                   {hasIp ? a.ipv4 : t("noValidIp")}
                 </span>
 
-                {/* 速度 */}
-                <span
-                  className="text-[13px] font-semibold tabular-nums text-right"
-                  style={{ color: tele && tele.downMbps > 0 ? "var(--accent-soft)" : "var(--text-2)" }}
-                >
-                  {tele ? tele.downMbps.toFixed(2) : "0.00"}
-                </span>
+                {/* 速度 + 迷你曲线 */}
+                <div className="flex items-center justify-end gap-2">
+                  <Sparkline data={nicHistory[a.alias]} active={!!(tele && tele.downMbps > 0)} />
+                  <span
+                    className="text-[13px] font-semibold tabular-nums text-right"
+                    style={{ color: tele && tele.downMbps > 0 ? "var(--accent-soft)" : "var(--text-2)", minWidth: 42 }}
+                  >
+                    {tele ? tele.downMbps.toFixed(2) : "0.00"}
+                  </span>
+                </div>
 
                 {/* 连接数 */}
                 <span className="text-[13px] tabular-nums text-right" style={{ color: "var(--text-1)" }}>
@@ -287,6 +292,35 @@ export function AdapterTable({
         )}
       </div>
     </div>
+  );
+}
+
+function Sparkline({ data, active }: { data?: number[]; active: boolean }) {
+  const w = 56;
+  const h = 18;
+  const series = data && data.length > 1 ? data : null;
+  if (!series) {
+    return (
+      <svg width={w} height={h} style={{ opacity: 0.35 }}>
+        <line x1="0" y1={h - 1} x2={w} y2={h - 1} stroke="var(--border-strong)" strokeWidth="1" />
+      </svg>
+    );
+  }
+  const max = Math.max(...series, 0.001);
+  const n = series.length;
+  const pts = series.map((v, i) => {
+    const x = (i / (n - 1)) * w;
+    const y = h - 1 - (v / max) * (h - 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(" ");
+  const area = `0,${h} ${line} ${w},${h}`;
+  const color = active ? "var(--accent-soft)" : "var(--text-2)";
+  return (
+    <svg width={w} height={h} className="shrink-0">
+      <polygon points={area} fill={color} opacity={0.12} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
   );
 }
 

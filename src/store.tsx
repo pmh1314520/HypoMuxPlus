@@ -30,6 +30,8 @@ interface Settings {
   globalHotkey: boolean;
   notifications: boolean;
   hotkeyCombo: string;
+  downLimit: number;
+  bypassList: string;
 }
 
 const DEFAULTS: Settings = {
@@ -47,6 +49,8 @@ const DEFAULTS: Settings = {
   globalHotkey: false,
   notifications: false,
   hotkeyCombo: "Control+Alt+H",
+  downLimit: 0,
+  bypassList: "",
 };
 
 const STORAGE_KEY = "hmx-plus-settings";
