@@ -62,6 +62,15 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
     }
   };
 
+  const copyOne = async (target: string) => {
+    try {
+      await navigator.clipboard.writeText(target);
+      toast("success", t("msgCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const tabs: { id: "log" | "conns" | "history"; label: string; icon: typeof Terminal; badge?: number }[] = [
     { id: "log", label: t("monitorLog"), icon: Terminal },
     { id: "conns", label: t("monitorConns"), icon: ListTree, badge: connections.length },
@@ -182,7 +191,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
               filteredHistory.map((c, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                  onClick={() => copyOne(c.target)}
+
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors hover:[background:var(--surface-hover)]"
                   style={{ borderBottom: "1px solid var(--border)" }}
                 >
                   <span
@@ -210,7 +221,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          {/* 过滤栏：按协议 / 出口网卡 + 目标搜索 */}
+          {/* 过滤栏：按协�?/ 出口网卡 + 目标搜索 */}
           {running && connections.length > 0 && (
             <FilterBar
               nicNames={connNicNames}
@@ -236,7 +247,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
               filteredConns.map((c, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                  onClick={() => copyOne(c.target)}
+
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors hover:[background:var(--surface-hover)]"
                   style={{ borderBottom: "1px solid var(--border)" }}
                 >
                   <span

@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
   CheckSquare,
   Cable,
+  ChevronDown,
   Download,
+  HelpCircle,
   Lightbulb,
   Network,
   Zap,
@@ -12,6 +15,7 @@ import { useSettings } from "../store";
 
 export function TutorialPage() {
   const { t } = useSettings();
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const steps = [
     { icon: Cable, title: t("tutStep1Title"), desc: t("tutStep1Desc") },
@@ -21,6 +25,14 @@ export function TutorialPage() {
   ];
 
   const tips = [t("tutTip1"), t("tutTip2"), t("tutTip3"), t("tutTip4")];
+
+  const faqs = [
+    { q: t("faqQ1"), a: t("faqA1") },
+    { q: t("faqQ2"), a: t("faqA2") },
+    { q: t("faqQ3"), a: t("faqA3") },
+    { q: t("faqQ4"), a: t("faqA4") },
+    { q: t("faqQ5"), a: t("faqA5") },
+  ];
 
   return (
     <div className="h-full overflow-y-auto px-1 pb-8">
@@ -155,6 +167,53 @@ export function TutorialPage() {
               </li>
             ))}
           </ul>
+        </div>
+
+        {/* 常见问题 FAQ */}
+        <div className="panel p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <HelpCircle size={16} style={{ color: "var(--accent-soft)" }} />
+            <h3 className="font-semibold text-[14px]">{t("faqTitle")}</h3>
+          </div>
+          <div className="flex flex-col gap-2">
+            {faqs.map((f, i) => {
+              const open = openFaq === i;
+              return (
+                <div
+                  key={i}
+                  className="rounded-xl overflow-hidden"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+                >
+                  <button
+                    onClick={() => setOpenFaq(open ? null : i)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="text-[13px] font-medium flex-1" style={{ color: "var(--text-0)" }}>
+                      {f.q}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className="shrink-0 transition-transform"
+                      style={{ color: "var(--text-2)", transform: open ? "rotate(180deg)" : "none" }}
+                    />
+                  </button>
+                  <motion.div
+                    initial={false}
+                    animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <p
+                      className="px-4 pb-3.5 text-[12.5px] leading-relaxed"
+                      style={{ color: "var(--text-1)", borderTop: "1px solid var(--border)", paddingTop: "12px" }}
+                    >
+                      {f.a}
+                    </p>
+                  </motion.div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

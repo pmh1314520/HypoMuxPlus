@@ -569,7 +569,7 @@ function AppInner() {
                     onReset={resetStats}
                   />
                 ) : view === "about" ? (
-                  <AboutPage lifetimeMB={lifetimeMB} onReplayGuide={() => setShowOnboarding(true)} />
+                  <AboutPage lifetimeMB={lifetimeMB} admin={admin} onReplayGuide={() => setShowOnboarding(true)} />
                 ) : (
                   <SettingsPage running={running} />
                 )}

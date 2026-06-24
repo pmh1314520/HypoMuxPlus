@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, ScrollText, User, X } from "lucide-react";
+import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, MonitorSmartphone, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
 import { useSettings } from "../store";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon } from "./BrandIcons";
@@ -22,7 +22,7 @@ function fmtData(mb: number): string {
   return mb.toFixed(0) + " MB";
 }
 
-export function AboutPage({ lifetimeMB, onReplayGuide }: { lifetimeMB: number; onReplayGuide: () => void }) {
+export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: number; admin: boolean; onReplayGuide: () => void }) {
   const { t } = useSettings();
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
 
@@ -128,6 +128,13 @@ export function AboutPage({ lifetimeMB, onReplayGuide }: { lifetimeMB: number; o
         <motion.div variants={item} className="grid grid-cols-2 gap-4">
           <InfoCard icon={<User size={15} />} label={t("aboutAuthor")} value="青云制作_彭明航" />
           <InfoCard icon={<ScrollText size={15} />} label={t("aboutLicense")} value="AGPL-3.0" />
+          <InfoCard
+            icon={admin ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+            label={t("aboutPermission")}
+            value={admin ? t("adminBadgeOk") : t("adminBadgeNo")}
+            valueColor={admin ? "var(--ok)" : "var(--warn)"}
+          />
+          <InfoCard icon={<MonitorSmartphone size={15} />} label={t("aboutPlatform")} value="Windows 10 / 11" />
         </motion.div>
 
         {/* 项目仓库 */}
@@ -266,14 +273,14 @@ function RepoLink({ url, label, icon }: { url: string; label: string; icon: Reac
   );
 }
 
-function InfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function InfoCard({ icon, label, value, valueColor }: { icon: ReactNode; label: string; value: string; valueColor?: string }) {
   return (
     <div className="panel p-5">
       <div className="flex items-center gap-2 eyebrow mb-2">
         <span style={{ color: "var(--text-2)" }}>{icon}</span>
         {label}
       </div>
-      <div className="text-[15px] font-semibold">{value}</div>
+      <div className="text-[15px] font-semibold" style={{ color: valueColor }}>{value}</div>
     </div>
   );
 }
