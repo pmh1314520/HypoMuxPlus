@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
+import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Clipboard, Copy, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
@@ -94,6 +94,32 @@ export function AdapterTable({
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [sort, setSort] = useState<"default" | "speed" | "conns">("default");
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; a: AdapterInfo } | null>(null);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [ctxMenu]);
+
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("success", t("msgCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const sortLabel = sort === "speed" ? t("sortSpeed") : sort === "conns" ? t("sortConns") : t("sortDefault");
   const cycleSort = () => setSort((s) => (s === "default" ? "speed" : s === "speed" ? "conns" : "default"));
@@ -343,6 +369,11 @@ export function AdapterTable({
                 key={a.index}
                 layout
                 onClick={() => hasIp && !running && toggle(a.index)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCtxMenu({ x: e.clientX, y: e.clientY, a });
+                }}
                 className="grid items-center px-3 py-2.5 my-0.5 rounded-xl cursor-pointer transition-colors"
                 style={{
                   gridTemplateColumns: "44px 1fr 130px 134px 60px",
@@ -450,7 +481,74 @@ export function AdapterTable({
           })
         )}
       </div>
+
+      {/* 网卡行右键菜单（自研，非浏览器原生） */}
+      {ctxMenu && (
+        <div
+          className="fixed z-[300] py-1 rounded-xl text-[12.5px]"
+          style={{
+            left: Math.min(ctxMenu.x, window.innerWidth - 180),
+            top: Math.min(ctxMenu.y, window.innerHeight - 140),
+            minWidth: 168,
+            background: "var(--surface-strong)",
+            border: "1px solid var(--border-strong)",
+            boxShadow: "var(--shadow)",
+            backdropFilter: "blur(10px)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <CtxItem
+            icon={<Copy size={13} />}
+            label={t("ctxCopyIp")}
+            disabled={!ctxMenu.a.ipv4 || ctxMenu.a.ipv4 === "0.0.0.0"}
+            onClick={() => {
+              copyText(ctxMenu.a.ipv4);
+              setCtxMenu(null);
+            }}
+          />
+          <CtxItem
+            icon={<Clipboard size={13} />}
+            label={t("ctxCopyName")}
+            onClick={() => {
+              copyText(ctxMenu.a.alias);
+              setCtxMenu(null);
+            }}
+          />
+          <CtxItem
+            icon={<Pencil size={13} />}
+            label={t("ctxEditNote")}
+            onClick={() => {
+              startEditNote(ctxMenu.a.index);
+              setCtxMenu(null);
+            }}
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+function CtxItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:[background:var(--surface-hover)]"
+      style={{ color: disabled ? "var(--text-2)" : "var(--text-1)", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+    >
+      <span style={{ color: "var(--text-2)" }}>{icon}</span>
+      {label}
+    </button>
   );
 }
 

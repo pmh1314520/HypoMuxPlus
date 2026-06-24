@@ -108,6 +108,12 @@
 [data-contrast="on"] .glass {
   border-width: 1.5px;
 }
+
+/* 主题 / 配色切换时的短暂平滑过渡（仅切换瞬间启用，避免常态性能开销） */
+.theme-anim * {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease,
+    fill 0.3s ease, stroke 0.3s ease, box-shadow 0.3s ease !important;
+}
 html,
 body,
 #root {

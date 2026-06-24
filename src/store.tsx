@@ -1,5 +1,5 @@
 // 全局设置 / 国际化上下文（localStorage 持久化）
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Lang, translate } from "./i18n";
 
 export type Theme = "dark" | "light";
@@ -97,6 +97,19 @@ const SettingsCtx = createContext<Ctx | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(load);
+  const firstRun = useRef(true);
+
+  // 主题 / 强调色 / 对比度切换时短暂启用过渡动画，使配色变化平滑
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    const root = document.documentElement;
+    root.classList.add("theme-anim");
+    const id = window.setTimeout(() => root.classList.remove("theme-anim"), 340);
+    return () => window.clearTimeout(id);
+  }, [settings.theme, settings.accent, settings.highContrast]);
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings((s) => ({ ...s, [key]: value }));

@@ -76,6 +76,9 @@ export const DICT: Record<Lang, Record<string, string>> = {
     sortSpeed: "按速度",
     sortConns: "按连接",
     sortTip: "切换网卡排序方式",
+    ctxCopyIp: "复制 IPv4",
+    ctxCopyName: "复制网卡名",
+    ctxEditNote: "编辑备注名",
     btnConfirm: "确定",
     btnCancel: "取消",
 
@@ -407,6 +410,9 @@ export const DICT: Record<Lang, Record<string, string>> = {
     sortSpeed: "By Speed",
     sortConns: "By Conns",
     sortTip: "Change adapter sorting",
+    ctxCopyIp: "Copy IPv4",
+    ctxCopyName: "Copy adapter name",
+    ctxEditNote: "Edit note",
     btnConfirm: "OK",
     btnCancel: "Cancel",
 
