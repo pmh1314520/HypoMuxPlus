@@ -3,6 +3,7 @@ import { useSettings } from "../store";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { AreaChart } from "./AreaChart";
 import { BoostButton } from "./BoostButton";
+import { useToast } from "./Toast";
 import type { TelemetryPayload } from "../lib/api";
 
 interface Props {
@@ -26,7 +27,17 @@ function fmtUptime(sec: number): string {
 
 export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running, busy, canBoost, onBoost }: Props) {
   const { t, strategy, downLimit, bypassList } = useSettings();
+  const toast = useToast();
   const total = telemetry?.total ?? { downMbps: 0, upMbps: 0, connections: 0 };
+
+  const copyVal = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("success", t("msgCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const stratLabel =
     strategy === "rr" ? t("schedRR") : strategy === "least" ? t("schedLeast") : t("schedWeighted");
@@ -115,9 +126,10 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
           {chips.map((c) => {
             const Icon = c.icon;
             return (
-              <div
+              <button
                 key={c.label}
-                className="rounded-xl px-3.5 py-2.5"
+                onClick={() => copyVal(`${c.value}${c.unit ? " " + c.unit : ""}`)}
+                className="rounded-xl px-3.5 py-2.5 text-left transition-colors hover:[background:var(--surface-hover)]"
                 style={{ background: "var(--surface-2)", border: "1px solid var(--border)", backdropFilter: "blur(6px)" }}
               >
                 <div className="flex items-center gap-1.5 text-[10.5px] tracking-wide uppercase mb-1" style={{ color: "var(--text-2)" }}>
@@ -132,7 +144,7 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

@@ -140,9 +140,37 @@ export function SettingsPage({ running }: Props) {
     }
   };
 
+  const sectionNav = [
+    { id: "sec-general", label: t("settingsGeneral") },
+    { id: "sec-auto", label: t("settingsAutomation") },
+    { id: "sec-sched", label: t("schedTitle") },
+    { id: "sec-hud", label: t("settingsHud") },
+    { id: "sec-traffic", label: t("settingsTraffic") },
+    { id: "sec-backup", label: t("settingsBackup") },
+    { id: "sec-appcompat", label: t("appcompatTitle") },
+  ];
+  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   return (
     <div className="h-full overflow-y-auto px-1 pb-6">
       <div className="max-w-[860px] mx-auto flex flex-col gap-5">
+        {/* 分组快速跳转 */}
+        <div
+          className="sticky top-0 z-20 -mx-1 px-1 py-2 flex items-center gap-2 flex-wrap"
+          style={{ background: "color-mix(in srgb, var(--bg-0) 82%, transparent)", backdropFilter: "blur(8px)" }}
+        >
+          {sectionNav.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => jumpTo(s.id)}
+              className="px-2.5 py-1 rounded-lg text-[11.5px] font-medium transition-colors whitespace-nowrap"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         {!admin && (
           <div
             className="panel px-4 py-3 text-[12.5px] leading-relaxed"
@@ -153,7 +181,7 @@ export function SettingsPage({ running }: Props) {
         )}
 
         {/* 通用 */}
-        <Section icon={<ServerCog size={16} />} title={t("settingsGeneral")}>
+        <Section id="sec-general" icon={<ServerCog size={16} />} title={t("settingsGeneral")}>
           <Row icon={<Languages size={15} />} label={t("settingLanguage")}>
             <Segmented<Lang>
               value={lang}
@@ -250,7 +278,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 自动化（Plus 专属） */}
-        <Section icon={<Rocket size={16} />} title={t("settingsAutomation")}>
+        <Section id="sec-auto" icon={<Rocket size={16} />} title={t("settingsAutomation")}>
           <Row icon={<Power size={15} />} label={t("settingAutostart")} hint={t("settingAutostartHint")}>
             <Switch checked={autostart} onChange={toggleAutostart} />
           </Row>
@@ -291,7 +319,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 调度引擎（Plus 专属） */}
-        <Section icon={<Shuffle size={16} />} title={t("schedTitle")} hint={t("schedHint")}>
+        <Section id="sec-sched" icon={<Shuffle size={16} />} title={t("schedTitle")} hint={t("schedHint")}>
           <div className="pt-1 flex items-center justify-between gap-4 flex-wrap">
             <Segmented<SchedStrategy>
               value={strategy}
@@ -313,7 +341,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 悬浮窗 HUD（Plus 专属） */}
-        <Section icon={<PictureInPicture2 size={16} />} title={t("settingsHud")} hint={t("settingsHudHint")}>
+        <Section id="sec-hud" icon={<PictureInPicture2 size={16} />} title={t("settingsHud")} hint={t("settingsHudHint")}>
           <Row icon={<PictureInPicture2 size={15} />} label={t("settingHudEnable")} hint={t("settingHudEnableHint")}>
             <Switch checked={hudEnabled} onChange={(v) => set("hudEnabled", v)} />
           </Row>
@@ -386,7 +414,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 流量控制（Plus 专属） */}
-        <Section icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
+        <Section id="sec-traffic" icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
           <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
             <div className="flex items-center gap-2">
               <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} />
@@ -424,7 +452,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 配置备份（Plus 专属） */}
-        <Section icon={<Save size={16} />} title={t("settingsBackup")} hint={t("settingsBackupHint")}>
+        <Section id="sec-backup" icon={<Save size={16} />} title={t("settingsBackup")} hint={t("settingsBackupHint")}>
           <div className="pt-1 flex items-center gap-2.5">
             <button
               onClick={exportConfig}
@@ -444,7 +472,7 @@ export function SettingsPage({ running }: Props) {
         </Section>
 
         {/* 应用兼容性 */}
-        <Section icon={<Plug size={16} />} title={t("appcompatTitle")} hint={t("appcompatHint")}>
+        <Section id="sec-appcompat" icon={<Plug size={16} />} title={t("appcompatTitle")} hint={t("appcompatHint")}>
           <CompatRow
             icon={<Gamepad2 size={15} />}
             label={t("steamConfig")}
@@ -467,9 +495,9 @@ export function SettingsPage({ running }: Props) {
   );
 }
 
-function Section({ icon, title, hint, children }: { icon: ReactNode; title: string; hint?: string; children: ReactNode }) {
+function Section({ id, icon, title, hint, children }: { id?: string; icon: ReactNode; title: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="panel p-5">
+    <div id={id} className="panel p-5" style={{ scrollMarginTop: 56 }}>
       <div className="flex items-center gap-2 mb-1">
         <span style={{ color: "var(--cyan)" }}>{icon}</span>
         <h3 className="font-semibold text-[14px]">{title}</h3>
