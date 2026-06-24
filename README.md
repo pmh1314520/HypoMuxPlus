@@ -2,7 +2,7 @@
 
 # HypoMuxPlus
 
-**现代化多网卡带宽聚合下载加速客户端 · Modern Multi-NIC Bandwidth Aggregation Accelerator**
+**多网卡带宽聚合工具 · Multi-NIC Bandwidth Aggregation Tool**
 
 [![Tauri](https://img.shields.io/badge/Tauri-2.x-FFC131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-000000?style=flat-square&logo=rust)](https://www.rust-lang.org)
@@ -24,7 +24,7 @@
 
 ## 简体中文
 
-HypoMuxPlus 是一款面向 Windows 平台的**多网卡带宽并发聚合下载加速工具**的现代化桌面客户端。它在 [Hypostasis-Cat 的开源项目 HypoMux](https://github.com/Hypostasis-Cat/HypoMux) 的核心思想之上，使用 **Tauri + Rust + React + TailwindCSS** 完整重构，提供更美观、更流畅、更专业的桌面体验，并将分流引擎用 Rust（tokio）原生重写，产物为零运行时依赖的独立可执行文件。
+HypoMuxPlus 是一款面向 Windows 平台的**多网卡带宽聚合工具**。它在 [Hypostasis-Cat 的开源项目 HypoMux](https://github.com/Hypostasis-Cat/HypoMux) 的核心思想之上，使用 **Tauri + Rust + React + TailwindCSS** 完整重构，提供更美观、更流畅、更专业的桌面体验，并将分流引擎用 Rust（tokio）原生重写，产物为零运行时依赖的独立可执行文件。
 
 > 本项目是基于原 HypoMux 的衍生作品，遵循其 **AGPL-3.0** 协议开源。原作者：Hypostasis-Cat；衍生开发者：**青云制作_彭明航**。
 
@@ -126,7 +126,7 @@ npm run tauri build
 
 ## English
 
-HypoMuxPlus is a modernized desktop client of a **multi-network-adapter bandwidth aggregation download accelerator** for Windows. Built on top of the core ideas of [HypoMux by Hypostasis-Cat](https://github.com/Hypostasis-Cat/HypoMux), it is fully rebuilt with **Tauri + Rust + React + TailwindCSS**, delivering a more refined, fluid and professional desktop experience. The splitting engine is natively rewritten in Rust (tokio), producing a self-contained executable with zero runtime dependencies.
+HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Windows. Built on top of the core ideas of [HypoMux by Hypostasis-Cat](https://github.com/Hypostasis-Cat/HypoMux), it is fully rebuilt with **Tauri + Rust + React + TailwindCSS**, delivering a more refined, fluid and professional desktop experience. The splitting engine is natively rewritten in Rust (tokio), producing a self-contained executable with zero runtime dependencies.
 
 > This is a derivative work of the original HypoMux, released under its **AGPL-3.0** license. Original author: Hypostasis-Cat; derivative developer: **青云制作_彭明航 (Qingyun Studio / Peng Minghang)**.
 

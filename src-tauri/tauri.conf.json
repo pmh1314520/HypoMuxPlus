@@ -35,8 +35,8 @@
     "publisher": "青云制作_彭明航",
     "copyright": "© 2026 青云制作_彭明航. 衍生自 Hypostasis-Cat / HypoMux (AGPL-3.0).",
     "category": "Utility",
-    "shortDescription": "现代化多网卡带宽聚合下载加速器",
-    "longDescription": "HypoMuxPlus 是一款 Windows 多网卡带宽并发聚合下载加速工具，通过 L3 物理层套接字绑定与双协议本地代理引擎，将下载连接分散到多张活动网卡实现带宽叠加。",
+    "shortDescription": "现代化多网卡带宽聚合工具",
+    "longDescription": "HypoMuxPlus 是一款 Windows 多网卡带宽聚合工具，通过 L3 物理层套接字绑定与双协议本地代理引擎，将下载连接分散到多张活动网卡实现带宽叠加。",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,4 +1,4 @@
-//! HypoMuxPlus —— 现代化多网卡带宽聚合下载加速客户端（Tauri 后端）
+//! HypoMuxPlus —— 多网卡带宽聚合工具（Tauri 后端）
 //!
 //! 衍生自 Hypostasis-Cat 的开源项目 HypoMux（AGPL-3.0）。
 //! 衍生开发者：青云制作_彭明航。
