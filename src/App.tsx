@@ -19,6 +19,7 @@ import { useSettings, ACCENTS } from "./store";
 import {
   api,
   emitHudConfig,
+  emitHudNotice,
   onBoostState,
   onConnections,
   onConnClosed,
@@ -436,15 +437,20 @@ function AppInner() {
   };
 
   const onBoost = async () => {
+    // 同步提示：既在主窗口弹 toast，也推送给 HUD（托盘模式下主窗口不可见时仍有反馈）
+    const notify2 = (kind: "success" | "warning" | "error" | "info", msg: string) => {
+      toast(kind, msg);
+      emitHudNotice(kind, msg).catch(() => {});
+    };
     if (busy) return;
     if (running) {
       setBusy(true);
       try {
         await api.stopBoost();
-        toast("info", t("msgBoostStopped"));
+        notify2("info", t("msgBoostStopped"));
         notify(t("msgBoostStopped"));
       } catch (e) {
-        toast("error", String(e));
+        notify2("error", String(e));
       } finally {
         setBusy(false);
       }
@@ -456,7 +462,7 @@ function AppInner() {
       .map((a) => ({ index: a.index, name: a.alias, ip: a.ipv4 }));
 
     if (chosen.length === 0) {
-      toast("warning", t("warnNoSelection"));
+      notify2("warning", t("warnNoSelection"));
       return;
     }
 
@@ -471,27 +477,24 @@ function AppInner() {
       if (!socksFree || !httpFree) {
         const busyPort = !socksFree ? socksPort : httpPort;
         const suggest = await api.suggestFreePort(busyPort + 1).catch(() => 0);
-        toast(
-          "error",
-          t("msgPortBusy", { port: busyPort, suggest: suggest || busyPort + 1 }),
-        );
+        notify2("error", t("msgPortBusy", { port: busyPort, suggest: suggest || busyPort + 1 }));
         setBusy(false);
         return;
       }
 
       // 与原项目一致：开启前提醒 Steam 重启
       const steam = await api.checkSteamRunning().catch(() => false);
-      if (steam) toast("warning", t("warnSteamRunning"));
+      if (steam) notify2("warning", t("warnSteamRunning"));
 
       const bypass = bypassList
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
       await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass);
-      toast("success", t("msgBoostStarted"));
+      notify2("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {
-      toast("error", t("msgStartFailed", { err: String(e) }));
+      notify2("error", t("msgStartFailed", { err: String(e) }));
     } finally {
       setBusy(false);
     }

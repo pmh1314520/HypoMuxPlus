@@ -6,6 +6,7 @@ import {
   emitTrayToggle,
   onBoostState,
   onHudConfig,
+  onHudNotice,
   onTelemetry,
   type HudConfig,
   type TelemetryPayload,
@@ -52,6 +53,7 @@ export function Hud() {
   const [running, setRunning] = useState(false);
   const [tele, setTele] = useState<TelemetryPayload | null>(null);
   const [hist, setHist] = useState<number[]>(new Array(SPARK_LEN).fill(0));
+  const [notice, setNotice] = useState<{ kind: string; msg: string } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -88,7 +90,16 @@ export function Hud() {
       setTele(p);
       setHist((prev) => [...prev.slice(1), p.total.downMbps]);
     }).then((u) => uns.push(u));
-    return () => uns.forEach((u) => u());
+    let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+    onHudNotice((n) => {
+      setNotice(n);
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => setNotice(null), 3600);
+    }).then((u) => uns.push(u));
+    return () => {
+      if (noticeTimer) clearTimeout(noticeTimer);
+      uns.forEach((u) => u());
+    };
   }, []);
 
   // 保存拖动后的位置
@@ -223,6 +234,33 @@ export function Hud() {
                 </span>
               </div>
             ))}
+          </div>
+        )}
+        {/* HUD 内提示（来自主窗口的同步通知，托盘模式下也能看到反馈） */}
+        {notice && (
+          <div
+            className="flex items-center gap-1.5 mt-0.5 px-2 py-1.5 rounded-lg text-[10.5px] leading-snug"
+            style={{
+              background:
+                notice.kind === "error"
+                  ? "rgba(240,97,109,0.16)"
+                  : notice.kind === "warning"
+                  ? "rgba(227,179,65,0.16)"
+                  : notice.kind === "success"
+                  ? "rgba(62,207,142,0.16)"
+                  : "var(--surface-2)",
+              color:
+                notice.kind === "error"
+                  ? "#f0616d"
+                  : notice.kind === "warning"
+                  ? "#e3b341"
+                  : notice.kind === "success"
+                  ? "#3ecf8e"
+                  : txt0,
+              border: `1px solid ${light ? "rgba(15,30,60,0.1)" : "rgba(255,255,255,0.08)"}`,
+            }}
+          >
+            {notice.msg}
           </div>
         )}
       </div>

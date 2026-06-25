@@ -136,6 +136,11 @@ export const onTrayToggle = (cb: () => void): Promise<UnlistenFn> =>
 /** HUD 触发一键加速 / 停止（复用主窗口的切换流程） */
 export const emitTrayToggle = () => emit("hmx-tray-toggle");
 
+/** 主窗口把提示同步推送给 HUD（托盘模式下主窗口不可见时仍能反馈） */
+export const emitHudNotice = (kind: string, msg: string) => emit("hmx-hud-notice", { kind, msg });
+export const onHudNotice = (cb: (n: { kind: string; msg: string }) => void): Promise<UnlistenFn> =>
+  listen<{ kind: string; msg: string }>("hmx-hud-notice", (e) => cb(e.payload));
+
 export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): Promise<UnlistenFn> =>
   listen<{ name: string; alive: boolean }>("hmx-nic-alert", (e) => cb(e.payload));
 

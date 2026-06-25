@@ -1343,3 +1343,47 @@ svg {
   font-family: "JetBrains Mono", "Consolas", monospace;
   user-select: text;
 }
+
+/* 联系方式可复制按钮 */
+button.contact-chip {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+}
+button.contact-chip:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 45%, transparent);
+}
+.contact-chip .copy-ico {
+  margin-left: 6px;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.contact-chip:hover .copy-ico {
+  opacity: 1;
+}
+.contact-chip.copied {
+  border-color: #3ecf8e;
+}
+.copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%) translateY(12px);
+  padding: 9px 18px;
+  border-radius: 12px;
+  background: rgba(20, 24, 33, 0.92);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.copy-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

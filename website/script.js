@@ -264,3 +264,48 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i", "j", "c"].includes(k)) return block(e);
   });
 })();
+
+/* ---------- 联系方式一键复制 ---------- */
+(function () {
+  let tipTimer;
+  function showCopied(btn) {
+    let tip = document.getElementById("copyTip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "copyTip";
+      tip.className = "copy-toast";
+      document.body.appendChild(tip);
+    }
+    const isEn = document.documentElement.getAttribute("data-lang") === "en";
+    tip.textContent = isEn ? "Copied" : "已复制";
+    tip.classList.add("show");
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => tip.classList.remove("show"), 1500);
+    btn.classList.add("copied");
+    setTimeout(() => btn.classList.remove("copied"), 800);
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // 回退方案：file:// 或无 clipboard API 时
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } catch (e) {
+      /* ignore */
+    }
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      copyText(btn.getAttribute("data-copy") || "").then(() => showCopied(btn));
+    });
+  });
+})();
