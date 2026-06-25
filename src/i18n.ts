@@ -280,8 +280,8 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutPlatform: "运行平台",
     aboutDerived: "衍生自原项目",
     aboutLicense: "开源协议",
-    aboutOriginal: "原项目",
-    aboutRepo: "项目仓库",
+    aboutOriginal: "HypoMux 开源仓库",
+    aboutRepo: "HypoMuxPlus 开源仓库",
     aboutDownload: "下载",
     aboutDesc:
       "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的升级版，全栈完全重写，遵循 AGPL-3.0 协议开源。",
@@ -626,8 +626,8 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutPlatform: "Platform",
     aboutDerived: "Derived from",
     aboutLicense: "License",
-    aboutOriginal: "Original Project",
-    aboutRepo: "Repositories",
+    aboutOriginal: "HypoMux Repository",
+    aboutRepo: "HypoMuxPlus Repository",
     aboutDownload: "Download",
     aboutDesc:
       "HypoMuxPlus is an upgraded edition derived from the open-source HypoMux by Hypostasis-Cat — a complete full-stack rewrite, released under AGPL-3.0.",

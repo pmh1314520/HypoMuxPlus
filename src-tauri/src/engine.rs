@@ -575,10 +575,15 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
     // 逐个候选节点探测：经该网卡能解析、连通、且返回 200/206 有数据者才采用
     let mut chosen: Option<(SocketAddrV4, &'static str, &'static str)> = None;
     for (host, path) in BENCH_TARGETS {
-        let dst = match tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await {
-            Ok(Ok(d)) => d,
-            _ => continue,
+        // 经网卡直连真实 DNS 解析（绕过代理 fake-ip）；失败再回退系统解析
+        let ip = match resolve_via_nic(&nic, host).await {
+            Some(ip) => ip,
+            None => match tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await {
+                Ok(Ok(d)) => *d.ip(),
+                _ => continue,
+            },
         };
+        let dst = SocketAddrV4::new(ip, 443);
         if probe_target(&nic, dst, host, path).await {
             chosen = Some((dst, host, path));
             break;
@@ -745,6 +750,111 @@ async fn resolve_ipv4(host: &str, port: u16) -> std::io::Result<SocketAddrV4> {
         std::io::ErrorKind::AddrNotAvailable,
         "无可用 IPv4 地址",
     ))
+}
+
+/// 构造一个 DNS A 记录查询报文。
+fn build_dns_query(host: &str) -> Vec<u8> {
+    let mut q = Vec::with_capacity(host.len() + 18);
+    q.extend_from_slice(&[0x12, 0x34]); // ID
+    q.extend_from_slice(&[0x01, 0x00]); // 标志：递归查询
+    q.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
+    q.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // AN/NS/AR = 0
+    for label in host.split('.') {
+        if label.is_empty() {
+            continue;
+        }
+        q.push(label.len() as u8);
+        q.extend_from_slice(label.as_bytes());
+    }
+    q.push(0); // 名称结束
+    q.extend_from_slice(&[0x00, 0x01]); // QTYPE = A
+    q.extend_from_slice(&[0x00, 0x01]); // QCLASS = IN
+    q
+}
+
+/// 跳过 DNS 报文中的域名字段（处理压缩指针）。
+fn dns_skip_name(buf: &[u8], mut pos: usize) -> Option<usize> {
+    loop {
+        let len = *buf.get(pos)?;
+        if len & 0xC0 == 0xC0 {
+            return Some(pos + 2);
+        }
+        if len == 0 {
+            return Some(pos + 1);
+        }
+        pos += 1 + len as usize;
+    }
+}
+
+/// 从 DNS 响应中解析首个 A 记录。
+fn parse_dns_a(buf: &[u8]) -> Option<Ipv4Addr> {
+    if buf.len() < 12 {
+        return None;
+    }
+    let qd = u16::from_be_bytes([buf[4], buf[5]]) as usize;
+    let an = u16::from_be_bytes([buf[6], buf[7]]) as usize;
+    let mut pos = 12;
+    for _ in 0..qd {
+        pos = dns_skip_name(buf, pos)?;
+        pos += 4;
+    }
+    for _ in 0..an {
+        pos = dns_skip_name(buf, pos)?;
+        if pos + 10 > buf.len() {
+            return None;
+        }
+        let rtype = u16::from_be_bytes([buf[pos], buf[pos + 1]]);
+        let rdlen = u16::from_be_bytes([buf[pos + 8], buf[pos + 9]]) as usize;
+        pos += 10;
+        if pos + rdlen > buf.len() {
+            return None;
+        }
+        if rtype == 1 && rdlen == 4 {
+            return Some(Ipv4Addr::new(buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]));
+        }
+        pos += rdlen;
+    }
+    None
+}
+
+/// 经指定网卡向真实公共 DNS（223.5.5.5）直接发起 UDP 查询解析域名。
+/// 用 IP_UNICAST_IF 把查询钉死在物理网卡上，绕过本地 DNS 劫持 / 代理 fake-ip，
+/// 拿到真实公网 IP，避免测速误连到不可路由的假地址而超时。
+async fn resolve_via_nic(nic: &NicRuntime, host: &str) -> Option<Ipv4Addr> {
+    if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        return Some(ip);
+    }
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).ok()?;
+    #[cfg(windows)]
+    {
+        let raw = socket.as_raw_socket() as windows_sys::Win32::Networking::WinSock::SOCKET;
+        let value: u32 = nic.if_index.to_be();
+        let rc = unsafe {
+            windows_sys::Win32::Networking::WinSock::setsockopt(
+                raw,
+                IPPROTO_IP,
+                IP_UNICAST_IF,
+                &value as *const u32 as *const u8,
+                std::mem::size_of::<u32>() as i32,
+            )
+        };
+        if rc != 0 {
+            return None;
+        }
+    }
+    let bind_addr: socket2::SockAddr = SocketAddr::new(IpAddr::V4(nic.ip), 0).into();
+    socket.bind(&bind_addr).ok()?;
+    socket.set_nonblocking(true).ok()?;
+    let std_udp: std::net::UdpSocket = socket.into();
+    let udp = tokio::net::UdpSocket::from_std(std_udp).ok()?;
+    let query = build_dns_query(host);
+    udp.send_to(&query, "223.5.5.5:53").await.ok()?;
+    let mut buf = [0u8; 512];
+    let n = tokio::time::timeout(std::time::Duration::from_secs(3), udp.recv(&mut buf))
+        .await
+        .ok()?
+        .ok()?;
+    parse_dns_a(&buf[..n])
 }
 
 /// 直连：不绑定物理网卡，交由系统默认网关连接（用于白名单命中的目标）。

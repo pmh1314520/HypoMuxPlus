@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -10,58 +10,70 @@ interface Props {
   children: ReactNode;
 }
 
+const GAP = 10; // 与触发元素的间距，避免遮挡
+const MARGIN = 8; // 与视口边缘的安全距离
+
 /**
  * 自研悬浮提示，彻底替代浏览器原生 title。
- * 使用 Portal 渲染到 body 顶层，fixed 定位 + 弹性动效，与设计系统统一观感。
+ * Portal 渲染到 body 顶层，测量自身尺寸后做视口边界钳制与越界翻转，
+ * 既不遮挡触发元素，也不会显示到屏幕外。
  */
 export function Tooltip({ label, placement = "top", children }: Props) {
   const ref = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
 
-  const open = () => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const gap = 14;
-    switch (placement) {
-      case "bottom":
-        setPos({ x: r.left + r.width / 2, y: r.bottom + gap });
-        break;
-      case "left":
-        setPos({ x: r.left - gap, y: r.top + r.height / 2 });
-        break;
-      case "right":
-        setPos({ x: r.right + gap, y: r.top + r.height / 2 });
-        break;
-      default:
-        setPos({ x: r.left + r.width / 2, y: r.top - gap });
+  const place = () => {
+    const trigger = ref.current;
+    const tip = tipRef.current;
+    if (!trigger || !tip) return;
+    const r = trigger.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let p = placement;
+    // 越界自动翻转到相对侧
+    if (p === "top" && r.top - GAP - th < MARGIN) p = "bottom";
+    else if (p === "bottom" && r.bottom + GAP + th > vh - MARGIN) p = "top";
+    else if (p === "left" && r.left - GAP - tw < MARGIN) p = "right";
+    else if (p === "right" && r.right + GAP + tw > vw - MARGIN) p = "left";
+
+    let left: number;
+    let top: number;
+    if (p === "top" || p === "bottom") {
+      left = r.left + r.width / 2 - tw / 2;
+      top = p === "top" ? r.top - GAP - th : r.bottom + GAP;
+    } else {
+      left = p === "left" ? r.left - GAP - tw : r.right + GAP;
+      top = r.top + r.height / 2 - th / 2;
     }
-    setShow(true);
+    // 钳制在视口内
+    left = Math.max(MARGIN, Math.min(left, vw - tw - MARGIN));
+    top = Math.max(MARGIN, Math.min(top, vh - th - MARGIN));
+    setCoords({ left, top });
   };
 
-  const transform =
-    placement === "top"
-      ? "translate(-50%, -100%)"
-      : placement === "bottom"
-      ? "translate(-50%, 0)"
-      : placement === "left"
-      ? "translate(-100%, -50%)"
-      : "translate(0, -50%)";
-
-  const initial =
-    placement === "top"
-      ? { opacity: 0, y: 4, scale: 0.96 }
-      : placement === "bottom"
-      ? { opacity: 0, y: -4, scale: 0.96 }
-      : { opacity: 0, scale: 0.96 };
+  // 显示后立即测量定位（绘制前完成，无闪烁）
+  useLayoutEffect(() => {
+    if (show) place();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show]);
 
   return (
     <span
       ref={ref}
-      onMouseEnter={open}
-      onMouseLeave={() => setShow(false)}
-      onMouseDown={() => setShow(false)}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => {
+        setShow(false);
+        setCoords(null);
+      }}
+      onMouseDown={() => {
+        setShow(false);
+        setCoords(null);
+      }}
       className="inline-flex"
     >
       {children}
@@ -69,15 +81,16 @@ export function Tooltip({ label, placement = "top", children }: Props) {
         <AnimatePresence>
           {show && (
             <motion.div
-              initial={initial}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.13, ease: "easeOut" }}
+              ref={tipRef}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: coords ? 1 : 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: "easeOut" }}
               className="fixed z-[1000] pointer-events-none px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium whitespace-nowrap"
               style={{
-                left: pos.x,
-                top: pos.y,
-                transform,
+                left: coords ? coords.left : -9999,
+                top: coords ? coords.top : -9999,
+                maxWidth: "min(320px, calc(100vw - 16px))",
                 background: "color-mix(in srgb, var(--bg-1) 94%, transparent)",
                 color: "var(--text-0)",
                 border: "1px solid var(--border-strong)",
