@@ -33,7 +33,7 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 - **Windows 10 / 11 only.** Just download and run (running as administrator is recommended to enable all stability features).
 - Direct download: **[HypoMuxPlus.exe (v1.0.0)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.0.0/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.0.0/HypoMuxPlus.exe))
 - Repositories: [GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
-- Website: see the `website/` directory (deployable to GitHub Pages / Gitee Pages).
+- Website: **[hmp.pmhs.top](https://hmp.pmhs.top)**
 
 ## Preview
 
@@ -41,17 +41,17 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 
 **Acceleration Console**
 
-<img src="./website/assets/%E5%8A%A0%E9%80%9F%E6%8E%A7%E5%88%B6%E5%8F%B0-%E6%9A%97%E8%89%B2.png" width="760" alt="Acceleration Console" />
+<img src="./docs/console-dark.png" width="760" alt="Acceleration Console" />
 
 **Live Statistics · Link Diagnostics**
 
-<img src="./website/assets/%E7%BB%9F%E8%AE%A1-%E6%9A%97%E8%89%B2.png" width="760" alt="Live Statistics" />
+<img src="./docs/stats-dark.png" width="760" alt="Live Statistics" />
 
-<img src="./website/assets/%E8%AF%8A%E6%96%AD-%E6%9A%97%E8%89%B2.png" width="760" alt="Link Diagnostics" />
+<img src="./docs/diagnostics-dark.png" width="760" alt="Link Diagnostics" />
 
 **Settings**
 
-<img src="./website/assets/%E8%AE%BE%E7%BD%AE-%E6%9A%97%E8%89%B2.png" width="760" alt="Settings" />
+<img src="./docs/settings-dark.png" width="760" alt="Settings" />
 
 <sub>Built-in dark / light themes and full Chinese/English bilingual support. Visit the project website for more screenshots.</sub>
 
@@ -146,7 +146,7 @@ HypoMuxPlus is completely free and open source! If it helped you, consider buyin
 
 | WeChat Pay | Alipay |
 | :---: | :---: |
-| <img src="./website/assets/sponsor-wechat.png" width="220" alt="WeChat Pay" /> | <img src="./website/assets/sponsor-alipay.jpg" width="220" alt="Alipay" /> |
+| <img src="./docs/sponsor-wechat.png" width="220" alt="WeChat Pay" /> | <img src="./docs/sponsor-alipay.jpg" width="220" alt="Alipay" /> |
 
 **Developer contact: WeChat `QyPmh20061026` · QQ `2124691573`**
 
