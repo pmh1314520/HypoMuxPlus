@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { Hud } from "./components/Hud";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SettingsProvider } from "./store";
 import "./styles.css";
 
@@ -40,7 +41,9 @@ if (isHud) {
   root.render(
     <React.StrictMode>
       <SettingsProvider>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </SettingsProvider>
     </React.StrictMode>,
   );

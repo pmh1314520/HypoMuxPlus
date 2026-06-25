@@ -289,6 +289,12 @@ fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+/// 写入二进制文件（用于诊断报告导出 PNG，字节数组由前端 Canvas 提供）。
+#[tauri::command]
+fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, data).map_err(|e| e.to_string())
+}
+
 /// 检测本地端口是否可用（127.0.0.1 能否成功监听）。
 #[tauri::command]
 fn is_port_free(port: u16) -> bool {
@@ -498,6 +504,7 @@ pub fn run() {
             configure_idm,
             read_text_file,
             write_text_file,
+            write_binary_file,
             is_port_free,
             suggest_free_port,
             check_update,

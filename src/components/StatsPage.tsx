@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownToLine, BarChart3, Clock, Database, Gauge, Network, RotateCcw, Shuffle, TrendingUp, Zap } from "lucide-react";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { ArrowDownToLine, BarChart3, Clock, Database, FileDown, Gauge, Network, RotateCcw, Shuffle, TrendingUp, Zap } from "lucide-react";
 import { useSettings } from "../store";
+import { api } from "../lib/api";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { Tooltip } from "./Tooltip";
+import { useToast } from "./Toast";
 
 interface Props {
   lifetimeMB: number;
@@ -19,9 +22,10 @@ interface Props {
 }
 
 function fmtData(mb: number): string {
-  if (mb >= 1048576) return (mb / 1048576).toFixed(2) + " TB";
-  if (mb >= 1024) return (mb / 1024).toFixed(2) + " GB";
-  return mb.toFixed(0) + " MB";
+  const g = (n: number, d: number) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  if (mb >= 1048576) return g(mb / 1048576, 2) + " TB";
+  if (mb >= 1024) return g(mb / 1024, 2) + " GB";
+  return g(mb, 0) + " MB";
 }
 function fmtTime(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -141,6 +145,7 @@ export function StatsPage(props: Props) {
 
 function DailyChart({ dailyMB }: { dailyMB: Record<string, number> }) {
   const { t } = useSettings();
+  const toast = useToast();
   const days: { key: string; label: string; mb: number }[] = [];
   const now = new Date();
   for (let i = 13; i >= 0; i--) {
@@ -154,14 +159,46 @@ function DailyChart({ dailyMB }: { dailyMB: Record<string, number> }) {
   const max = Math.max(...days.map((d) => d.mb), 1);
   const total = days.reduce((s, d) => s + d.mb, 0);
 
+  // 导出全部每日加速流量为 CSV
+  const exportCsv = async () => {
+    const keys = Object.keys(dailyMB).sort();
+    if (keys.length === 0) return;
+    const rows = ["Date,Accelerated_MB", ...keys.map((k) => `${k},${dailyMB[k].toFixed(2)}`)];
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const path = await saveDialog({
+        defaultPath: `hypomuxplus-traffic-${stamp}.csv`,
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+      });
+      if (!path) return;
+      await api.writeTextFile(path, rows.join("\r\n"));
+      toast("success", t("msgCsvExported"));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   return (
     <motion.div variants={item} className="panel p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="eyebrow flex items-center gap-2">
           <BarChart3 size={13} style={{ color: "var(--accent-soft)" }} /> {t("statDailyTitle")}
         </div>
-        <div className="text-[12px] mono" style={{ color: "var(--text-2)" }}>
-          {fmtData(total)}
+        <div className="flex items-center gap-3">
+          <div className="text-[12px] mono" style={{ color: "var(--text-2)" }}>
+            {fmtData(total)}
+          </div>
+          {total > 0 && (
+            <Tooltip label={t("statExportCsv")} placement="left">
+              <button
+                onClick={exportCsv}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md normal-case transition-colors"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
+              >
+                <FileDown size={11} /> {t("statExportCsv")}
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
       {total <= 0 ? (

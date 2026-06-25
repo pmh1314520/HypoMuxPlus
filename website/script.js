@@ -354,15 +354,52 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
   });
 
   // 点击图片全屏查看
-  imgEl.addEventListener("click", () => {
+  let lightbox = null;
+  function openLightbox() {
+    if (lightbox) lightbox.remove();
     const ov = document.createElement("div");
     ov.className = "preview-lightbox";
     const big = document.createElement("img");
     big.src = imgEl.src;
     ov.appendChild(big);
-    ov.addEventListener("click", () => ov.remove());
+    ov.addEventListener("click", closeLightbox);
     document.body.appendChild(ov);
     requestAnimationFrame(() => ov.classList.add("show"));
+    lightbox = ov;
+  }
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.remove();
+    lightbox = null;
+  }
+  imgEl.addEventListener("click", openLightbox);
+
+  function step(delta) {
+    active = (active + delta + PAGES.length) % PAGES.length;
+    render();
+    if (lightbox) lightbox.querySelector("img").src = imgEl.src;
+  }
+
+  // 区块进入视口时才接管方向键，避免干扰页面其它滚动操作
+  let inView = false;
+  new IntersectionObserver(
+    (es) => es.forEach((e) => (inView = e.isIntersecting)),
+    { threshold: 0.3 },
+  ).observe(document.getElementById("preview"));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && lightbox) {
+      closeLightbox();
+      return;
+    }
+    if (!inView && !lightbox) return;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      step(-1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      step(1);
+    }
   });
 
   // 主题 / 语言变化时刷新（监听 documentElement 属性变化）
@@ -372,4 +409,18 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
   });
 
   render();
+})();
+
+/* ---------- 回到顶部 ---------- */
+(function () {
+  const btn = document.createElement("button");
+  btn.className = "back-to-top";
+  btn.setAttribute("aria-label", "Back to top");
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+  document.body.appendChild(btn);
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  const onScroll = () => btn.classList.toggle("show", window.scrollY > 600);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
 })();

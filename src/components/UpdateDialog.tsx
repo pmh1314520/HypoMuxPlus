@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Download, Loader2, Rocket, X } from "lucide-react";
 import { api, type UpdateInfo } from "../lib/api";
@@ -14,6 +14,20 @@ export function UpdateDialog({ info, onClose }: Props) {
   const { t } = useSettings();
   const toast = useToast();
   const [installing, setInstalling] = useState(false);
+
+  // Esc 关闭（安装中禁用）+ 锁定背景滚动
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !installing) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [installing, onClose]);
 
   const install = async () => {
     setInstalling(true);

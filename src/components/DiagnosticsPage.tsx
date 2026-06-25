@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, ArrowDownToLine, ClipboardList, Loader2, RotateCw, Stethoscope } from "lucide-react";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, Stethoscope } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
+import { api } from "../lib/api";
 import type { AdapterInfo, LatencyResult } from "../lib/api";
 
 interface Props {
@@ -80,6 +82,152 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
     }
   };
 
+  // 将体检结果绘制为 PNG 图片并保存（便于分享）
+  const exportImg = async () => {
+    if (!hasResults) {
+      toast("warning", t("diagReportNoData"));
+      return;
+    }
+    const cs = getComputedStyle(document.documentElement);
+    const cv = (name: string, fb: string) => cs.getPropertyValue(name).trim() || fb;
+    const resolve = (s: string) => {
+      const m = /var\((--[\w-]+)\)/.exec(s);
+      return m ? cs.getPropertyValue(m[1]).trim() || "#888" : s;
+    };
+    const bg = cv("--bg-1", "#0a0e18");
+    const surface = cv("--surface-2", "rgba(255,255,255,0.05)");
+    const border = cv("--border", "rgba(255,255,255,0.1)");
+    const text0 = cv("--text-0", "#eef1f6");
+    const text1 = cv("--text-1", "#9aa5b4");
+    const text2 = cv("--text-2", "#5a6573");
+    const accent = cv("--accent-soft", "#6ea8ff");
+
+    const rows = valid.length;
+    const W = 760;
+    const padX = 32;
+    const headerH = 130;
+    const rowH = 58;
+    const footerH = 46;
+    const H = headerH + rows * rowH + footerH;
+    const dpr = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    const FONT = "'Inter','Microsoft YaHei UI',system-ui,sans-serif";
+    const MONO = "'JetBrains Mono',Consolas,monospace";
+
+    // 背景
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // 标题
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = text0;
+    ctx.font = `700 24px ${FONT}`;
+    ctx.fillText("HypoMux", padX, 52);
+    const w1 = ctx.measureText("HypoMux").width;
+    ctx.fillStyle = accent;
+    ctx.fillText("Plus", padX + w1, 52);
+    ctx.fillStyle = text1;
+    ctx.font = `500 14px ${FONT}`;
+    ctx.fillText(t("diagReportTitle"), padX, 78);
+    ctx.fillStyle = text2;
+    ctx.font = `400 12px ${MONO}`;
+    ctx.fillText(new Date().toLocaleString(), padX, 98);
+
+    // 列标题
+    const colName = padX;
+    const colLat = 388;
+    const colSpeed = 510;
+    const colGrade = 632;
+    const headY = headerH - 10;
+    ctx.font = `600 11px ${FONT}`;
+    ctx.fillStyle = text2;
+    ctx.fillText(t("colAlias").toUpperCase(), colName, headY);
+    ctx.fillText(t("diagLatency").toUpperCase(), colLat, headY);
+    ctx.fillText(t("diagSpeed").toUpperCase(), colSpeed, headY);
+    ctx.fillText(t("diagGrade").toUpperCase(), colGrade, headY);
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX, headerH);
+    ctx.lineTo(W - padX, headerH);
+    ctx.stroke();
+
+    // 每张网卡一行
+    valid.forEach((a, i) => {
+      const lat = latencies[a.index];
+      const sp = speedResults[a.index];
+      const g = gradeOf(lat, sp);
+      const gc = resolve(g.color);
+      const y = headerH + i * rowH;
+      const cy = y + rowH / 2;
+      // 行底分隔线
+      ctx.strokeStyle = border;
+      ctx.beginPath();
+      ctx.moveTo(padX, y + rowH);
+      ctx.lineTo(W - padX, y + rowH);
+      ctx.stroke();
+      // 别名 + IP
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = text0;
+      ctx.font = `600 15px ${FONT}`;
+      const alias = a.alias.length > 22 ? a.alias.slice(0, 21) + "…" : a.alias;
+      ctx.fillText(alias, colName, cy - 9);
+      ctx.fillStyle = text2;
+      ctx.font = `400 12px ${MONO}`;
+      ctx.fillText(a.ipv4, colName, cy + 10);
+      // 延迟
+      ctx.font = `600 15px ${MONO}`;
+      ctx.fillStyle = !lat || lat.ok ? text0 : resolve("var(--danger)");
+      ctx.fillText(lat ? (lat.ok ? `${lat.latencyMs} ms` : t("latencyTimeout")) : "—", colLat, cy);
+      // 吞吐
+      ctx.fillStyle = !sp || sp.ok ? text0 : resolve("var(--danger)");
+      ctx.fillText(sp ? (sp.ok ? `${sp.mbps.toFixed(1)} MB/s` : t("latencyTimeout")) : "—", colSpeed, cy);
+      // 评级徽章
+      ctx.font = `700 13px ${FONT}`;
+      const label = t(g.key);
+      const tw = ctx.measureText(label).width;
+      const bx = colGrade;
+      const bw = tw + 20;
+      const bh = 24;
+      const byy = cy - bh / 2;
+      ctx.fillStyle = surface;
+      const r = 8;
+      ctx.beginPath();
+      ctx.roundRect(bx, byy, bw, bh, r);
+      ctx.fill();
+      ctx.fillStyle = gc;
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, bx + 10, cy + 1);
+    });
+
+    // 页脚
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = text2;
+    ctx.font = `400 11px ${FONT}`;
+    ctx.fillText("hmp.pmhs.top · HypoMuxPlus", padX, H - 18);
+
+    try {
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/png"));
+      if (!blob) return;
+      const buf = await blob.arrayBuffer();
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const path = await saveDialog({
+        defaultPath: `hypomuxplus-diagnostics-${stamp}.png`,
+        filters: [{ name: "PNG", extensions: ["png"] }],
+      });
+      if (!path) return;
+      await api.writeBinaryFile(path, Array.from(new Uint8Array(buf)));
+      toast("success", t("msgImgExported"));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto px-1 pb-8">
       <div className="max-w-[920px] mx-auto flex flex-col gap-5">
@@ -117,6 +265,22 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
           >
             <ClipboardList size={16} />
             {t("diagCopyReport")}
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={!hasResults}
+            onClick={exportImg}
+            className="flex items-center gap-2 h-[42px] px-4 rounded-xl font-semibold text-[13.5px] shrink-0 transition-colors"
+            style={{
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-1)",
+              opacity: hasResults ? 1 : 0.5,
+              cursor: hasResults ? "pointer" : "not-allowed",
+            }}
+          >
+            <ImageDown size={16} />
+            {t("diagExportImg")}
           </motion.button>
         </div>
 

@@ -361,6 +361,14 @@ export const DICT: Record<Lang, Record<string, string>> = {
       "HypoMuxPlus 完全免费开源！如果它帮到了您，希望您能请作者喝杯咖啡，赞助时记得备注“HypoMuxPlus”哦~",
     sponsorWechat: "微信赞赏",
     sponsorAlipay: "支付宝",
+    errTitle: "界面遇到异常",
+    errDesc: "应用界面遇到意外错误并已被安全拦截。你可以重载界面恢复，正在进行的加速进程不受影响。",
+    errReload: "重载界面",
+    errDetail: "错误详情",
+    diagExportImg: "导出图片",
+    msgImgExported: "体检报告图片已保存",
+    statExportCsv: "导出 CSV",
+    msgCsvExported: "趋势数据已导出为 CSV",
   },
 
   en: {
@@ -714,6 +722,14 @@ export const DICT: Record<Lang, Record<string, string>> = {
       "HypoMuxPlus is completely free and open source! If it helped you, consider buying the author a coffee — please leave the note “HypoMuxPlus” when you donate.",
     sponsorWechat: "WeChat",
     sponsorAlipay: "Alipay",
+    errTitle: "Something went wrong",
+    errDesc: "The interface hit an unexpected error and was safely contained. You can reload the UI to recover; any running acceleration process is unaffected.",
+    errReload: "Reload Interface",
+    errDetail: "Error details",
+    diagExportImg: "Export Image",
+    msgImgExported: "Diagnostics report image saved",
+    statExportCsv: "Export CSV",
+    msgCsvExported: "Trend data exported as CSV",
   },
 };
 

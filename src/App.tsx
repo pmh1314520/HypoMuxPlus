@@ -128,11 +128,39 @@ function AppInner() {
 
   const onBoostRef = useRef<() => void>(() => {});
   const runningRef = useRef(false);
+  const lastTeleRef = useRef(0);
   useEffect(() => {
     runningRef.current = running;
   }, [running]);
 
   const booted = useRef(false);
+
+  // 持久化节流：用 ref 暂存最新统计值，每 5 秒 / 隐藏 / 卸载时落盘，避免每秒写磁盘
+  const persistRef = useRef({ mb: lifetimeMB, peak: lifetimePeak, secs: lifetimeSeconds, daily: dailyMB });
+  useEffect(() => {
+    persistRef.current = { mb: lifetimeMB, peak: lifetimePeak, secs: lifetimeSeconds, daily: dailyMB };
+  }, [lifetimeMB, lifetimePeak, lifetimeSeconds, dailyMB]);
+  useEffect(() => {
+    const flush = () => {
+      const p = persistRef.current;
+      localStorage.setItem(LIFETIME_KEY, String(p.mb));
+      localStorage.setItem(LIFE_PEAK_KEY, String(p.peak));
+      localStorage.setItem(LIFE_SECS_KEY, String(p.secs));
+      localStorage.setItem(DAILY_KEY, JSON.stringify(p.daily));
+    };
+    const id = setInterval(flush, 5000);
+    const onHide = () => {
+      if (document.hidden) flush();
+    };
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      clearInterval(id);
+      flush();
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, []);
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -175,31 +203,25 @@ function AppInner() {
       });
       setHistory((prev) => [...prev.slice(1), p.total.downMbps]);
       setPeak((prev) => Math.max(prev, p.total.downMbps));
-      // 每秒一次采样，downMbps(MB/s) × 1s ≈ 本秒下载量(MB)
-      setSessionMB((prev) => prev + p.total.downMbps);
-      // 累计加速流量（跨会话持久化）
-      setLifetimeMB((prev) => {
-        const n = prev + p.total.downMbps;
-        localStorage.setItem(LIFETIME_KEY, String(n));
-        return n;
-      });
-      setLifetimePeak((prev) => {
-        if (p.total.downMbps > prev) {
-          localStorage.setItem(LIFE_PEAK_KEY, String(p.total.downMbps));
-          return p.total.downMbps;
-        }
-        return prev;
-      });
-      // 每日加速流量（跨会话持久化，仅保留最近 60 天）
-      if (p.total.downMbps > 0) {
+      // 按真实时间间隔积分本次下载量(MB)，避免遥测抖动导致统计偏差
+      const now = Date.now();
+      const last = lastTeleRef.current;
+      lastTeleRef.current = now;
+      const dt = last ? Math.min(5, Math.max(0, (now - last) / 1000)) : 1;
+      const deltaMB = p.total.downMbps * dt;
+      setSessionMB((prev) => prev + deltaMB);
+      // 累计加速流量（持久化由节流落盘统一处理）
+      setLifetimeMB((prev) => prev + deltaMB);
+      setLifetimePeak((prev) => (p.total.downMbps > prev ? p.total.downMbps : prev));
+      // 每日加速流量（仅保留最近 60 天）
+      if (deltaMB > 0) {
         setDailyMB((prev) => {
           const key = todayKey();
-          const next = { ...prev, [key]: (prev[key] ?? 0) + p.total.downMbps };
+          const next = { ...prev, [key]: (prev[key] ?? 0) + deltaMB };
           const keys = Object.keys(next).sort();
           while (keys.length > 60) {
             delete next[keys.shift() as string];
           }
-          localStorage.setItem(DAILY_KEY, JSON.stringify(next));
           return next;
         });
       }
@@ -311,16 +333,13 @@ function AppInner() {
       setPeak(0);
       setSessionMB(0);
       setConnections([]);
+      lastTeleRef.current = 0;
       return;
     }
     const start = Date.now();
     const timer = setInterval(() => {
       setUptime((Date.now() - start) / 1000);
-      setLifetimeSeconds((prev) => {
-        const n = prev + 1;
-        localStorage.setItem(LIFE_SECS_KEY, String(n));
-        return n;
-      });
+      setLifetimeSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
   }, [running]);

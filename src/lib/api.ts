@@ -84,6 +84,7 @@ export const api = {
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
+  writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
   checkUpdate: () => invoke<UpdateInfo>("check_update"),
