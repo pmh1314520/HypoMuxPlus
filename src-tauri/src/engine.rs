@@ -523,13 +523,22 @@ pub struct SpeedResult {
     pub ok: bool,
 }
 
-/// 测速候选节点（host, path）：国内可达节点优先，Cloudflare 兜底。
-/// 逐个经目标网卡探测，选用第一个能返回 200/206 且有数据下行的节点。
-const BENCH_TARGETS: &[(&str, &str)] = &[
-    ("test.ustc.edu.cn", "/backend/garbage.php?ckSize=1024"),
-    ("speed.cloudflare.com", "/__down?bytes=2000000000"),
+/// 测速候选节点：(host, path, 字面 anycast IP 列表)。
+/// 字面 IP 不经任何 DNS，TUN/fake-ip 也无从劫持；为空者再走 DoH / UDP / 系统解析。
+const BENCH_TARGETS: &[(&str, &str, &[&str])] = &[
+    // Cloudflare：直接用 anycast 边缘 IP + SNI，零 DNS 依赖
+    ("speed.cloudflare.com", "/__down?bytes=2000000000", &["1.1.1.1", "1.0.0.1"]),
+    // 中科大 LibreSpeed：国内快，经 DoH 解析真实 IP
+    ("test.ustc.edu.cn", "/backend/garbage.php?ckSize=1024", &[]),
 ];
 const BENCH_PARALLEL: usize = 6;
+
+/// DoH 解析器：(字面 IP, SNI/Host)。走 443 的 HTTPS，绕过 TUN 的 53 端口 DNS 劫持。
+const DOH_RESOLVERS: &[(&str, &str)] = &[
+    ("1.1.1.1", "cloudflare-dns.com"),
+    ("223.5.5.5", "dns.alidns.com"),
+    ("1.0.0.1", "cloudflare-dns.com"),
+];
 
 fn tls_connector() -> tokio_rustls::TlsConnector {
     use std::sync::OnceLock;
@@ -574,19 +583,39 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
 
     // 逐个候选节点探测：经该网卡能解析、连通、且返回 200/206 有数据者才采用
     let mut chosen: Option<(SocketAddrV4, &'static str, &'static str)> = None;
-    for (host, path) in BENCH_TARGETS {
-        // 经网卡直连真实 DNS 解析（绕过代理 fake-ip）；失败再回退系统解析
-        let ip = match resolve_via_nic(&nic, host).await {
-            Some(ip) => ip,
-            None => match tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await {
-                Ok(Ok(d)) => *d.ip(),
-                _ => continue,
-            },
-        };
-        let dst = SocketAddrV4::new(ip, 443);
-        if probe_target(&nic, dst, host, path).await {
-            chosen = Some((dst, host, path));
-            break;
+    'outer: for (host, path, literal_ips) in BENCH_TARGETS {
+        // 候选 IP 优先级：字面 anycast IP → DoH(443, 绕过 TUN 劫持) → UDP 直发 → 系统解析
+        let mut ips: Vec<Ipv4Addr> = Vec::new();
+        for s in *literal_ips {
+            if let Ok(ip) = s.parse::<Ipv4Addr>() {
+                if !ips.contains(&ip) {
+                    ips.push(ip);
+                }
+            }
+        }
+        if let Some(ip) = resolve_via_doh(&nic, host).await {
+            if !ips.contains(&ip) {
+                ips.push(ip);
+            }
+        }
+        if ips.is_empty() {
+            if let Some(ip) = resolve_via_nic(&nic, host).await {
+                ips.push(ip);
+            }
+        }
+        if ips.is_empty() {
+            if let Ok(Ok(d)) =
+                tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await
+            {
+                ips.push(*d.ip());
+            }
+        }
+        for ip in ips {
+            let dst = SocketAddrV4::new(ip, 443);
+            if probe_target(&nic, dst, host, path).await {
+                chosen = Some((dst, host, path));
+                break 'outer;
+            }
         }
     }
     let (dst, host, path) = chosen?;
@@ -855,6 +884,66 @@ async fn resolve_via_nic(nic: &NicRuntime, host: &str) -> Option<Ipv4Addr> {
         .ok()?
         .ok()?;
     parse_dns_a(&buf[..n])
+}
+
+/// 经指定网卡用 DoH（DNS over HTTPS，443 端口）解析域名。
+/// 关键：走 HTTPS 到字面解析器 IP，TUN/fake-ip 只劫持 53 端口 DNS，无法干预此查询，
+/// 因此能在 Clash/Mihomo TUN 模式下拿到真实公网 IP，根治"吞吐全超时"。
+async fn resolve_via_doh(nic: &NicRuntime, host: &str) -> Option<Ipv4Addr> {
+    if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        return Some(ip);
+    }
+    let query = build_dns_query(host);
+    for (rip, rhost) in DOH_RESOLVERS {
+        let ip: Ipv4Addr = match rip.parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let dst = SocketAddrV4::new(ip, 443);
+        let fut = async {
+            let tcp = connect_via_nic(nic, dst).await.ok()?;
+            let connector = tls_connector();
+            let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(rhost.to_string()).ok()?;
+            let mut tls = connector.connect(server_name, tcp).await.ok()?;
+            let head = format!(
+                "POST /dns-query HTTP/1.1\r\nHost: {rhost}\r\nAccept: application/dns-message\r\nContent-Type: application/dns-message\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                query.len()
+            );
+            tls.write_all(head.as_bytes()).await.ok()?;
+            tls.write_all(&query).await.ok()?;
+            // 读取完整响应（DoH POST 响应体通常带 Content-Length，非 chunked）
+            let mut resp: Vec<u8> = Vec::with_capacity(1024);
+            let mut buf = [0u8; 2048];
+            loop {
+                let n = tls.read(&mut buf).await.ok()?;
+                if n == 0 {
+                    break;
+                }
+                resp.extend_from_slice(&buf[..n]);
+                if resp.len() > 16384 {
+                    break;
+                }
+            }
+            let sep = resp.windows(4).position(|w| w == b"\r\n\r\n")?;
+            let head_str = String::from_utf8_lossy(&resp[..sep]);
+            let first = head_str.lines().next().unwrap_or("");
+            if !first.contains(" 200") {
+                return None;
+            }
+            let mut body = &resp[sep + 4..];
+            // 兼容分块传输：去掉首个 chunk-size 行
+            if head_str.to_ascii_lowercase().contains("transfer-encoding: chunked") {
+                if let Some(p) = body.windows(2).position(|w| w == b"\r\n") {
+                    body = &body[p + 2..];
+                }
+            }
+            parse_dns_a(body)
+        };
+        if let Ok(Some(ip)) = tokio::time::timeout(std::time::Duration::from_secs(5), fut).await {
+            return Some(ip);
+        }
+    }
+    None
 }
 
 /// 直连：不绑定物理网卡，交由系统默认网关连接（用于白名单命中的目标）。
