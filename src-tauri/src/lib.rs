@@ -341,8 +341,8 @@ fn version_gt(a: &str, b: &str) -> bool {
 
 /// 检查更新：拉取 Gitee 仓库 Releases 列表，取最新正式版与当前版本比对。
 #[tauri::command]
-async fn check_update() -> Result<UpdateInfo, String> {
-    let current = env!("CARGO_PKG_VERSION").to_string();
+async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
+    let current = app.package_info().version.to_string();
     let client = reqwest::Client::builder()
         .user_agent("HypoMuxPlus")
         .timeout(std::time::Duration::from_secs(15))
