@@ -40,7 +40,12 @@ export function Dashboard(props: Props) {
   const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } };
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="h-full flex flex-col gap-4">
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="h-full flex flex-col gap-4 overflow-y-auto min-[1180px]:overflow-hidden pr-0.5"
+    >
       <motion.div variants={item}>
         <SpeedHero
           telemetry={props.telemetry}
@@ -54,21 +59,26 @@ export function Dashboard(props: Props) {
           onBoost={props.onBoost}
         />
       </motion.div>
-      <motion.div variants={item} className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: "1.45fr 1fr" }}>
-        <AdapterTable
-          adapters={props.adapters}
-          selected={props.selected}
-          toggle={props.toggle}
-          selectAll={props.selectAll}
-          deselectAll={props.deselectAll}
-          applySelection={props.applySelection}
-          refresh={props.refresh}
-          perNic={props.perNic}
-          nicHistory={props.nicHistory}
-          running={props.running}
-          loading={props.loading}
-        />
-        <div className="grid gap-4 min-h-0" style={{ gridTemplateRows: "1fr 1fr" }}>
+      <motion.div
+        variants={item}
+        className="grid gap-4 grid-cols-1 min-[1180px]:[grid-template-columns:1.45fr_1fr] min-[1180px]:flex-1 min-[1180px]:min-h-0"
+      >
+        <div className="grid min-h-[420px] min-[1180px]:min-h-0">
+          <AdapterTable
+            adapters={props.adapters}
+            selected={props.selected}
+            toggle={props.toggle}
+            selectAll={props.selectAll}
+            deselectAll={props.deselectAll}
+            applySelection={props.applySelection}
+            refresh={props.refresh}
+            perNic={props.perNic}
+            nicHistory={props.nicHistory}
+            running={props.running}
+            loading={props.loading}
+          />
+        </div>
+        <div className="grid gap-4 grid-rows-2 min-h-[460px] min-[1180px]:min-h-0">
           <LinkDistribution perNic={props.perNic} running={props.running} />
           <MonitorPanel
             logs={props.logs}

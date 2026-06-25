@@ -45,6 +45,14 @@ export interface ConnInfo {
   proto: string;
 }
 
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  hasUpdate: boolean;
+  url: string;
+  notes: string;
+}
+
 export interface TelemetryPayload {
   perNic: NicTelemetry[];
   total: { downMbps: number; upMbps: number; connections: number };
@@ -78,6 +86,8 @@ export const api = {
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
+  checkUpdate: () => invoke<UpdateInfo>("check_update"),
+  downloadAndInstall: (url: string) => invoke<void>("download_and_install", { url }),
   setHudEnabled: (enabled: boolean) => invoke<void>("set_hud_enabled", { enabled }),
   hideToTray: () => invoke<void>("hide_to_tray"),
   restoreMain: () => invoke<void>("restore_main"),

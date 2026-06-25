@@ -311,6 +311,128 @@ fn suggest_free_port(start: u16) -> u16 {
     start
 }
 
+// ============================== 应用内更新 ==============================
+
+const GITEE_RELEASES_API: &str = "https://gitee.com/api/v5/repos/peng-minghang/hypo-mux-plus/releases";
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInfo {
+    current: String,
+    latest: String,
+    has_update: bool,
+    url: String,
+    notes: String,
+}
+
+/// 比较版本号 a 是否大于 b（点分数字，缺位按 0 处理）。
+fn version_gt(a: &str, b: &str) -> bool {
+    let pa: Vec<u32> = a.split('.').map(|x| x.trim().parse().unwrap_or(0)).collect();
+    let pb: Vec<u32> = b.split('.').map(|x| x.trim().parse().unwrap_or(0)).collect();
+    for i in 0..pa.len().max(pb.len()) {
+        let x = pa.get(i).copied().unwrap_or(0);
+        let y = pb.get(i).copied().unwrap_or(0);
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
+/// 检查更新：拉取 Gitee 仓库 Releases 列表，取最新正式版与当前版本比对。
+#[tauri::command]
+async fn check_update() -> Result<UpdateInfo, String> {
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let client = reqwest::Client::builder()
+        .user_agent("HypoMuxPlus")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let body = client
+        .get(GITEE_RELEASES_API)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {e}"))?;
+    let arr: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {e}"))?;
+    let releases = arr.as_array().ok_or("Releases 响应格式异常")?;
+    // 列表按时间升序，最后一个非预发布版即为最新版
+    let latest = releases
+        .iter()
+        .filter(|r| !r["prerelease"].as_bool().unwrap_or(false))
+        .last()
+        .ok_or("仓库暂无发布版本")?;
+    let tag = latest["tag_name"].as_str().unwrap_or("").trim().to_string();
+    let notes = latest["body"].as_str().unwrap_or("").to_string();
+    let latest_ver = tag.trim_start_matches('v').trim_start_matches('V').to_string();
+    let url = format!(
+        "https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/{tag}/HypoMuxPlus.exe"
+    );
+    let has_update = !latest_ver.is_empty() && version_gt(&latest_ver, &current);
+    Ok(UpdateInfo { current, latest: latest_ver, has_update, url, notes })
+}
+
+/// 下载新版本并在退出后自动替换当前可执行文件、重新启动（应用内全量更新）。
+#[tauri::command]
+async fn download_and_install(app: AppHandle, url: String) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .user_agent("HypoMuxPlus")
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let bytes = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("下载失败: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("下载失败: {e}"))?;
+    if bytes.len() < 1024 * 1024 {
+        return Err("下载内容异常（体积过小）".into());
+    }
+
+    let cur = std::env::current_exe().map_err(|e| e.to_string())?;
+    let dir = cur.parent().ok_or("无法定位安装目录")?.to_path_buf();
+    let exe_name = cur
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "HypoMuxPlus.exe".into());
+    let new_path = dir.join("HypoMuxPlus.update.exe");
+    std::fs::write(&new_path, &bytes).map_err(|e| format!("写入更新文件失败: {e}"))?;
+
+    #[cfg(windows)]
+    {
+        let bat = dir.join("hmx_update.bat");
+        let cur_str = cur.to_string_lossy().replace('/', "\\");
+        let new_str = new_path.to_string_lossy().replace('/', "\\");
+        // 等待主进程退出 -> 覆盖旧 exe -> 重新启动 -> 自删脚本
+        let script = format!(
+            "@echo off\r\nchcp 65001>nul\r\nping 127.0.0.1 -n 2 >nul\r\n:loop\r\ntasklist /fi \"imagename eq {exe_name}\" | find /i \"{exe_name}\" >nul && (ping 127.0.0.1 -n 2 >nul & goto loop)\r\nmove /y \"{new_str}\" \"{cur_str}\" >nul\r\nstart \"\" \"{cur_str}\"\r\ndel \"%~f0\"\r\n"
+        );
+        std::fs::write(&bat, &script).map_err(|e| format!("写入更新脚本失败: {e}"))?;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        std::process::Command::new("cmd")
+            .arg("/c")
+            .arg(&bat)
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+            .spawn()
+            .map_err(|e| format!("启动更新程序失败: {e}"))?;
+    }
+
+    // 退出当前实例，让更新脚本完成替换并重启
+    cleanup(&app);
+    app.exit(0);
+    Ok(())
+}
+
 /// 逐张网卡探测出口连通性与延迟（Plus 专属链路体检）。
 #[tauri::command]
 async fn test_latency(nics: Vec<engine::SelectedNic>) -> Result<Vec<engine::LatencyResult>, String> {
@@ -378,6 +500,8 @@ pub fn run() {
             write_text_file,
             is_port_free,
             suggest_free_port,
+            check_update,
+            download_and_install,
             test_latency,
             speed_test,
         ])

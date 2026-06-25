@@ -12,6 +12,7 @@ import { TutorialPage } from "./components/TutorialPage";
 import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { Onboarding } from "./components/Onboarding";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
 import { useSettings, ACCENTS } from "./store";
@@ -33,6 +34,7 @@ import {
   type NicTelemetry,
   type SelectedNic,
   type TelemetryPayload,
+  type UpdateInfo,
 } from "./lib/api";
 
 export interface ClosedConn {
@@ -115,6 +117,7 @@ function AppInner() {
   const [connections, setConnections] = useState<ConnInfo[]>([]);
   const [connHistory, setConnHistory] = useState<ClosedConn[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("hmx-onboarded"));
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
   const [lifetimePeak, setLifetimePeak] = useState<number>(() => Number(localStorage.getItem(LIFE_PEAK_KEY)) || 0);
   const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
@@ -237,6 +240,27 @@ function AppInner() {
   useEffect(() => {
     localStorage.setItem("hmx-view", view);
   }, [view]);
+
+  // 启动时静默检查更新
+  useEffect(() => {
+    api
+      .checkUpdate()
+      .then((info) => {
+        if (info.hasUpdate) setUpdate(info);
+      })
+      .catch(() => {});
+  }, []);
+
+  // 手动检查更新（关于页按钮）
+  const onCheckUpdate = async () => {
+    try {
+      const info = await api.checkUpdate();
+      if (info.hasUpdate) setUpdate(info);
+      else toast("success", t("updLatest", { v: info.current }));
+    } catch (e) {
+      toast("error", t("updCheckFailed", { err: String(e) }));
+    }
+  };
 
   // 同步 HUD 启用状态到后端（控制托盘模式下是否显示悬浮窗）
   useEffect(() => {
@@ -578,7 +602,7 @@ function AppInner() {
                     onReset={resetStats}
                   />
                 ) : view === "about" ? (
-                  <AboutPage lifetimeMB={lifetimeMB} admin={admin} onReplayGuide={() => setShowOnboarding(true)} />
+                  <AboutPage lifetimeMB={lifetimeMB} admin={admin} onReplayGuide={() => setShowOnboarding(true)} onCheckUpdate={onCheckUpdate} />
                 ) : (
                   <SettingsPage running={running} />
                 )}
@@ -605,6 +629,8 @@ function AppInner() {
           }}
         />
       )}
+
+      {update && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
     </div>
   );
 }

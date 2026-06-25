@@ -12,8 +12,7 @@ import alipayQr from "../assets/sponsor-alipay.jpg";
 const ORIGINAL = "https://github.com/Hypostasis-Cat/HypoMux";
 const GITHUB = "https://github.com/pmh1314520/HypoMuxPlus";
 const GITEE = "https://gitee.com/peng-minghang/hypo-mux-plus";
-const RELEASES = "https://gitee.com/peng-minghang/hypo-mux-plus/releases";
-const WEBSITE = "https://pmh1314520.github.io/HypoMuxPlus/";
+const WEBSITE = "https://hmp.pmhs.top";
 const WECHAT = "QyPmh20061026";
 const QQ = "2124691573";
 const TECH = ["Tauri 2", "Rust", "tokio", "React 19", "TypeScript", "TailwindCSS"];
@@ -27,7 +26,7 @@ function fmtData(mb: number): string {
   return mb.toFixed(0) + " MB";
 }
 
-export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: number; admin: boolean; onReplayGuide: () => void }) {
+export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: { lifetimeMB: number; admin: boolean; onReplayGuide: () => void; onCheckUpdate: () => void }) {
   const { t } = useSettings();
   const toast = useToast();
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
@@ -90,7 +89,7 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: nu
                 {t("aboutVisitWebsite")}
               </button>
               <button
-                onClick={() => openUrl(RELEASES)}
+                onClick={onCheckUpdate}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white transition-transform hover:scale-105"
                 style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
               >
