@@ -6,7 +6,7 @@ import { useSettings } from "../store";
 import { useAppVersion } from "../lib/version";
 import { useToast } from "./Toast";
 import { Logo } from "./Logo";
-import { GitHubIcon, GiteeIcon } from "./BrandIcons";
+import { GitHubIcon, GiteeIcon, QQIcon, WeChatIcon } from "./BrandIcons";
 import wechatQr from "../assets/sponsor-wechat.png";
 import alipayQr from "../assets/sponsor-alipay.jpg";
 
@@ -190,8 +190,8 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: {
             <h3 className="font-semibold text-[14px]">{t("aboutContact")}</h3>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <ContactChip label={t("aboutWechat")} value={WECHAT} color="#07c160" onCopy={() => copy(WECHAT)} />
-            <ContactChip label={t("aboutQQ")} value={QQ} color="#1296db" onCopy={() => copy(QQ)} />
+            <ContactChip label={t("aboutWechat")} value={WECHAT} icon={<WeChatIcon size={18} style={{ color: "#07c160" }} />} onCopy={() => copy(WECHAT)} />
+            <ContactChip label={t("aboutQQ")} value={QQ} icon={<QQIcon size={17} style={{ color: "#12b7f5" }} />} onCopy={() => copy(QQ)} />
           </div>
         </motion.div>
 
@@ -316,12 +316,12 @@ function QrCard({
 function ContactChip({
   label,
   value,
-  color,
+  icon,
   onCopy,
 }: {
   label: string;
   value: string;
-  color: string;
+  icon: ReactNode;
   onCopy: () => void;
 }) {
   return (
@@ -330,7 +330,7 @@ function ContactChip({
       className="group flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-colors hover:[background:var(--surface-hover)]"
       style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
     >
-      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+      <span className="shrink-0 grid place-items-center">{icon}</span>
       <span className="flex flex-col items-start leading-tight">
         <span className="text-[10px] eyebrow">{label}</span>
         <span className="mono text-[13px] font-semibold" style={{ color: "var(--text-0)" }}>
