@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Activity, BarChart3, BookOpen, Info, Moon, Settings as SettingsIcon, Stethoscope, Sun } from "lucide-react";
 import { useSettings } from "../store";
+import { useAppVersion } from "../lib/version";
 import { Logo } from "./Logo";
 import type { View } from "./shell-types";
 
@@ -12,6 +13,7 @@ interface Props {
 
 export function Sidebar({ view, setView, running }: Props) {
   const { t, theme, set } = useSettings();
+  const version = useAppVersion();
 
   const nav: { id: View; label: string; icon: typeof Activity }[] = [
     { id: "dashboard", label: t("navDashboard"), icon: Activity },
@@ -117,7 +119,7 @@ export function Sidebar({ view, setView, running }: Props) {
           </span>
         </button>
         <div className="text-[10px] text-center tracking-wide" style={{ color: "var(--text-2)" }}>
-          v1.0.0 · AGPL-3.0
+          v{version} · AGPL-3.0
         </div>
       </div>
     </aside>

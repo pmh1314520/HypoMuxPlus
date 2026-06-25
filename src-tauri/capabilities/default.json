@@ -5,6 +5,7 @@
   "windows": ["main", "hud"],
   "permissions": [
     "core:default",
+    "core:app:allow-version",
     "core:window:allow-minimize",
     "core:window:allow-unminimize",
     "core:window:allow-close",

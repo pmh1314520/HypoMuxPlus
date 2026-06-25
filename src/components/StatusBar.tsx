@@ -1,5 +1,6 @@
 import { Cpu, Network, ShieldAlert, ShieldCheck, Wifi } from "lucide-react";
 import { useSettings } from "../store";
+import { useAppVersion } from "../lib/version";
 import { Tooltip } from "./Tooltip";
 import { useToast } from "./Toast";
 
@@ -15,6 +16,7 @@ interface Props {
 export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, totalConn }: Props) {
   const { t } = useSettings();
   const toast = useToast();
+  const version = useAppVersion();
 
   const copyAddr = async (addr: string) => {
     try {
@@ -88,7 +90,7 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
 
       <Sep />
       <span className="mono" style={{ color: "var(--text-2)" }}>
-        HypoMuxPlus v1.0.0
+        HypoMuxPlus v{version}
       </span>
     </div>
   );

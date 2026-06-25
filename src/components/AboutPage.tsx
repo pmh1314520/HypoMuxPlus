@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
 import { Coffee, Compass, Copy, Database, ExternalLink, FolderGit2, GitFork, Globe, Heart, Maximize2, MessageCircle, MonitorSmartphone, RefreshCw, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
 import { useSettings } from "../store";
+import { useAppVersion } from "../lib/version";
 import { useToast } from "./Toast";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon } from "./BrandIcons";
@@ -29,6 +30,7 @@ function fmtData(mb: number): string {
 export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: { lifetimeMB: number; admin: boolean; onReplayGuide: () => void; onCheckUpdate: () => void }) {
   const { t } = useSettings();
   const toast = useToast();
+  const version = useAppVersion();
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
 
   const copy = async (text: string) => {
@@ -65,7 +67,7 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: {
                 className="mono text-[11px] px-2 py-0.5 rounded-md"
                 style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
               >
-                v1.0.0
+                v{version}
               </span>
             </div>
             <p className="text-[13px] mt-1.5" style={{ color: "var(--text-1)" }}>
