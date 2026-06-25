@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  getCurrentWindow,
-  currentMonitor,
-  PhysicalPosition,
-  LogicalSize,
-} from "@tauri-apps/api/window";
+import { getCurrentWindow, PhysicalPosition, LogicalSize } from "@tauri-apps/api/window";
 import { Pause, Play } from "lucide-react";
 import {
   api,
   emitTrayToggle,
   onBoostState,
   onHudConfig,
-  onHudSnap,
   onTelemetry,
   type HudConfig,
   type TelemetryPayload,
@@ -63,6 +57,8 @@ export function Hud() {
   useEffect(() => {
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
+    const r = document.getElementById("root");
+    if (r) r.style.background = "transparent";
   }, []);
 
   // 恢复上次保存的位置
@@ -92,7 +88,6 @@ export function Hud() {
       setTele(p);
       setHist((prev) => [...prev.slice(1), p.total.downMbps]);
     }).then((u) => uns.push(u));
-    onHudSnap((corner) => void snapTo(corner)).then((u) => uns.push(u));
     return () => uns.forEach((u) => u());
   }, []);
 
@@ -120,24 +115,6 @@ export function Hud() {
     resize();
     return () => ro.disconnect();
   }, []);
-
-  const snapTo = async (corner: string) => {
-    try {
-      const mon = await currentMonitor();
-      if (!mon) return;
-      const win = getCurrentWindow();
-      const size = await win.outerSize();
-      const m = 16 * (mon.scaleFactor || 1);
-      let x = mon.position.x + m;
-      let y = mon.position.y + m;
-      if (corner.includes("r")) x = mon.position.x + mon.size.width - size.width - m;
-      if (corner.includes("b")) y = mon.position.y + mon.size.height - size.height - m;
-      await win.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
-      localStorage.setItem(HUD_POS_KEY, JSON.stringify({ x: Math.round(x), y: Math.round(y) }));
-    } catch {
-      /* ignore */
-    }
-  };
 
   const down = tele?.total.downMbps ?? 0;
   const up = tele?.total.upMbps ?? 0;
@@ -191,7 +168,6 @@ export function Hud() {
           <div className="flex-1" />
           <button
             onClick={() => emitTrayToggle()}
-            title={running ? "Stop" : "Boost"}
             className="grid place-items-center w-[22px] h-[22px] rounded-md transition-transform hover:scale-110"
             style={{
               background: running ? "rgba(240,97,109,0.16)" : cfg.accent,
@@ -203,7 +179,7 @@ export function Hud() {
         </div>
 
         {/* 迷你曲线 */}
-        <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block">
+        <svg data-tauri-drag-region={drag} width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block">
           <polyline
             points={pts}
             fill="none"
@@ -217,7 +193,7 @@ export function Hud() {
 
         {/* 总览指标 */}
         {(cfg.showDown || cfg.showUp || cfg.showConns) && (
-          <div className="flex items-end justify-between gap-2">
+          <div data-tauri-drag-region={drag} className="flex items-end justify-between gap-2">
             {cfg.showDown && (
               <Metric label="↓" value={d.value} unit={d.label} color={cfg.accentSoft} txt0={txt0} txt2={txt2} />
             )}
@@ -230,7 +206,7 @@ export function Hud() {
 
         {/* 分网卡明细 */}
         {nics.length > 0 && (
-          <div className="flex flex-col gap-1 mt-0.5 pt-1.5" style={{ borderTop: `1px solid ${light ? "rgba(15,30,60,0.08)" : "rgba(255,255,255,0.06)"}` }}>
+          <div data-tauri-drag-region={drag} className="flex flex-col gap-1 mt-0.5 pt-1.5" style={{ borderTop: `1px solid ${light ? "rgba(15,30,60,0.08)" : "rgba(255,255,255,0.06)"}` }}>
             {nics.map((n) => (
               <div key={n.index} className="flex items-center gap-2">
                 <span className="text-[9px] truncate flex-1" style={{ color: txt2 }}>

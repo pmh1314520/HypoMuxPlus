@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coffee, Compass, Database, ExternalLink, FolderGit2, GitFork, Heart, Maximize2, MonitorSmartphone, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
+import { Coffee, Compass, Copy, Database, ExternalLink, FolderGit2, GitFork, Globe, Heart, Maximize2, MessageCircle, MonitorSmartphone, RefreshCw, ScrollText, ShieldAlert, ShieldCheck, User, X } from "lucide-react";
 import { useSettings } from "../store";
+import { useToast } from "./Toast";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon } from "./BrandIcons";
 import wechatQr from "../assets/sponsor-wechat.png";
@@ -11,6 +12,10 @@ import alipayQr from "../assets/sponsor-alipay.jpg";
 const ORIGINAL = "https://github.com/Hypostasis-Cat/HypoMux";
 const GITHUB = "https://github.com/pmh1314520/HypoMuxPlus";
 const GITEE = "https://gitee.com/peng-minghang/hypo-mux-plus";
+const RELEASES = "https://gitee.com/peng-minghang/hypo-mux-plus/releases";
+const WEBSITE = "https://pmh1314520.github.io/HypoMuxPlus/";
+const WECHAT = "QyPmh20061026";
+const QQ = "2124691573";
 const TECH = ["Tauri 2", "Rust", "tokio", "React 19", "TypeScript", "TailwindCSS"];
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
@@ -24,7 +29,17 @@ function fmtData(mb: number): string {
 
 export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: number; admin: boolean; onReplayGuide: () => void }) {
   const { t } = useSettings();
+  const toast = useToast();
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("success", t("msgCopied"));
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(null);
@@ -57,14 +72,32 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: nu
             <p className="text-[13px] mt-1.5" style={{ color: "var(--text-1)" }}>
               {t("aboutTagline")}
             </p>
-            <button
-              onClick={onReplayGuide}
-              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
-            >
-              <Compass size={13} style={{ color: "var(--accent-soft)" }} />
-              {t("aboutReplayGuide")}
-            </button>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button
+                onClick={onReplayGuide}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+              >
+                <Compass size={13} style={{ color: "var(--accent-soft)" }} />
+                {t("aboutReplayGuide")}
+              </button>
+              <button
+                onClick={() => openUrl(WEBSITE)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+              >
+                <Globe size={13} style={{ color: "var(--accent-soft)" }} />
+                {t("aboutVisitWebsite")}
+              </button>
+              <button
+                onClick={() => openUrl(RELEASES)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white transition-transform hover:scale-105"
+                style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
+              >
+                <RefreshCw size={13} />
+                {t("aboutCheckUpdate")}
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -146,6 +179,18 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide }: { lifetimeMB: nu
           <div className="flex flex-wrap gap-2.5">
             <RepoLink url={GITHUB} label="GitHub" icon={<GitHubIcon size={15} />} />
             <RepoLink url={GITEE} label="Gitee" icon={<GiteeIcon size={15} style={{ color: "#c71d23" }} />} />
+          </div>
+        </motion.div>
+
+        {/* 联系开发者 */}
+        <motion.div variants={item} className="panel p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageCircle size={16} style={{ color: "var(--accent-soft)" }} />
+            <h3 className="font-semibold text-[14px]">{t("aboutContact")}</h3>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <ContactChip label={t("aboutWechat")} value={WECHAT} color="#07c160" onCopy={() => copy(WECHAT)} />
+            <ContactChip label={t("aboutQQ")} value={QQ} color="#1296db" onCopy={() => copy(QQ)} />
           </div>
         </motion.div>
 
@@ -263,6 +308,35 @@ function QrCard({
         <span className="w-2 h-2 rounded-full" style={{ background: color }} />
         {label}
       </span>
+    </button>
+  );
+}
+
+function ContactChip({
+  label,
+  value,
+  color,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  onCopy: () => void;
+}) {
+  return (
+    <button
+      onClick={onCopy}
+      className="group flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-colors hover:[background:var(--surface-hover)]"
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+    >
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+      <span className="flex flex-col items-start leading-tight">
+        <span className="text-[10px] eyebrow">{label}</span>
+        <span className="mono text-[13px] font-semibold" style={{ color: "var(--text-0)" }}>
+          {value}
+        </span>
+      </span>
+      <Copy size={13} className="ml-1 opacity-50 group-hover:opacity-100 transition-opacity" style={{ color: "var(--text-2)" }} />
     </button>
   );
 }

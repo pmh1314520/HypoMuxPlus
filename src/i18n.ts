@@ -247,6 +247,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     settingHudLockHint: "锁定后不可拖动，避免误触移动",
     settingHudUnit: "速度单位",
     settingHudMetrics: "显示数据",
+    hudPreview: "实时预览",
     hudMetricDown: "下行",
     hudMetricUp: "上行",
     hudMetricConns: "连接",
@@ -283,7 +284,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutRepo: "项目仓库",
     aboutDownload: "下载",
     aboutDesc:
-      "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的现代化客户端——前端 React、后端 Rust（tokio）全栈重写（原项目后端为 Python），遵循 AGPL-3.0 协议开源。",
+      "HypoMuxPlus 是基于 Hypostasis-Cat 的开源项目 HypoMux 二次开发的升级版，全栈完全重写，遵循 AGPL-3.0 协议开源。",
 
     // 工作原理小卡
     howTitle: "工作原理",
@@ -329,14 +330,19 @@ export const DICT: Record<Lang, Record<string, string>> = {
     faqA5: "不会。停止加速、关闭窗口、退出程序等任何路径都会强制还原系统代理与死网关检测设置，网络自动恢复正常。",
     aboutTagline: "多网卡带宽聚合工具",
     aboutReplayGuide: "查看使用引导",
+    aboutVisitWebsite: "访问官网",
+    aboutCheckUpdate: "检查更新",
+    aboutContact: "联系开发者",
+    aboutWechat: "微信",
+    aboutQQ: "QQ",
     aboutTech: "技术栈",
     aboutWebsite: "项目官网",
     aboutThanks: "致谢",
     aboutThanksDesc:
-      "核心的多网卡物理绑定思想与协议设计源自原项目 HypoMux，特此致谢。本项目并非简单换壳——已将原以 Python 实现的分流引擎用 Rust（tokio）从零重写，并以 Tauri + React 打造全新桌面客户端。",
+      "核心的多网卡物理绑定思想与协议设计源自 HypoMux，特此致谢！本项目并非简单换壳，而是将原来使用 Python 实现的分流引擎用 Rust（tokio）完全重写，并使用 Tauri + React 打造了更加现代化的桌面客户端应用。",
     aboutSponsor: "赞助支持",
     aboutSponsorDesc:
-      "HypoMuxPlus 完全免费开源。如果它帮你省下了时间，欢迎请作者喝杯咖啡——赞助纯属自愿，无论是否赞助都可永久免费使用全部功能。赞助时记得备注“HypoMuxPlus 支持”",
+      "HypoMuxPlus 完全免费开源！如果它帮到了您，希望您能请作者喝杯咖啡，赞助时记得备注“HypoMuxPlus”哦~",
     sponsorWechat: "微信赞赏",
     sponsorAlipay: "支付宝",
   },
@@ -579,6 +585,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     settingHudLockHint: "Disable dragging to avoid accidental moves",
     settingHudUnit: "Speed Unit",
     settingHudMetrics: "Shown Metrics",
+    hudPreview: "Live Preview",
     hudMetricDown: "Down",
     hudMetricUp: "Up",
     hudMetricConns: "Conns",
@@ -615,7 +622,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aboutRepo: "Repositories",
     aboutDownload: "Download",
     aboutDesc:
-      "HypoMuxPlus is a modernized client derived from the open-source HypoMux by Hypostasis-Cat — a full-stack rewrite with a React frontend and a native Rust (tokio) backend (the original backend was Python), released under AGPL-3.0.",
+      "HypoMuxPlus is an upgraded edition derived from the open-source HypoMux by Hypostasis-Cat — a complete full-stack rewrite, released under AGPL-3.0.",
 
     howTitle: "How It Works",
     howDesc:
@@ -660,14 +667,19 @@ export const DICT: Record<Lang, Record<string, string>> = {
     faqA5: "No. Stopping, closing the window, or exiting all force-restore the system proxy and dead-gateway settings, so your network returns to normal automatically.",
     aboutTagline: "Multi-NIC Bandwidth Aggregation Tool",
     aboutReplayGuide: "View Quick Guide",
+    aboutVisitWebsite: "Website",
+    aboutCheckUpdate: "Check Update",
+    aboutContact: "Contact Developer",
+    aboutWechat: "WeChat",
+    aboutQQ: "QQ",
     aboutTech: "Tech Stack",
     aboutWebsite: "Official Website",
     aboutThanks: "Acknowledgments",
     aboutThanksDesc:
-      "The core multi-NIC physical binding approach and protocol design originate from the original HypoMux project. This is not a reskin — the splitting engine, originally written in Python, has been fully rewritten from scratch in Rust (tokio), with a brand-new desktop client built on Tauri + React.",
+      "The core multi-NIC physical binding approach and protocol design originate from HypoMux — sincere thanks! This is not a mere reskin: the splitting engine originally written in Python has been completely rewritten in Rust (tokio), with a more modern desktop client built on Tauri + React.",
     aboutSponsor: "Support the Project",
     aboutSponsorDesc:
-      "HypoMuxPlus is completely free and open source. If it saved you bandwidth and time, feel free to buy the author a coffee — donations are entirely voluntary, and all features stay free forever regardless. Feel free to leave your nickname.",
+      "HypoMuxPlus is completely free and open source! If it helped you, consider buying the author a coffee — please leave the note “HypoMuxPlus” when you donate.",
     sponsorWechat: "WeChat",
     sponsorAlipay: "Alipay",
   },

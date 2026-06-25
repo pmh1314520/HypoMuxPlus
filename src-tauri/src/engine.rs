@@ -525,7 +525,7 @@ pub struct SpeedResult {
 
 const BENCH_HOST: &str = "speed.cloudflare.com";
 const BENCH_PATH: &str = "/__down?bytes=2000000000";
-const BENCH_PARALLEL: usize = 4;
+const BENCH_PARALLEL: usize = 6;
 
 fn tls_connector() -> tokio_rustls::TlsConnector {
     use std::sync::OnceLock;
@@ -567,7 +567,7 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         speed: AtomicU64::new(0),
         alive: AtomicBool::new(true),
     });
-    let dst = tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(BENCH_HOST, 443))
+    let dst = tokio::time::timeout(std::time::Duration::from_secs(6), resolve_ipv4(BENCH_HOST, 443))
         .await
         .ok()?
         .ok()?;
@@ -583,11 +583,13 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         }));
     }
     for h in handles {
-        let _ = tokio::time::timeout(dur + std::time::Duration::from_secs(5), h).await;
+        let _ = tokio::time::timeout(dur + std::time::Duration::from_secs(8), h).await;
     }
 
-    let secs = start.elapsed().as_secs_f64().max(0.001);
+    // 吞吐 = 总下载字节 / 测速窗口时长（不计入连接 / 握手耗时，避免严重低估）
     let bytes = total.load(Ordering::Relaxed);
+    let _ = start; // 保留以便将来扩展
+    let secs = dur.as_secs_f64().max(0.001);
     if bytes == 0 {
         return None;
     }
@@ -601,13 +603,13 @@ async fn bench_conn(
     dur: std::time::Duration,
     total: &AtomicU64,
 ) -> Option<()> {
-    let tcp = tokio::time::timeout(std::time::Duration::from_secs(4), connect_via_nic(nic, dst))
+    let tcp = tokio::time::timeout(std::time::Duration::from_secs(6), connect_via_nic(nic, dst))
         .await
         .ok()?
         .ok()?;
     let connector = tls_connector();
     let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(BENCH_HOST).ok()?;
-    let mut tls = tokio::time::timeout(std::time::Duration::from_secs(4), connector.connect(server_name, tcp))
+    let mut tls = tokio::time::timeout(std::time::Duration::from_secs(6), connector.connect(server_name, tcp))
         .await
         .ok()?
         .ok()?;

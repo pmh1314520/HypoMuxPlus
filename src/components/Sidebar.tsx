@@ -28,7 +28,7 @@ export function Sidebar({ view, setView, running }: Props) {
       style={{ background: "var(--rail)", borderRight: "1px solid var(--border)" }}
     >
       {/* 品牌区（可拖拽） */}
-      <div data-tauri-drag-region className="flex items-center gap-3 px-5 h-[58px] shrink-0">
+      <div data-tauri-drag-region className="flex items-center gap-3 px-5 h-[66px] shrink-0">
         <div className="relative pointer-events-none">
           <Logo size={38} running={running} />
           {running && (

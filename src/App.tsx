@@ -87,7 +87,11 @@ function AppInner() {
     useSettings();
   const toast = useToast();
 
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>(() => {
+    const v = localStorage.getItem("hmx-view");
+    const valid = ["dashboard", "stats", "diagnostics", "tutorial", "settings", "about"];
+    return (v && valid.includes(v) ? v : "dashboard") as View;
+  });
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [selected, setSelected] = useState<Set<number>>(loadSelected);
   const [loading, setLoading] = useState(true);
@@ -228,6 +232,11 @@ function AppInner() {
   useEffect(() => {
     win.setAlwaysOnTop(alwaysOnTop).catch(() => {});
   }, [alwaysOnTop]);
+
+  // 持久化当前分页，避免意外重载后回到默认页
+  useEffect(() => {
+    localStorage.setItem("hmx-view", view);
+  }, [view]);
 
   // 同步 HUD 启用状态到后端（控制托盘模式下是否显示悬浮窗）
   useEffect(() => {

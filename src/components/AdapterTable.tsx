@@ -178,6 +178,10 @@ export function AdapterTable({
 
   const deleteProfile = (name: string) => persist(profiles.filter((p) => p.name !== name));
 
+  // 全选 / 取消全选 切换（合并原"清空"按钮）
+  const validList = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
+  const allSelected = validList.length > 0 && validList.every((a) => selected.has(a.index));
+
   return (
     <div className="glass flex flex-col overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
       {/* 卡片头 */}
@@ -212,14 +216,9 @@ export function AdapterTable({
             <ArrowDownUp size={13} /> {sortLabel}
           </button>
         </Tooltip>
-        <Tooltip label={t("selectAll")} placement="top">
-          <HeaderBtn onClick={selectAll} disabled={running}>
-            <CheckSquare size={15} />
-          </HeaderBtn>
-        </Tooltip>
-        <Tooltip label={t("deselectAll")} placement="top">
-          <HeaderBtn onClick={deselectAll} disabled={running}>
-            <Square size={15} />
+        <Tooltip label={allSelected ? t("deselectAll") : t("selectAll")} placement="top">
+          <HeaderBtn onClick={() => (allSelected ? deselectAll() : selectAll())} disabled={running}>
+            {allSelected ? <Square size={15} /> : <CheckSquare size={15} />}
           </HeaderBtn>
         </Tooltip>
         <Tooltip label={t("tipRefresh")} placement="top">
@@ -606,9 +605,10 @@ function HeaderBtn({
   disabled?: boolean;
 }) {
   return (
-    <button
+    <motion.button
       onClick={onClick}
       disabled={disabled}
+      whileTap={disabled ? undefined : { scale: 0.88 }}
       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap shrink-0"
       style={{
         background: "var(--surface-strong)",
@@ -619,6 +619,6 @@ function HeaderBtn({
       }}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

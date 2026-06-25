@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { ACCENTS, useSettings, type AccentKey, type SchedStrategy, type Theme } from "../store";
 import { type Lang } from "../i18n";
-import { api, emitHudSnap } from "../lib/api";
+import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { NumberField } from "./NumberField";
 import { Switch } from "./Switch";
@@ -416,21 +416,21 @@ export function SettingsPage({ running }: Props) {
               <Row label={t("settingHudNics")} hint={t("settingHudNicsHint")}>
                 <Switch checked={hudShowNics} onChange={(v) => set("hudShowNics", v)} />
               </Row>
-              <Row label={t("settingHudPosition")}>
-                <div className="flex items-center gap-2">
-                  {(["tl", "tr", "bl", "br"] as const).map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => emitHudSnap(c)}
-                      className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors whitespace-nowrap"
-                      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
-                    >
-                      {t("hudPos_" + c)}
-                    </button>
-                  ))}
+              <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+                <div className="eyebrow mb-2.5">{t("hudPreview")}</div>
+                <div className="grid place-items-center py-4 rounded-xl" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
+                  <HudPreview
+                    opacity={hudOpacity}
+                    unit={hudUnit}
+                    showDown={hudShowDown}
+                    showUp={hudShowUp}
+                    showConns={hudShowConns}
+                    showNics={hudShowNics}
+                    theme={theme}
+                  />
                 </div>
-              </Row>
-              <p className="text-[11px] mt-2 pt-3" style={{ color: "var(--text-2)", borderTop: "1px solid var(--border)" }}>
+              </div>
+              <p className="text-[11px] mt-3" style={{ color: "var(--text-2)" }}>
                 {t("hudTipDrag")}
               </p>
             </>
@@ -582,6 +582,101 @@ function Segmented<T extends string | boolean>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function HudPreview({
+  opacity,
+  unit,
+  showDown,
+  showUp,
+  showConns,
+  showNics,
+  theme,
+}: {
+  opacity: number;
+  unit: string;
+  showDown: boolean;
+  showUp: boolean;
+  showConns: boolean;
+  showNics: boolean;
+  theme: Theme;
+}) {
+  const light = theme === "light";
+  const txt0 = light ? "#111722" : "#e7eaee";
+  const txt2 = light ? "#8995a4" : "#5b636d";
+  const cardBg = (light ? "rgba(255,255,255," : "rgba(16,19,26,") + opacity + ")";
+  const d = unit === "mbit" ? { v: "188.5", u: "Mbps" } : { v: "23.6", u: "MB/s" };
+  const up = unit === "mbit" ? "12.4" : "1.6";
+  const sample = [
+    { n: "以太网", w: 78 },
+    { n: "WLAN", w: 52 },
+  ];
+  return (
+    <div
+      className="rounded-2xl px-3.5 py-3 flex flex-col gap-1.5"
+      style={{
+        width: 232,
+        background: cardBg,
+        border: `1px solid ${light ? "rgba(15,30,60,0.12)" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: "0 12px 34px -14px rgba(0,0,0,0.6)",
+        backdropFilter: "blur(14px)",
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full" style={{ background: "#3ecf8e", boxShadow: "0 0 7px #3ecf8e" }} />
+        <span className="text-[11px] font-bold tracking-tight" style={{ color: txt0 }}>
+          HypoMux<span style={{ color: "var(--accent-soft)" }}>Plus</span>
+        </span>
+        <div className="flex-1" />
+        <span className="grid place-items-center w-[22px] h-[22px] rounded-md" style={{ background: "var(--accent)", color: "#fff" }}>
+          <Power size={12} />
+        </span>
+      </div>
+      <svg width="100%" height={22} viewBox="0 0 200 22" preserveAspectRatio="none" className="block">
+        <polyline
+          points="0,18 24,10 48,14 72,6 96,11 120,4 144,9 168,5 200,8"
+          fill="none"
+          stroke="var(--accent-soft)"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {(showDown || showUp || showConns) && (
+        <div className="flex items-end justify-between gap-2">
+          {showDown && <PreviewMetric label="↓" v={d.v} u={d.u} color="var(--accent-soft)" txt2={txt2} />}
+          {showUp && <PreviewMetric label="↑" v={up} u={d.u} color={txt0} txt2={txt2} />}
+          {showConns && <PreviewMetric label="⇄" v="32" u="conns" color={txt0} txt2={txt2} />}
+        </div>
+      )}
+      {showNics && (
+        <div className="flex flex-col gap-1 mt-0.5 pt-1.5" style={{ borderTop: `1px solid ${light ? "rgba(15,30,60,0.08)" : "rgba(255,255,255,0.06)"}` }}>
+          {sample.map((s) => (
+            <div key={s.n} className="flex items-center gap-2">
+              <span className="text-[9px] truncate flex-1" style={{ color: txt2 }}>
+                {s.n}
+              </span>
+              <div className="w-[64px] h-[3px] rounded-full overflow-hidden" style={{ background: light ? "rgba(15,30,60,0.1)" : "rgba(255,255,255,0.1)" }}>
+                <div className="h-full rounded-full" style={{ width: `${s.w}%`, background: "var(--accent-soft)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewMetric({ label, v, u, color, txt2 }: { label: string; v: string; u: string; color: string; txt2: string }) {
+  return (
+    <div className="flex flex-col leading-none min-w-0">
+      <span className="text-[9px] mono" style={{ color: txt2 }}>
+        {label} {u}
+      </span>
+      <span className="text-[16px] font-bold mono mt-0.5" style={{ color }}>
+        {v}
+      </span>
     </div>
   );
 }

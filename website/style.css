@@ -1310,3 +1310,36 @@ svg {
   user-select: none;
   pointer-events: auto;
 }
+
+/* 开发者联系方式 */
+.contact-wrap {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 22px;
+}
+.contact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  font-size: 14px;
+}
+.contact-chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.contact-chip b {
+  font-weight: 600;
+  opacity: 0.8;
+}
+.contact-chip .mono {
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  user-select: text;
+}

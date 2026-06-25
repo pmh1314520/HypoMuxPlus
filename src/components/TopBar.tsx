@@ -34,10 +34,10 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
   const desc = descMap[view];
 
   return (
-    <div data-tauri-drag-region className="flex items-center h-[58px] px-5 shrink-0 gap-4">
-      <div className="leading-none pointer-events-none min-w-0">
+    <div data-tauri-drag-region className="flex items-center h-[66px] px-5 shrink-0 gap-4">
+      <div className="pointer-events-none min-w-0">
         <div className="flex items-center gap-2.5">
-          <h1 className="text-[16px] font-bold tracking-tight truncate">{title}</h1>
+          <h1 className="text-[16px] font-bold tracking-tight truncate leading-tight">{title}</h1>
           {view === "dashboard" && (
             <span
               className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-semibold whitespace-nowrap shrink-0"
@@ -55,7 +55,7 @@ export function TopBar({ view, running, loading, onRefresh }: Props) {
             </span>
           )}
         </div>
-        <div className="text-[11px] mt-1.5 truncate" style={{ color: "var(--text-2)" }}>
+        <div className="text-[11px] mt-1 truncate leading-relaxed" style={{ color: "var(--text-2)" }}>
           {desc}
         </div>
       </div>

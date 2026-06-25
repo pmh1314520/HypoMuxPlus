@@ -121,6 +121,17 @@ body,
   margin: 0;
 }
 
+/* 可交互元素统一手型光标，避免用户误以为不可点击 */
+button:not(:disabled),
+[role="switch"]:not(:disabled),
+a,
+[role="button"] {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 body {
   font-family: "Inter", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   color: var(--text-0);

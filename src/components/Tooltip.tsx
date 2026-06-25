@@ -23,7 +23,7 @@ export function Tooltip({ label, placement = "top", children }: Props) {
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const gap = 9;
+    const gap = 14;
     switch (placement) {
       case "bottom":
         setPos({ x: r.left + r.width / 2, y: r.bottom + gap });
@@ -78,7 +78,7 @@ export function Tooltip({ label, placement = "top", children }: Props) {
                 left: pos.x,
                 top: pos.y,
                 transform,
-                background: "var(--surface-2)",
+                background: "color-mix(in srgb, var(--bg-1) 94%, transparent)",
                 color: "var(--text-0)",
                 border: "1px solid var(--border-strong)",
                 boxShadow: "inset 0 1px 0 var(--hl), 0 10px 28px -8px rgba(0,0,0,0.6)",
