@@ -72,6 +72,7 @@
           <a href="#features" data-zh="核心特性" data-en="Features">核心特性</a>
           <a href="#preview" data-zh="界面预览" data-en="Preview">界面预览</a>
           <a href="#how" data-zh="工作原理" data-en="How It Works">工作原理</a>
+          <a href="#scenarios" data-zh="使用场景" data-en="Use Cases">使用场景</a>
           <a href="#tech" data-zh="技术栈" data-en="Tech Stack">技术栈</a>
           <a href="#faq" data-zh="常见问题" data-en="FAQ">常见问题</a>
           <a href="#sponsor" data-zh="赞助" data-en="Support">赞助</a>
@@ -299,6 +300,36 @@
             <text class="nlabel" x="220" y="379" text-anchor="middle" data-zh="物理带宽叠加" data-en="Bandwidth Stacked">物理带宽叠加</text>
           </g>
         </svg>
+      </div>
+    </section>
+
+    <!-- 使用场景 -->
+    <section id="scenarios" class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Use Cases</span>
+        <h2 data-zh="把身边的每一条网络都用起来" data-en="Put every nearby network to work">把身边的每一条网络都用起来</h2>
+        <p data-zh="只要是相互独立、各自有出口带宽的线路，都能并入带宽池一起叠加。" data-en="Any links that are mutually independent — each with its own uplink — can join the pool and stack up.">只要是相互独立、各自有出口带宽的线路，都能并入带宽池一起叠加。</p>
+      </div>
+      <div class="scenarios reveal">
+        <div class="scenario">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <h3 data-zh="宿舍 · 合并室友的宽带" data-en="Dorm · Pool your roommate's broadband">宿舍 · 合并室友的宽带</h3>
+          <p data-zh="你插着网线，自己的宽带最高约 10 MB/s；舍友也有一条独立宽带，同样能跑 10 MB/s。让电脑再通过 Wi-Fi 连上舍友的网络，两条线路同时进入带宽池，叠加后下载峰值可逼近 20 MB/s。" data-en="Your wired line tops out near 10 MB/s; your roommate has a separate line that also does 10 MB/s. Connect to their Wi-Fi as well, and both links enter the pool — stacked downloads can approach 20 MB/s.">你插着网线，自己的宽带最高约 10 MB/s；舍友也有一条独立宽带，同样能跑 10 MB/s。让电脑再通过 Wi-Fi 连上舍友的网络，两条线路同时进入带宽池，叠加后下载峰值可逼近 20 MB/s。</p>
+        </div>
+        <div class="scenario">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
+          <h3 data-zh="再加一张网 · 手机流量入池" data-en="Add one more · Bring phone data in">再加一张网 · 手机流量入池</h3>
+          <p data-zh="两条还嫌不够？用数据线把手机以「USB 网络共享」接入电脑，手机的 4G/5G 流量就成了第三条独立线路一并纳入聚合。线路越多、越独立，叠加越可观。" data-en="Two links still not enough? Tether your phone over USB and its 4G/5G data becomes a third independent link in the pool. The more independent links, the bigger the gain.">两条还嫌不够？用数据线把手机以「USB 网络共享」接入电脑，手机的 4G/5G 流量就成了第三条独立线路一并纳入聚合。线路越多、越独立，叠加越可观。</p>
+        </div>
+        <div class="scenario">
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+          <h3 data-zh="家庭 / 工作室 · 多线并发" data-en="Home / Studio · Many lines at once">家庭 / 工作室 · 多线并发</h3>
+          <p data-zh="家里有电信 + 联通双宽带，或工作室拉了多条独立专线时，全部勾选参与聚合，让 Steam 更新与大文件下载跑满每一条线路的上限。" data-en="With dual home broadband (two ISPs) or several leased lines in a studio, select them all to aggregate and max out every line for Steam updates and large downloads.">家里有电信 + 联通双宽带，或工作室拉了多条独立专线时，全部勾选参与聚合，让 Steam 更新与大文件下载跑满每一条线路的上限。</p>
+        </div>
+      </div>
+      <div class="scenario-warn reveal">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <p data-zh="关键前提：参与聚合的线路必须各自拥有独立的出口带宽。如果你的「有线」和「无线」其实接的是同一台路由器、同一条宽带（共用同一个运营商上联），那叠加是无效的——它们本就在抢同一份带宽，合并后总量并不会增加。" data-en="Key requirement: each link must have its own independent uplink. If your “wired” and “wireless” actually go through the same router / broadband line (sharing one ISP uplink), aggregation does nothing — they already compete for the same bandwidth, so combining them adds no capacity.">关键前提：参与聚合的线路必须各自拥有独立的出口带宽。如果你的「有线」和「无线」其实接的是同一台路由器、同一条宽带（共用同一个运营商上联），那叠加是无效的——它们本就在抢同一份带宽，合并后总量并不会增加。</p>
       </div>
     </section>
 

@@ -9,6 +9,8 @@ import {
   HelpCircle,
   Lightbulb,
   Network,
+  Smartphone,
+  Users,
   Zap,
 } from "lucide-react";
 import { useSettings } from "../store";
@@ -25,6 +27,12 @@ export function TutorialPage() {
   ];
 
   const tips = [t("tutTip1"), t("tutTip2"), t("tutTip3"), t("tutTip4")];
+
+  const scenarios = [
+    { icon: Users, title: t("tutScen1Title"), desc: t("tutScen1Desc") },
+    { icon: Smartphone, title: t("tutScen2Title"), desc: t("tutScen2Desc") },
+    { icon: Network, title: t("tutScen3Title"), desc: t("tutScen3Desc") },
+  ];
 
   const faqs = [
     { q: t("faqQ1"), a: t("faqA1") },
@@ -93,6 +101,52 @@ export function TutorialPage() {
                 </motion.div>
               );
             })}
+          </div>
+        </div>
+
+        {/* 适用场景举例 */}
+        <div className="panel p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={16} style={{ color: "var(--accent-soft)" }} />
+            <h3 className="font-semibold text-[14px]">{t("tutScenTitle")}</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {scenarios.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="rounded-xl p-4 flex flex-col gap-2"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+                >
+                  <div
+                    className="grid place-items-center w-9 h-9 rounded-lg"
+                    style={{ background: "var(--surface)", border: "1px solid var(--border-strong)", color: "var(--accent-soft)" }}
+                  >
+                    <Icon size={16} />
+                  </div>
+                  <h4 className="text-[13px] font-semibold leading-snug">{s.title}</h4>
+                  <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-1)" }}>
+                    {s.desc}
+                  </p>
+                </motion.div>
+              );
+            })}
+          </div>
+          <div
+            className="mt-4 flex gap-2.5 rounded-xl p-3.5"
+            style={{
+              background: "color-mix(in srgb, var(--warn) 9%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--warn) 32%, transparent)",
+            }}
+          >
+            <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: "var(--warn)" }} />
+            <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-1)" }}>
+              {t("tutScenWarn")}
+            </p>
           </div>
         </div>
 

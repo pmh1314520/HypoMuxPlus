@@ -103,6 +103,16 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 
 When boosting, the app writes a full proxy chain into `HKCU\...\Internet Settings`. Upon receiving a client TCP connection, the engine first locks the outbound NIC with `setsockopt(IPPROTO_IP, IP_UNICAST_IF, htonl(if_index))`, then binds the local source IP, forcing traffic off the default gateway for true multi-channel throughput.
 
+## Use Cases
+
+Any network links that are **mutually independent — each with its own uplink bandwidth** — can join the pool and stack up:
+
+- **Dorm · Pool your roommate's broadband**: Your PC is on a wired line that tops out around 10 MB/s; your roommate has a separate broadband line that also reaches 10 MB/s. Connect your PC to their network over Wi-Fi as well, and both links enter the pool — HypoMuxPlus stacks them so downloads can approach 20 MB/s.
+- **Add one more · Bring phone data into the pool**: Two links still not enough? Tether your phone over USB, and its 4G/5G data becomes a third independent link joining the aggregation, pushing bandwidth even higher. The more independent links, the bigger the gain.
+- **Home / Studio · Many lines at once**: With dual home broadband (e.g. two ISPs) or several independent leased lines in a studio, select them all to aggregate and let Steam updates and large downloads max out every line.
+
+> ⚠️ **Key requirement**: each link must have its own independent uplink bandwidth. If your "wired" and "wireless" actually go through the same router / same broadband line (sharing one ISP uplink), aggregation does **nothing** — they already compete for the same bandwidth, so combining them adds no total capacity.
+
 ## Usage
 
 1. Connect your PC to multiple independent networks (e.g. wired broadband + Wi-Fi + phone USB tethering).
