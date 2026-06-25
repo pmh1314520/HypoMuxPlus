@@ -36,6 +36,7 @@ let lang = localStorage.getItem(LKEY) || "zh";
 
 function applyLang() {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.documentElement.setAttribute("data-lang", lang);
   document.querySelectorAll("[data-zh]").forEach((el) => {
     const txt = el.getAttribute(lang === "zh" ? "data-zh" : "data-en");
     if (txt !== null) el.textContent = txt;
@@ -308,4 +309,67 @@ document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
       copyText(btn.getAttribute("data-copy") || "").then(() => showCopied(btn));
     });
   });
+})();
+
+/* ---------- 界面预览画廊（跟随主题切换明/暗截图） ---------- */
+(function () {
+  const PAGES = [
+    { base: "加速控制台", zh: "加速控制台", en: "Console" },
+    { base: "统计", zh: "统计", en: "Statistics" },
+    { base: "诊断", zh: "诊断", en: "Diagnostics" },
+    { base: "使用教学", zh: "使用教学", en: "Tutorial" },
+    { base: "设置", zh: "设置", en: "Settings" },
+    { base: "关于", zh: "关于", en: "About" },
+  ];
+  const tabsEl = document.getElementById("previewTabs");
+  const imgEl = document.getElementById("previewImg");
+  if (!tabsEl || !imgEl) return;
+  let active = 0;
+
+  function curTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "亮色" : "暗色";
+  }
+  function curLang() {
+    return document.documentElement.getAttribute("data-lang") === "en" ? "en" : "zh";
+  }
+  function render() {
+    const p = PAGES[active];
+    imgEl.src = "assets/" + encodeURIComponent(`${p.base}-${curTheme()}`) + ".png";
+    imgEl.alt = `HypoMuxPlus · ${p[curLang()]}`;
+    [...tabsEl.children].forEach((c, i) => c.classList.toggle("active", i === active));
+  }
+
+  PAGES.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "preview-tab";
+    b.setAttribute("data-zh", p.zh);
+    b.setAttribute("data-en", p.en);
+    b.textContent = curLang() === "en" ? p.en : p.zh;
+    b.addEventListener("click", () => {
+      active = i;
+      render();
+    });
+    tabsEl.appendChild(b);
+  });
+
+  // 点击图片全屏查看
+  imgEl.addEventListener("click", () => {
+    const ov = document.createElement("div");
+    ov.className = "preview-lightbox";
+    const big = document.createElement("img");
+    big.src = imgEl.src;
+    ov.appendChild(big);
+    ov.addEventListener("click", () => ov.remove());
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => ov.classList.add("show"));
+  });
+
+  // 主题 / 语言变化时刷新（监听 documentElement 属性变化）
+  new MutationObserver(render).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "data-lang"],
+  });
+
+  render();
 })();

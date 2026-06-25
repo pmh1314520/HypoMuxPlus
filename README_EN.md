@@ -35,6 +35,28 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 - Repositories: [GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
 - Website: see the `website/` directory (deployable to GitHub Pages / Gitee Pages).
 
+## Preview
+
+<div align="center">
+
+**Acceleration Console**
+
+<img src="./website/assets/%E5%8A%A0%E9%80%9F%E6%8E%A7%E5%88%B6%E5%8F%B0-%E6%9A%97%E8%89%B2.png" width="760" alt="Acceleration Console" />
+
+**Live Statistics · Link Diagnostics**
+
+<img src="./website/assets/%E7%BB%9F%E8%AE%A1-%E6%9A%97%E8%89%B2.png" width="760" alt="Live Statistics" />
+
+<img src="./website/assets/%E8%AF%8A%E6%96%AD-%E6%9A%97%E8%89%B2.png" width="760" alt="Link Diagnostics" />
+
+**Settings**
+
+<img src="./website/assets/%E8%AE%BE%E7%BD%AE-%E6%9A%97%E8%89%B2.png" width="760" alt="Settings" />
+
+<sub>Built-in dark / light themes and full Chinese/English bilingual support. Visit the project website for more screenshots.</sub>
+
+</div>
+
 ## Key Features
 
 - **Seamless Dual-Protocol Takeover**: Runs SOCKS5 and HTTP/HTTPS forwarders simultaneously, applying the Windows WinINet system proxy automatically. Compatible with Steam, IDM, browsers and any client honoring the system proxy.
