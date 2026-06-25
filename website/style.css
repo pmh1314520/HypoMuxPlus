@@ -204,6 +204,9 @@ nav.scrolled {
   transition: all 0.2s;
   font-family: inherit;
   font-weight: 500;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
 }
 .lang-toggle:hover {
   color: var(--text-0);
@@ -875,6 +878,10 @@ footer {
 }
 [data-theme="light"] .rail-item {
   color: #6a7484;
+}
+/* 选中项即便在浅色主题下也保持白色图标（覆盖上面同特异度规则） */
+[data-theme="light"] .rail-item.on {
+  color: #fff;
 }
 [data-theme="light"] .rail-sep {
   background: rgba(255, 255, 255, 0.08);
