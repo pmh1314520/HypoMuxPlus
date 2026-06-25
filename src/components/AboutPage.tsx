@@ -106,7 +106,7 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: {
         <motion.div
           variants={item}
           className="panel p-5 flex items-center gap-4"
-          style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.07), transparent 60%)" }}
+          style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%)" }}
         >
           <div
             className="grid place-items-center w-11 h-11 rounded-xl"
@@ -143,7 +143,7 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: {
         <motion.div
           variants={item}
           className="panel relative overflow-hidden p-6"
-          style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.06), transparent 60%)" }}
+          style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%)" }}
         >
           <div className="flex items-center gap-2 mb-2">
             <Coffee size={16} style={{ color: "var(--warn)" }} />

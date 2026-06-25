@@ -9,8 +9,8 @@ interface Props {
   running: boolean;
 }
 
-// 链路区分色（数据可视化多序列，沉稳色板）
-const HUES = ["#3b82f6", "#38bdf8", "#34d399", "#a78bfa", "#f59e0b"];
+// 链路区分色（数据可视化多序列）：首位跟随强调色，其余为沉稳辅助色板
+const HUES = ["var(--accent-soft)", "#38bdf8", "#34d399", "#a78bfa", "#f59e0b"];
 
 export function LinkDistribution({ perNic, running }: Props) {
   const { t } = useSettings();
@@ -46,7 +46,7 @@ export function LinkDistribution({ perNic, running }: Props) {
                   <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
                     <motion.div
                       className="h-full rounded-full"
-                      style={{ background: `linear-gradient(90deg, ${hue}aa, ${hue})`, boxShadow: `0 0 10px ${hue}66` }}
+                      style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${hue} 67%, transparent), ${hue})`, boxShadow: `0 0 10px color-mix(in srgb, ${hue} 40%, transparent)` }}
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.max(share * 100, n.downMbps > 0 ? 3 : 0)}%` }}
                       transition={{ type: "spring", stiffness: 120, damping: 22 }}

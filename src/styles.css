@@ -12,10 +12,10 @@
   --accent-deep: #2563eb;
   --accent-soft: #6ea8ff;
   --accent-glow: rgba(59, 130, 246, 0.25);
-  --cyan: #6ea8ff;
-  --cyan-glow: rgba(59, 130, 246, 0.25);
+  --cyan: var(--accent-soft);
+  --cyan-glow: var(--accent-glow);
   /* 数据可视化多序列色（仅用于链路区分） */
-  --series-1: #3b82f6;
+  --series-1: var(--accent);
   --series-2: #38bdf8;
   --series-3: #34d399;
   --series-4: #a78bfa;
@@ -24,7 +24,7 @@
   /* 中性深色 */
   --bg-0: #0a0c10;
   --bg-1: #0e1116;
-  --vignette: rgba(59, 130, 246, 0.05);
+  --vignette: color-mix(in srgb, var(--accent) 5%, transparent);
 
   --surface: rgba(255, 255, 255, 0.024);
   --surface-2: rgba(255, 255, 255, 0.045);
@@ -53,9 +53,9 @@
   --accent-deep: #1d4ed8;
   --accent-soft: #3b82f6;
   --accent-glow: rgba(37, 99, 235, 0.18);
-  --cyan: #3b82f6;
-  --cyan-glow: rgba(37, 99, 235, 0.18);
-  --series-1: #2563eb;
+  --cyan: var(--accent-soft);
+  --cyan-glow: var(--accent-glow);
+  --series-1: var(--accent);
   --series-2: #0ea5e9;
   --series-3: #059669;
   --series-4: #7c3aed;
@@ -266,8 +266,8 @@ input:focus-visible {
   stroke-width: 1.2;
 }
 .hmx-diagram .node-accent {
-  fill: rgba(59, 130, 246, 0.14);
-  stroke: rgba(59, 130, 246, 0.5);
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 50%, transparent);
   stroke-width: 1.4;
 }
 .hmx-diagram .nlabel {

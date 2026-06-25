@@ -194,7 +194,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
                   <span
                     className="mono text-[9px] px-1.5 py-0.5 rounded shrink-0"
                     style={{
-                      background: c.proto === "SOCKS" ? "rgba(59,130,246,0.14)" : "rgba(34,197,94,0.14)",
+                      background: c.proto === "SOCKS" ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "rgba(34,197,94,0.14)",
                       color: c.proto === "SOCKS" ? "var(--accent-soft)" : "var(--ok)",
                     }}
                   >
@@ -246,7 +246,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
                   <span
                     className="mono text-[9px] px-1.5 py-0.5 rounded shrink-0"
                     style={{
-                      background: c.proto === "SOCKS" ? "rgba(59,130,246,0.14)" : "rgba(34,197,94,0.14)",
+                      background: c.proto === "SOCKS" ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "rgba(34,197,94,0.14)",
                       color: c.proto === "SOCKS" ? "var(--accent-soft)" : "var(--ok)",
                     }}
                   >

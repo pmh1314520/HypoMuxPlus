@@ -125,7 +125,7 @@ export function StatsPage(props: Props) {
         <motion.div
           variants={item}
           className="panel p-5 flex items-center gap-4"
-          style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.06), transparent 60%)" }}
+          style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%)" }}
         >
           <div
             className="grid place-items-center w-11 h-11 rounded-xl"
@@ -261,7 +261,7 @@ function StatCard({
     <motion.div
       variants={item}
       className="panel p-5"
-      style={accent ? { background: "linear-gradient(160deg, rgba(59,130,246,0.08), transparent 60%)" } : undefined}
+      style={accent ? { background: "linear-gradient(160deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%)" } : undefined}
     >
       <div className="flex items-center gap-1.5 eyebrow mb-3">
         <Icon size={13} style={{ color: "var(--accent-soft)" }} />

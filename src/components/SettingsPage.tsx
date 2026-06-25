@@ -348,9 +348,9 @@ export function SettingsPage({ running }: Props) {
             <Segmented<SchedStrategy>
               value={strategy}
               options={[
-                { value: "rr", label: t("schedRR") },
-                { value: "least", label: t("schedLeast") },
                 { value: "weighted", label: t("schedWeighted") },
+                { value: "least", label: t("schedLeast") },
+                { value: "rr", label: t("schedRR") },
               ]}
               onChange={(v) => set("strategy", v)}
             />
