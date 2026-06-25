@@ -26,8 +26,12 @@ pub struct AppState {
     close_to_tray: AtomicBool,
     /// 悬浮窗是否启用（前端配置同步而来）
     hud_enabled: AtomicBool,
-    /// 托盘「加速/停止」菜单项句柄，用于随状态动态更新文字
+    /// 托盘菜单各项句柄，用于随状态 / 语言动态更新文字
+    tray_show: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
     tray_toggle: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
+    tray_quit: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
+    /// 托盘菜单语言：true=英文，false=中文（跟随客户端选择）
+    tray_en: AtomicBool,
 }
 
 impl Default for AppState {
@@ -37,7 +41,10 @@ impl Default for AppState {
             boosting: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(true),
             hud_enabled: AtomicBool::new(false),
+            tray_show: Mutex::new(None),
             tray_toggle: Mutex::new(None),
+            tray_quit: Mutex::new(None),
+            tray_en: AtomicBool::new(false),
         }
     }
 }
@@ -77,16 +84,35 @@ fn leave_tray(app: &AppHandle) {
     }
 }
 
-/// 根据运行状态更新托盘「加速/停止」菜单项文字。
+/// 根据运行状态与语言更新托盘「加速/停止」菜单项文字。
 fn update_tray_toggle(app: &AppHandle, running: bool) {
-    let item = app.state::<AppState>().tray_toggle.lock().clone();
+    let st = app.state::<AppState>();
+    let en = st.tray_en.load(Ordering::Relaxed);
+    let item = st.tray_toggle.lock().clone();
     if let Some(item) = item {
-        let _ = item.set_text(if running {
-            "停止加速 · Stop Boost"
-        } else {
-            "开始加速 · Start Boost"
+        let _ = item.set_text(match (running, en) {
+            (true, false) => "停止加速",
+            (false, false) => "开始加速",
+            (true, true) => "Stop Boost",
+            (false, true) => "Start Boost",
         });
     }
+}
+
+/// 按客户端选择的语言刷新整个托盘菜单（显示主界面 / 加速切换 / 退出）。
+#[tauri::command]
+fn set_tray_language(app: AppHandle, en: bool) {
+    let st = app.state::<AppState>();
+    st.tray_en.store(en, Ordering::Relaxed);
+    if let Some(show) = st.tray_show.lock().clone() {
+        let _ = show.set_text(if en { "Show Window" } else { "显示主界面" });
+    }
+    if let Some(quit) = st.tray_quit.lock().clone() {
+        let _ = quit.set_text(if en { "Exit" } else { "退出程序" });
+    }
+    let running = st.boosting.load(Ordering::Relaxed);
+    drop(st);
+    update_tray_toggle(&app, running);
 }
 
 /// 检测是否以管理员身份运行（部分稳定性增强功能需要）。
@@ -505,6 +531,7 @@ pub fn run() {
             read_text_file,
             write_text_file,
             write_binary_file,
+            set_tray_language,
             is_port_free,
             suggest_free_port,
             check_update,
@@ -516,13 +543,18 @@ pub fn run() {
             // 启动即清除任何残留的系统代理，保证干净起点
             let _ = sysproxy::disable_system_proxy();
 
-            // 构建系统托盘
-            let show = MenuItem::with_id(app, "show", "显示主界面 / Show", true, None::<&str>)?;
-            let toggle = MenuItem::with_id(app, "toggle", "开始加速 · Start Boost", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "退出程序 / Exit", true, None::<&str>)?;
+            // 构建系统托盘（初始中文，随客户端语言由 set_tray_language 刷新）
+            let show = MenuItem::with_id(app, "show", "显示主界面", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(app, "toggle", "开始加速", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &toggle, &quit])?;
-            // 保存句柄以便随加速状态动态更新文字
-            app.state::<AppState>().tray_toggle.lock().replace(toggle.clone());
+            // 保存句柄以便随加速状态 / 语言动态更新文字
+            {
+                let st = app.state::<AppState>();
+                st.tray_show.lock().replace(show.clone());
+                st.tray_toggle.lock().replace(toggle.clone());
+                st.tray_quit.lock().replace(quit.clone());
+            }
 
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())

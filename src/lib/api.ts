@@ -85,6 +85,7 @@ export const api = {
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
+  setTrayLanguage: (en: boolean) => invoke<void>("set_tray_language", { en }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
   checkUpdate: () => invoke<UpdateInfo>("check_update"),

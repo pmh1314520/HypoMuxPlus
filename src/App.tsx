@@ -254,6 +254,11 @@ function AppInner() {
     api.setCloseToTray(closeToTray).catch(() => {});
   }, [closeToTray]);
 
+  // 托盘菜单语言跟随客户端所选语言
+  useEffect(() => {
+    api.setTrayLanguage(lang === "en").catch(() => {});
+  }, [lang]);
+
   // 窗口置顶开关
   useEffect(() => {
     win.setAlwaysOnTop(alwaysOnTop).catch(() => {});
