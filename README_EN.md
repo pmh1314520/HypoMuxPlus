@@ -14,7 +14,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?style=flat-square&logo=windows)](#)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-D22128?style=flat-square)](./LICENSE)
 
-[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.0.0-3b82f6?style=for-the-badge)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.0.0/HypoMuxPlus.exe)
+[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.0.0-3b82f6?style=for-the-badge)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.0.0/HypoMuxPlus.exe)
 [![GitHub](https://img.shields.io/badge/GitHub-pmh1314520%2FHypoMuxPlus-181717?style=for-the-badge&logo=github)](https://github.com/pmh1314520/HypoMuxPlus)
 [![Gitee](https://img.shields.io/badge/Gitee-peng--minghang%2Fhypo--mux--plus-C71D23?style=for-the-badge&logo=gitee)](https://gitee.com/peng-minghang/hypo-mux-plus)
 
@@ -31,7 +31,7 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 ## Download
 
 - **Windows 10 / 11 only.** Just download and run (running as administrator is recommended to enable all stability features).
-- Direct download: **[HypoMuxPlus.exe (v1.0.0)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.0.0/HypoMuxPlus.exe)**
+- Direct download: **[HypoMuxPlus.exe (v1.0.0)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.0.0/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.0.0/HypoMuxPlus.exe))
 - Repositories: [GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
 - Website: see the `website/` directory (deployable to GitHub Pages / Gitee Pages).
 
@@ -127,6 +127,20 @@ npm run tauri build  # production build (standalone exe + installer)
 - Multi-NIC aggregation is connection-level load balancing; it cannot accelerate single-threaded rate-capped downloads.
 - For latency-sensitive online games, click **Stop** first to return to a single default gateway.
 - Some stability features (dead gateway detection) require administrator rights; core splitting works without elevation.
+
+## Support
+
+HypoMuxPlus is completely free and open source! If it helped you, consider buying the author a coffee — please note "HypoMuxPlus" when donating. Donations are entirely voluntary; all features stay free forever regardless.
+
+<div align="center">
+
+| WeChat Pay | Alipay |
+| :---: | :---: |
+| <img src="./website/assets/sponsor-wechat.png" width="220" alt="WeChat Pay" /> | <img src="./website/assets/sponsor-alipay.jpg" width="220" alt="Alipay" /> |
+
+**Developer contact: WeChat `QyPmh20061026` · QQ `2124691573`**
+
+</div>
 
 ## Acknowledgments & Derivative Notice
 
