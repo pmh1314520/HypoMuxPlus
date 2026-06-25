@@ -523,8 +523,12 @@ pub struct SpeedResult {
     pub ok: bool,
 }
 
-const BENCH_HOST: &str = "speed.cloudflare.com";
-const BENCH_PATH: &str = "/__down?bytes=2000000000";
+/// 测速候选节点（host, path）：国内可达节点优先，Cloudflare 兜底。
+/// 逐个经目标网卡探测，选用第一个能返回 200/206 且有数据下行的节点。
+const BENCH_TARGETS: &[(&str, &str)] = &[
+    ("test.ustc.edu.cn", "/backend/garbage.php?ckSize=1024"),
+    ("speed.cloudflare.com", "/__down?bytes=2000000000"),
+];
 const BENCH_PARALLEL: usize = 6;
 
 fn tls_connector() -> tokio_rustls::TlsConnector {
@@ -567,19 +571,28 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         speed: AtomicU64::new(0),
         alive: AtomicBool::new(true),
     });
-    let dst = tokio::time::timeout(std::time::Duration::from_secs(6), resolve_ipv4(BENCH_HOST, 443))
-        .await
-        .ok()?
-        .ok()?;
+
+    // 逐个候选节点探测：经该网卡能解析、连通、且返回 200/206 有数据者才采用
+    let mut chosen: Option<(SocketAddrV4, &'static str, &'static str)> = None;
+    for (host, path) in BENCH_TARGETS {
+        let dst = match tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await {
+            Ok(Ok(d)) => d,
+            _ => continue,
+        };
+        if probe_target(&nic, dst, host, path).await {
+            chosen = Some((dst, host, path));
+            break;
+        }
+    }
+    let (dst, host, path) = chosen?;
 
     let total = Arc::new(AtomicU64::new(0));
-    let start = std::time::Instant::now();
     let mut handles = Vec::with_capacity(BENCH_PARALLEL);
     for _ in 0..BENCH_PARALLEL {
         let nic = nic.clone();
         let total = total.clone();
         handles.push(tauri::async_runtime::spawn(async move {
-            let _ = bench_conn(&nic, dst, dur, &total).await;
+            let _ = bench_conn(&nic, dst, host, path, dur, &total).await;
         }));
     }
     for h in handles {
@@ -588,7 +601,6 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
 
     // 吞吐 = 总下载字节 / 测速窗口时长（不计入连接 / 握手耗时，避免严重低估）
     let bytes = total.load(Ordering::Relaxed);
-    let _ = start; // 保留以便将来扩展
     let secs = dur.as_secs_f64().max(0.001);
     if bytes == 0 {
         return None;
@@ -596,10 +608,39 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
     Some(bytes as f64 / 1024.0 / 1024.0 / secs)
 }
 
+/// 经网卡快速探测某候选节点：连通 + TLS + 收到 HTTP 200/206 且有响应体数据。
+async fn probe_target(nic: &NicRuntime, dst: SocketAddrV4, host: &str, path: &str) -> bool {
+    let fut = async {
+        let tcp = connect_via_nic(nic, dst).await.ok()?;
+        let connector = tls_connector();
+        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
+        let mut tls = connector.connect(server_name, tcp).await.ok()?;
+        let req = format!(
+            "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+        );
+        tls.write_all(req.as_bytes()).await.ok()?;
+        let mut buf = vec![0u8; 4096];
+        let n = tls.read(&mut buf).await.ok()?;
+        if n == 0 {
+            return None;
+        }
+        let head = String::from_utf8_lossy(&buf[..n]);
+        let first = head.lines().next().unwrap_or("");
+        if first.contains(" 200") || first.contains(" 206") {
+            Some(())
+        } else {
+            None
+        }
+    };
+    matches!(tokio::time::timeout(std::time::Duration::from_secs(5), fut).await, Ok(Some(())))
+}
+
 /// 单条 HTTPS 下载连接，绑定到指定网卡，持续读取并累加字节数。
 async fn bench_conn(
     nic: &NicRuntime,
     dst: SocketAddrV4,
+    host: &str,
+    path: &str,
     dur: std::time::Duration,
     total: &AtomicU64,
 ) -> Option<()> {
@@ -608,13 +649,13 @@ async fn bench_conn(
         .ok()?
         .ok()?;
     let connector = tls_connector();
-    let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(BENCH_HOST).ok()?;
+    let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
     let mut tls = tokio::time::timeout(std::time::Duration::from_secs(6), connector.connect(server_name, tcp))
         .await
         .ok()?
         .ok()?;
     let req = format!(
-        "GET {BENCH_PATH} HTTP/1.1\r\nHost: {BENCH_HOST}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
     );
     tls.write_all(req.as_bytes()).await.ok()?;
 
