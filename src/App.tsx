@@ -122,7 +122,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
     useSettings();
   const toast = useToast();
 
@@ -432,7 +432,7 @@ function AppInner() {
   useEffect(() => {
     if (prevRunningRef.current && !running) {
       const s = sessRef.current;
-      if (s.mb >= 1) {
+      if (sessionReport && s.mb >= 1) {
         setReport({ mb: s.mb, peak: s.peak, secs: s.secs, nics: Math.max(sessNicsRef.current, 1) });
       }
     }

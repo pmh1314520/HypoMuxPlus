@@ -44,7 +44,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -349,6 +349,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
           )}
           <Row icon={<Bell size={15} />} label={t("settingNotify")} hint={t("settingNotifyHint")}>
             <Switch checked={notifications} onChange={(v) => set("notifications", v)} />
+          </Row>
+          <Row icon={<Zap size={15} />} label={t("settingSessionReport")} hint={t("settingSessionReportHint")}>
+            <Switch checked={sessionReport} onChange={(v) => set("sessionReport", v)} />
           </Row>
         </Section>
 

@@ -561,6 +561,37 @@ pub async fn start(
         )
     });
 
+    // 网卡出网自检：逐张测试能否经该网卡独立连通公网，结果写入调度日志，
+    // 便于排查"多网卡只跑一张卡"——若某卡显示"失败"，说明它无法独立出网，分流到它的流量会失败。
+    {
+        let nics2 = nics.clone();
+        let app2 = app.clone();
+        let zh2 = zh;
+        tauri::async_runtime::spawn(async move {
+            let target = SocketAddrV4::new(Ipv4Addr::new(223, 5, 5, 5), 443);
+            for n in &nics2 {
+                let ok = matches!(
+                    tokio::time::timeout(std::time::Duration::from_secs(4), connect_via_nic(n, target)).await,
+                    Ok(Ok(_))
+                );
+                let _ = app2.emit(
+                    "hmx-log",
+                    if zh2 {
+                        if ok {
+                            format!("[网卡自检] {} 独立出网正常，可参与分流", n.name)
+                        } else {
+                            format!("[网卡自检] {} 无法独立连到公网！分流到它的流量会失败——请检查该网卡是否真的有独立的上网出口", n.name)
+                        }
+                    } else if ok {
+                        format!("[NIC self-test] {} egress OK", n.name)
+                    } else {
+                        format!("[NIC self-test] {} CANNOT reach the internet independently — traffic routed to it will fail", n.name)
+                    },
+                );
+            }
+        });
+    }
+
     // SOCKS5 接受循环
     {
         let eng = engine.clone();

@@ -475,7 +475,7 @@ export function AdapterTable({
                   {checked && hasIp && (
                     <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
                       <Tooltip label={t("nicWeightTip")} placement="top">
-                        <label className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-2)" }}>
+                        <label className="flex items-center gap-1 text-[10px] whitespace-nowrap shrink-0" style={{ color: "var(--text-2)" }}>
                           {t("nicWeight")}
                           <input
                             type="number"
@@ -487,13 +487,13 @@ export function AdapterTable({
                               setNicCfg(a.index, { weight: v });
                             }}
                             disabled={running}
-                            className="w-12 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
+                            className="hmx-num w-12 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
                             style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
                           />
                         </label>
                       </Tooltip>
                       <Tooltip label={t("nicLimitTip")} placement="top">
-                        <label className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-2)" }}>
+                        <label className="flex items-center gap-1 text-[10px] whitespace-nowrap shrink-0" style={{ color: "var(--text-2)" }}>
                           {t("nicLimit")}
                           <input
                             type="number"
@@ -505,10 +505,10 @@ export function AdapterTable({
                               setNicCfg(a.index, { limit: v });
                             }}
                             disabled={running}
-                            className="w-14 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
+                            className="hmx-num w-14 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
                             style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
                           />
-                          <span style={{ color: "var(--text-2)" }}>MB/s</span>
+                          <span className="whitespace-nowrap" style={{ color: "var(--text-2)" }}>MB/s</span>
                         </label>
                       </Tooltip>
                     </div>

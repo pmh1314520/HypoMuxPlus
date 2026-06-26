@@ -306,3 +306,15 @@ input:focus-visible {
     stroke-dashoffset: -15;
   }
 }
+
+/* 隐藏数值输入框的浏览器原生上下增减箭头（保持纯净外观，禁用原生 UI 组件） */
+.hmx-num::-webkit-outer-spin-button,
+.hmx-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.hmx-num {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
