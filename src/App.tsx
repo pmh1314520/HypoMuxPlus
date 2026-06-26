@@ -31,6 +31,7 @@ import {
   onTrayToggle,
   onNicAlert,
   onAutoBoost,
+  onCli,
   win,
   type AdapterInfo,
   type ConnInfo,
@@ -249,6 +250,8 @@ function AppInner() {
       // 记录本次会话出现过的最大活跃网卡数（供战报展示协同网卡数）
       const activeNics = p.perNic.filter((nn) => nn.downMbps > 0).length;
       if (activeNics > sessNicsRef.current) sessNicsRef.current = activeNics;
+      // 托盘图标实时显示合并下行速度
+      api.updateTraySpeed(p.total.downMbps).catch(() => {});
       // 按真实时间间隔积分本次下载量(MB)，避免遥测抖动导致统计偏差
       const now = Date.now();
       const last = lastTeleRef.current;
@@ -302,6 +305,17 @@ function AppInner() {
         }
       } else if (runningRef.current && autoStartedRef.current) {
         autoStartedRef.current = false;
+        onBoostRef.current();
+      }
+    }).then((u) => unlisteners.push(u));
+
+    // CLI 控制（第二个实例转发的命令）
+    onCli((action) => {
+      if (action === "start") {
+        if (!runningRef.current) onBoostRef.current();
+      } else if (action === "stop") {
+        if (runningRef.current) onBoostRef.current();
+      } else if (action === "toggle") {
         onBoostRef.current();
       }
     }).then((u) => unlisteners.push(u));
@@ -439,6 +453,7 @@ function AppInner() {
       setSessionMB(0);
       setConnections([]);
       lastTeleRef.current = 0;
+      api.resetTrayIcon().catch(() => {});
       return;
     }
     const start = Date.now();

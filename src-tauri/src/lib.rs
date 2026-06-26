@@ -34,6 +34,8 @@ pub struct AppState {
     tray_en: AtomicBool,
     /// 进程感知自动加速：是否启用（检测到下载类应用自动加速）
     app_watch: AtomicBool,
+    /// 托盘图标句柄，用于动态渲染实时速度数字图标
+    tray: Mutex<Option<tauri::tray::TrayIcon<tauri::Wry>>>,
 }
 
 impl Default for AppState {
@@ -48,6 +50,7 @@ impl Default for AppState {
             tray_quit: Mutex::new(None),
             tray_en: AtomicBool::new(false),
             app_watch: AtomicBool::new(false),
+            tray: Mutex::new(None),
         }
     }
 }
@@ -129,6 +132,112 @@ fn any_watch_process_running() -> bool {
     };
     let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
     WATCH_PROCESSES.iter().any(|p| text.contains(p))
+}
+
+/// 3×5 像素字形（位 0b100=左,0b010=中,0b001=右），用于在托盘图标上渲染速度数字。
+fn glyph_3x5(c: char) -> [u8; 5] {
+    match c {
+        '0' => [0b111, 0b101, 0b101, 0b101, 0b111],
+        '1' => [0b010, 0b110, 0b010, 0b010, 0b111],
+        '2' => [0b111, 0b001, 0b111, 0b100, 0b111],
+        '3' => [0b111, 0b001, 0b111, 0b001, 0b111],
+        '4' => [0b101, 0b101, 0b111, 0b001, 0b001],
+        '5' => [0b111, 0b100, 0b111, 0b001, 0b111],
+        '6' => [0b111, 0b100, 0b111, 0b101, 0b111],
+        '7' => [0b111, 0b001, 0b010, 0b010, 0b010],
+        '8' => [0b111, 0b101, 0b111, 0b101, 0b111],
+        '9' => [0b111, 0b101, 0b111, 0b001, 0b111],
+        _ => [0, 0, 0, 0, 0],
+    }
+}
+
+/// 将整数速度（MB/s）渲染为 32×32 RGBA 托盘图标（白字 + 深色描边，适配明暗任务栏）。
+fn render_speed_icon(mbps: f64) -> tauri::image::Image<'static> {
+    const SIZE: usize = 32;
+    let mut buf = vec![0u8; SIZE * SIZE * 4];
+    let put = |buf: &mut [u8], x: i32, y: i32, rgba: (u8, u8, u8, u8)| {
+        if x < 0 || y < 0 || x >= SIZE as i32 || y >= SIZE as i32 {
+            return;
+        }
+        let i = (y as usize * SIZE + x as usize) * 4;
+        buf[i] = rgba.0;
+        buf[i + 1] = rgba.1;
+        buf[i + 2] = rgba.2;
+        buf[i + 3] = rgba.3;
+    };
+    let n = mbps.round().clamp(0.0, 999.0) as u32;
+    let s = n.to_string();
+    let count = s.len();
+    let scale: i32 = if count <= 1 { 6 } else if count == 2 { 5 } else { 3 };
+    let gw = 3 * scale;
+    let gap = scale.max(2);
+    let total_w = count as i32 * gw + (count as i32 - 1) * gap;
+    let mut x0 = (SIZE as i32 - total_w) / 2;
+    let y0 = (SIZE as i32 - 5 * scale) / 2;
+    for ch in s.chars() {
+        let g = glyph_3x5(ch);
+        for (ry, row) in g.iter().enumerate() {
+            for cx in 0..3i32 {
+                if row & (0b100 >> cx) != 0 {
+                    for dy in 0..scale {
+                        for dx in 0..scale {
+                            let px = x0 + cx * scale + dx;
+                            let py = y0 + ry as i32 * scale + dy;
+                            // 先描边（深色，四周 1px），再覆白字，保证任意任务栏底色下都清晰
+                            put(&mut buf, px + 1, py + 1, (10, 14, 22, 220));
+                            put(&mut buf, px, py, (255, 255, 255, 255));
+                        }
+                    }
+                }
+            }
+        }
+        x0 += gw + gap;
+    }
+    tauri::image::Image::new_owned(buf, SIZE as u32, SIZE as u32)
+}
+
+/// 更新托盘图标为当前合并速度数字 + 悬停提示。
+#[tauri::command]
+fn update_tray_speed(app: AppHandle, mbps: f64) {
+    let tray = app.state::<AppState>().tray.lock().clone();
+    if let Some(tray) = tray {
+        let _ = tray.set_icon(Some(render_speed_icon(mbps)));
+        let _ = tray.set_tooltip(Some(&format!("HypoMuxPlus · ↓ {mbps:.1} MB/s")));
+    }
+}
+
+/// 还原托盘默认图标与提示（停止加速时调用）。
+#[tauri::command]
+fn reset_tray_icon(app: AppHandle) {
+    let tray = app.state::<AppState>().tray.lock().clone();
+    if let Some(tray) = tray {
+        if let Some(def) = app.default_window_icon() {
+            let _ = tray.set_icon(Some(def.clone()));
+        }
+        let _ = tray.set_tooltip(Some("HypoMuxPlus · 多网卡带宽聚合工具"));
+    }
+}
+
+/// 处理命令行参数（CLI 控制）：boost/start、stop、toggle、show、quit。
+/// 第二个实例的参数经 single-instance 转发到首个实例执行。
+fn handle_cli(app: &AppHandle, argv: &[String]) {
+    let args: Vec<String> = argv.iter().map(|s| s.to_lowercase()).collect();
+    let has = |k: &str| args.iter().any(|a| a == k);
+    if has("--quit") || has("--exit") {
+        cleanup(app);
+        app.exit(0);
+        return;
+    }
+    if has("--show") {
+        leave_tray(app);
+    }
+    if has("--boost") || has("--start") {
+        let _ = app.emit("hmx-cli", "start");
+    } else if has("--stop") {
+        let _ = app.emit("hmx-cli", "stop");
+    } else if has("--toggle") {
+        let _ = app.emit("hmx-cli", "toggle");
+    }
 }
 
 /// 按客户端选择的语言刷新整个托盘菜单（显示主界面 / 加速切换 / 退出）。
@@ -543,6 +652,10 @@ fn cleanup(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // single-instance 必须最先注册：第二个实例的命令行参数会转发到首个实例
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            handle_cli(app, &argv);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -581,6 +694,8 @@ pub fn run() {
             write_binary_file,
             fetch_text,
             set_tray_language,
+            update_tray_speed,
+            reset_tray_icon,
             set_app_watch,
             is_port_free,
             suggest_free_port,
@@ -592,6 +707,18 @@ pub fn run() {
         .setup(|app| {
             // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
             sysproxy::clear_residual_proxy();
+
+            // 首个实例自身的命令行参数（CLI 控制）：延迟到前端就绪后执行
+            {
+                let app_handle = app.handle().clone();
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                if !args.is_empty() {
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
+                        handle_cli(&app_handle, &args);
+                    });
+                }
+            }
 
             // 进程感知自动加速：后台轮询目标进程，状态变化时通知前端
             {
@@ -657,6 +784,9 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // 保存托盘句柄，供动态速度图标更新
+            app.state::<AppState>().tray.lock().replace(_tray);
 
             Ok(())
         })

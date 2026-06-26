@@ -92,6 +92,8 @@ export const api = {
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
   setTrayLanguage: (en: boolean) => invoke<void>("set_tray_language", { en }),
   setAppWatch: (enabled: boolean) => invoke<void>("set_app_watch", { enabled }),
+  updateTraySpeed: (mbps: number) => invoke<void>("update_tray_speed", { mbps }),
+  resetTrayIcon: () => invoke<void>("reset_tray_icon"),
   fetchText: (url: string) => invoke<string>("fetch_text", { url }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
@@ -157,6 +159,10 @@ export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): P
 /** 进程感知自动加速：后端检测到/退出下载类应用时推送 boost=true/false */
 export const onAutoBoost = (cb: (boost: boolean) => void): Promise<UnlistenFn> =>
   listen<boolean>("hmx-autoboost", (e) => cb(e.payload));
+
+/** CLI 控制：第二个实例转发的命令（start/stop/toggle） */
+export const onCli = (cb: (action: string) => void): Promise<UnlistenFn> =>
+  listen<string>("hmx-cli", (e) => cb(e.payload));
 
 export const onConnClosed = (cb: (c: ConnInfo) => void): Promise<UnlistenFn> =>
   listen<ConnInfo>("hmx-conn-closed", (e) => cb(e.payload));
