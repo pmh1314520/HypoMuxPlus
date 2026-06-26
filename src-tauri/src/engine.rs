@@ -564,6 +564,14 @@ struct BenchTarget {
     port: u16,
 }
 const BENCH_TARGETS: &[BenchTarget] = &[
+    // 国内公共镜像优先：阿里云 / 清华 TUNA，国内极快、路径长期稳定、HTTP/HTTPS 均可达
+    // ls-lR.gz 是 Ubuntu 镜像根部恒久存在的索引文件（数十 MB），适合做吞吐采样
+    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/ls-lR.gz", port: 443 },
+    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/ls-lR.gz", port: 80 },
+    BenchTarget { host: "mirrors.tuna.tsinghua.edu.cn", path: "/ubuntu/ls-lR.gz", port: 443 },
+    BenchTarget { host: "mirrors.tuna.tsinghua.edu.cn", path: "/ubuntu/ls-lR.gz", port: 80 },
+    BenchTarget { host: "mirrors.cloud.tencent.com", path: "/ubuntu/ls-lR.gz", port: 80 },
+    // 教育网 / 国际兜底
     BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 443 },
     BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 80 },
     BenchTarget { host: "speed.cloudflare.com", path: "/__down?bytes=104857600", port: 443 },
