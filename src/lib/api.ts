@@ -92,6 +92,7 @@ export const api = {
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
   setTrayLanguage: (en: boolean) => invoke<void>("set_tray_language", { en }),
   setAppWatch: (enabled: boolean) => invoke<void>("set_app_watch", { enabled }),
+  fetchText: (url: string) => invoke<string>("fetch_text", { url }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
   checkUpdate: () => invoke<UpdateInfo>("check_update"),
@@ -112,6 +113,7 @@ export interface HudConfig {
   accent: string;
   accentSoft: string;
   theme: string;
+  clickThrough: boolean;
 }
 
 /** 主窗口推送 HUD 配置；HUD 窗口订阅以实时应用 */

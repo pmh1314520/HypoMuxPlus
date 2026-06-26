@@ -355,6 +355,20 @@ fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
 
+/// 拉取远程文本（用于分流规则订阅：从 URL 导入规则列表）。
+#[tauri::command]
+async fn fetch_text(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status().as_u16()));
+    }
+    resp.text().await.map_err(|e| e.to_string())
+}
+
 /// 检测本地端口是否可用（127.0.0.1 能否成功监听）。
 #[tauri::command]
 fn is_port_free(port: u16) -> bool {
@@ -565,6 +579,7 @@ pub fn run() {
             read_text_file,
             write_text_file,
             write_binary_file,
+            fetch_text,
             set_tray_language,
             set_app_watch,
             is_port_free,

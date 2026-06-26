@@ -45,6 +45,7 @@ interface Settings {
   hudShowUp: boolean;
   hudShowConns: boolean;
   hudShowNics: boolean;
+  hudClickThrough: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -76,6 +77,7 @@ const DEFAULTS: Settings = {
   hudShowUp: true,
   hudShowConns: true,
   hudShowNics: false,
+  hudClickThrough: false,
 };
 
 const STORAGE_KEY = "hmx-plus-settings";

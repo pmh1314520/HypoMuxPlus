@@ -37,6 +37,7 @@ function initialConfig(): HudConfig {
     accent: a.accent,
     accentSoft: a.soft,
     theme: (s.theme as string) || "dark",
+    clickThrough: !!s.hudClickThrough,
   };
 }
 
@@ -53,6 +54,7 @@ export function Hud() {
   const [running, setRunning] = useState(false);
   const [tele, setTele] = useState<TelemetryPayload | null>(null);
   const [hist, setHist] = useState<number[]>(new Array(SPARK_LEN).fill(0));
+  const [nicHist, setNicHist] = useState<Record<string, number[]>>({});
   const [notice, setNotice] = useState<{ kind: string; msg: string } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +91,14 @@ export function Hud() {
     onTelemetry((p) => {
       setTele(p);
       setHist((prev) => [...prev.slice(1), p.total.downMbps]);
+      setNicHist((prev) => {
+        const next: Record<string, number[]> = {};
+        for (const n of p.perNic) {
+          const base = prev[n.name] ?? new Array(SPARK_LEN).fill(0);
+          next[n.name] = [...base.slice(-(SPARK_LEN - 1)), n.downMbps];
+        }
+        return next;
+      });
     }).then((u) => uns.push(u));
     let noticeTimer: ReturnType<typeof setTimeout> | undefined;
     onHudNotice((n) => {
@@ -127,6 +137,11 @@ export function Hud() {
     return () => ro.disconnect();
   }, []);
 
+  // 点击穿透：开启后悬浮窗忽略鼠标事件，点击穿到下层窗口（在主程序设置中关闭可恢复交互）
+  useEffect(() => {
+    getCurrentWindow().setIgnoreCursorEvents(cfg.clickThrough).catch(() => {});
+  }, [cfg.clickThrough]);
+
   const down = tele?.total.downMbps ?? 0;
   const up = tele?.total.upMbps ?? 0;
   const conns = tele?.total.connections ?? 0;
@@ -146,7 +161,6 @@ export function Hud() {
   const cardBg = (light ? "rgba(255,255,255," : "rgba(16,19,26,") + cfg.opacity + ")";
 
   const nics = cfg.showNics ? (tele?.perNic ?? []).slice(0, 4) : [];
-  const nicMax = Math.max(...nics.map((n) => n.downMbps), 0.001);
   const drag = !cfg.locked ? "" : undefined;
 
   return (
@@ -218,22 +232,39 @@ export function Hud() {
         {/* 分网卡明细 */}
         {nics.length > 0 && (
           <div data-tauri-drag-region={drag} className="flex flex-col gap-1 mt-0.5 pt-1.5" style={{ borderTop: `1px solid ${light ? "rgba(15,30,60,0.08)" : "rgba(255,255,255,0.06)"}` }}>
-            {nics.map((n) => (
-              <div key={n.index} className="flex items-center gap-2">
-                <span className="text-[9px] truncate flex-1" style={{ color: txt2 }}>
-                  {n.name}
-                </span>
-                <div className="w-[64px] h-[3px] rounded-full overflow-hidden" style={{ background: light ? "rgba(15,30,60,0.1)" : "rgba(255,255,255,0.1)" }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${Math.min(100, (n.downMbps / nicMax) * 100)}%`, background: cfg.accentSoft }}
-                  />
+            {nics.map((n) => {
+              const nh = nicHist[n.name] ?? [];
+              const nmax = Math.max(...nh, 0.001);
+              const sw = 64;
+              const sh = 14;
+              const npts =
+                nh.length > 1
+                  ? nh
+                      .map((v, i) => `${((i / (nh.length - 1)) * sw).toFixed(1)},${(sh - 1 - (v / nmax) * (sh - 2)).toFixed(1)}`)
+                      .join(" ")
+                  : `0,${sh - 1} ${sw},${sh - 1}`;
+              return (
+                <div key={n.index} className="flex items-center gap-2">
+                  <span className="text-[9px] truncate flex-1" style={{ color: txt2 }}>
+                    {n.name}
+                  </span>
+                  <svg width={sw} height={sh} viewBox={`0 0 ${sw} ${sh}`} preserveAspectRatio="none" className="shrink-0">
+                    <polyline
+                      points={npts}
+                      fill="none"
+                      stroke={cfg.accentSoft}
+                      strokeWidth="1.3"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      opacity={n.downMbps > 0 ? 1 : 0.4}
+                    />
+                  </svg>
+                  <span className="text-[9px] mono w-[34px] text-right" style={{ color: txt0 }}>
+                    {fmtSpeed(n.downMbps, cfg.unit).value}
+                  </span>
                 </div>
-                <span className="text-[9px] mono w-[34px] text-right" style={{ color: txt0 }}>
-                  {fmtSpeed(n.downMbps, cfg.unit).value}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {/* HUD 内提示（来自主窗口的同步通知，托盘模式下也能看到反馈） */}

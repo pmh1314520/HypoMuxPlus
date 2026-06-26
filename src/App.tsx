@@ -121,7 +121,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough } =
     useSettings();
   const toast = useToast();
 
@@ -373,8 +373,9 @@ function AppInner() {
       accent: a.accent,
       accentSoft: a.soft,
       theme,
+      clickThrough: hudClickThrough,
     }).catch(() => {});
-  }, [hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, accent, theme]);
+  }, [hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, accent, theme, hudClickThrough]);
 
   // 持久化已选网卡（供"启动后自动加速"复用）
   useEffect(() => {

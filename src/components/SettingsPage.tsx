@@ -44,7 +44,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -455,6 +455,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
               <Row label={t("settingHudNics")} hint={t("settingHudNicsHint")}>
                 <Switch checked={hudShowNics} onChange={(v) => set("hudShowNics", v)} />
               </Row>
+              <Row label={t("settingHudClickThrough")} hint={t("settingHudClickThroughHint")}>
+                <Switch checked={hudClickThrough} onChange={(v) => set("hudClickThrough", v)} />
+              </Row>
               <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
                 <div className="eyebrow mb-2.5">{t("hudPreview")}</div>
                 <div className="grid place-items-center py-4 rounded-xl" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
@@ -830,6 +833,9 @@ function RouteRulesEditor({
   setRules: (r: { pattern: string; action: string }[]) => void;
 }) {
   const { t } = useSettings();
+  const toast = useToast();
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
   const nics = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
 
   const update = (i: number, patch: Partial<{ pattern: string; action: string }>) => {
@@ -837,6 +843,46 @@ function RouteRulesEditor({
   };
   const add = () => setRules([...rules, { pattern: "", action: "aggregate" }]);
   const remove = (i: number) => setRules(rules.filter((_, idx) => idx !== i));
+
+  // 规则订阅：从 URL 拉取规则列表并合并（每行：pattern 或 pattern,action）
+  const importFromUrl = async () => {
+    const url = importUrl.trim();
+    if (!url || importing) return;
+    setImporting(true);
+    try {
+      const text = await api.fetchText(url);
+      const parsed: { pattern: string; action: string }[] = [];
+      for (const raw of text.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#") || line.startsWith("//")) continue;
+        const [pat, act] = line.split(/[,\s]+/);
+        if (!pat) continue;
+        const action = act && /^(direct|aggregate|nic:\d+)$/.test(act) ? act : "direct";
+        parsed.push({ pattern: pat.toLowerCase(), action });
+      }
+      if (parsed.length === 0) {
+        toast("warning", t("rulesEmpty"));
+        return;
+      }
+      // 合并去重（按 pattern+action）
+      const seen = new Set(rules.map((r) => `${r.pattern}|${r.action}`));
+      const merged = [...rules];
+      for (const r of parsed) {
+        const k = `${r.pattern}|${r.action}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          merged.push(r);
+        }
+      }
+      setRules(merged);
+      setImportUrl("");
+      toast("success", t("msgRulesImported", { n: parsed.length }));
+    } catch (e) {
+      toast("error", t("msgRulesImportFailed", { err: String(e) }));
+    } finally {
+      setImporting(false);
+    }
+  };
 
   return (
     <div className="pt-1 flex flex-col gap-2">
@@ -884,6 +930,29 @@ function RouteRulesEditor({
       >
         <Plus size={14} /> {t("rulesAdd")}
       </button>
+      <div className="flex items-center gap-2 mt-1 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+        <input
+          value={importUrl}
+          onChange={(e) => setImportUrl(e.target.value)}
+          placeholder={t("rulesImportPh")}
+          className="flex-1 px-2.5 py-1.5 rounded-lg text-[12px] outline-none"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)" }}
+        />
+        <button
+          onClick={importFromUrl}
+          disabled={importing || !importUrl.trim()}
+          className="px-3 py-1.5 rounded-lg text-[12.5px] font-medium shrink-0 transition-colors"
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
+            color: "var(--accent-soft)",
+            opacity: importing || !importUrl.trim() ? 0.5 : 1,
+            cursor: importing || !importUrl.trim() ? "not-allowed" : "pointer",
+          }}
+        >
+          {t("rulesImport")}
+        </button>
+      </div>
     </div>
   );
 }
