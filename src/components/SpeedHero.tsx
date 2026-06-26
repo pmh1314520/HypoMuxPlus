@@ -16,6 +16,7 @@ interface Props {
   busy: boolean;
   canBoost: boolean;
   onBoost: () => void;
+  onAggregate: () => void;
 }
 
 function fmtUptime(sec: number): string {
@@ -25,7 +26,7 @@ function fmtUptime(sec: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running, busy, canBoost, onBoost }: Props) {
+export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running, busy, canBoost, onBoost, onAggregate }: Props) {
   const { t, strategy, downLimit, bypassList } = useSettings();
   const toast = useToast();
   const total = telemetry?.total ?? { downMbps: 0, upMbps: 0, connections: 0 };
@@ -118,6 +119,14 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
           {/* 右上：端点 + 加速按钮 */}
           <div className="flex flex-col items-end gap-3">
             <BoostButton running={running} busy={busy} disabled={!canBoost} onClick={onBoost} />
+            <button
+              onClick={onAggregate}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors hover:[background:var(--surface-hover)]"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-soft)" }}
+            >
+              <Gauge size={13} />
+              {t("aggRun")}
+            </button>
           </div>
         </div>
 

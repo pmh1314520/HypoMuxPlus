@@ -600,16 +600,26 @@ fn tls_connector() -> tokio_rustls::TlsConnector {
 }
 
 /// 逐张网卡跑分：经各网卡多条并发连接从测速节点下载，测真实聚合吞吐（MB/s）。
+/// 所有网卡**并发**测试，既加速诊断，也支撑控制台"一键聚合测速"的同时跑分。
 pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_secs: u64) -> Vec<SpeedResult> {
     let dur = std::time::Duration::from_secs(duration_secs.clamp(2, 15));
-    let mut out = Vec::with_capacity(selected.len());
+    let mut handles = Vec::with_capacity(selected.len());
     for s in selected {
-        let r = match bench_one(&app, &s, dur).await {
-            Some(mbps) => SpeedResult { index: s.index, name: s.name.clone(), mbps, ok: true },
-            None => SpeedResult { index: s.index, name: s.name.clone(), mbps: 0.0, ok: false },
-        };
-        let _ = app.emit("hmx-speedtest", r.clone());
-        out.push(r);
+        let app2 = app.clone();
+        handles.push(tauri::async_runtime::spawn(async move {
+            let r = match bench_one(&app2, &s, dur).await {
+                Some(mbps) => SpeedResult { index: s.index, name: s.name.clone(), mbps, ok: true },
+                None => SpeedResult { index: s.index, name: s.name.clone(), mbps: 0.0, ok: false },
+            };
+            let _ = app2.emit("hmx-speedtest", r.clone());
+            r
+        }));
+    }
+    let mut out = Vec::with_capacity(handles.len());
+    for h in handles {
+        if let Ok(r) = h.await {
+            out.push(r);
+        }
     }
     out
 }

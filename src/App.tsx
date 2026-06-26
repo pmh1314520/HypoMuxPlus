@@ -13,6 +13,7 @@ import { AboutPage } from "./components/AboutPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { Onboarding } from "./components/Onboarding";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { AggregateSpeedTest } from "./components/AggregateSpeedTest";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
 import { useSettings, ACCENTS } from "./store";
@@ -119,6 +120,7 @@ function AppInner() {
   const [connHistory, setConnHistory] = useState<ClosedConn[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("hmx-onboarded"));
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [aggOpen, setAggOpen] = useState(false);
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
   const [lifetimePeak, setLifetimePeak] = useState<number>(() => Number(localStorage.getItem(LIFE_PEAK_KEY)) || 0);
   const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
@@ -425,6 +427,35 @@ function AppInner() {
     }
   };
 
+  // 一键聚合测速：对已选网卡并发跑分，展示合并速度与提升幅度
+  const runAggregate = async () => {
+    const valid: SelectedNic[] = adapters
+      .filter((a) => selected.has(a.index) && a.ipv4 && a.ipv4 !== "0.0.0.0")
+      .map((a) => ({ index: a.index, name: a.alias, ip: a.ipv4 }));
+    if (valid.length === 0) {
+      toast("warning", t("aggNoSel"));
+      return;
+    }
+    setBenchmarking(true);
+    setSpeedResults({});
+    try {
+      await api.speedTest(valid, 8);
+    } catch (e) {
+      toast("error", String(e));
+    } finally {
+      setBenchmarking(false);
+    }
+  };
+  const onAggregate = () => {
+    const hasSel = adapters.some((a) => selected.has(a.index) && a.ipv4 && a.ipv4 !== "0.0.0.0");
+    if (!hasSel) {
+      toast("warning", t("aggNoSel"));
+      return;
+    }
+    setAggOpen(true);
+    if (!benchmarking) void runAggregate();
+  };
+
   // 一键诊断：先测延迟，再测吞吐
   const onDiagnose = async () => {
     await onTest();
@@ -603,6 +634,7 @@ function AppInner() {
                     connections={connections}
                     connHistory={connHistory}
                     clearHistory={clearConnHistory}
+                    onAggregate={onAggregate}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />
@@ -658,6 +690,17 @@ function AppInner() {
       )}
 
       {update && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
+
+      {aggOpen && (
+        <AggregateSpeedTest
+          adapters={adapters}
+          selected={selected}
+          speedResults={speedResults}
+          running={benchmarking}
+          onClose={() => setAggOpen(false)}
+          onRun={runAggregate}
+        />
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ interface Props {
   connections: ConnInfo[];
   connHistory: ClosedConn[];
   clearHistory: () => void;
+  onAggregate: () => void;
 }
 
 export function Dashboard(props: Props) {
@@ -57,6 +58,7 @@ export function Dashboard(props: Props) {
           busy={props.busy}
           canBoost={props.canBoost}
           onBoost={props.onBoost}
+          onAggregate={props.onAggregate}
         />
       </motion.div>
       <motion.div
