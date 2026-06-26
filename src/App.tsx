@@ -752,6 +752,7 @@ function AppInner() {
                     diagnosing={testing || benchmarking}
                     onDiagnose={onDiagnose}
                     onTestOne={onTestOne}
+                    onApplyHealthy={applySelection}
                   />
                 ) : view === "stats" ? (
                   <StatsPage

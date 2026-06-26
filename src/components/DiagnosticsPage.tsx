@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, Stethoscope } from "lucide-react";
+import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, ShieldCheck, Stethoscope } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
@@ -15,6 +15,22 @@ interface Props {
   diagnosing: boolean;
   onDiagnose: () => void;
   onTestOne: (a: AdapterInfo) => Promise<void>;
+  onApplyHealthy: (indices: number[]) => void;
+}
+
+const DIAG_HISTORY_KEY = "hmx-diag-history";
+type DiagHistory = Record<number, { grade: string; ts: number }>;
+function loadDiagHistory(): DiagHistory {
+  try {
+    const raw = localStorage.getItem(DIAG_HISTORY_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
 }
 
 type Grade = { key: string; color: string };
@@ -41,12 +57,42 @@ function gradeOf(lat: LatencyResult | undefined, sp: { mbps: number; ok: boolean
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
-export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing, onDiagnose, onTestOne }: Props) {
+export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing, onDiagnose, onTestOne, onApplyHealthy }: Props) {
   const { t } = useSettings();
   const toast = useToast();
   const [testingIdx, setTestingIdx] = useState<number | null>(null);
+  const [history, setHistory] = useState<DiagHistory>(loadDiagHistory);
   const valid = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
   const hasResults = valid.some((a) => latencies[a.index] || speedResults[a.index]);
+
+  // 诊断结果落地为历史（下次进入诊断页可见"上次评级"），并据此自适应
+  useEffect(() => {
+    if (!hasResults) return;
+    setHistory((prev) => {
+      const next = { ...prev };
+      for (const a of valid) {
+        const g = gradeOf(latencies[a.index], speedResults[a.index]);
+        if (g.key !== "gradePending") next[a.index] = { grade: g.key, ts: Date.now() };
+      }
+      localStorage.setItem(DIAG_HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latencies, speedResults]);
+
+  // 健康网卡：综合评级为优秀/良好/一般者
+  const applyHealthy = () => {
+    const healthy = valid.filter((a) => {
+      const g = gradeOf(latencies[a.index], speedResults[a.index]).key;
+      return g === "gradeExcellent" || g === "gradeGood" || g === "gradeFair";
+    });
+    if (healthy.length === 0) {
+      toast("warning", t("diagNoHealthy"));
+      return;
+    }
+    onApplyHealthy(healthy.map((a) => a.index));
+    toast("success", t("msgHealthyApplied", { n: healthy.length }));
+  };
 
   const retestOne = async (a: AdapterInfo) => {
     if (diagnosing || testingIdx !== null) return;
@@ -282,6 +328,22 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
             <ImageDown size={16} />
             {t("diagExportImg")}
           </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={!hasResults}
+            onClick={applyHealthy}
+            className="flex items-center gap-2 h-[42px] px-4 rounded-xl font-semibold text-[13.5px] shrink-0 transition-colors"
+            style={{
+              background: "color-mix(in srgb, var(--ok) 16%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--ok) 35%, transparent)",
+              color: "var(--ok)",
+              opacity: hasResults ? 1 : 0.5,
+              cursor: hasResults ? "pointer" : "not-allowed",
+            }}
+          >
+            <ShieldCheck size={16} />
+            {t("diagApplyHealthy")}
+          </motion.button>
         </div>
 
         {valid.length === 0 ? (
@@ -310,6 +372,14 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {history[a.index] && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                          style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+                        >
+                          {t("diagLast")}: {t(history[a.index].grade)}
+                        </span>
+                      )}
                       <span
                         className="text-[12px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap"
                         style={{ background: `color-mix(in srgb, ${g.color} 16%, transparent)`, color: g.color }}
