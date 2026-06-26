@@ -564,19 +564,17 @@ struct BenchTarget {
     port: u16,
 }
 const BENCH_TARGETS: &[BenchTarget] = &[
-    // 国内公共镜像优先：阿里云 / 清华 TUNA，国内极快、路径长期稳定、HTTP/HTTPS 均可达
-    // ls-lR.gz 是 Ubuntu 镜像根部恒久存在的索引文件（数十 MB），适合做吞吐采样
-    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/ls-lR.gz", port: 443 },
-    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/ls-lR.gz", port: 80 },
-    BenchTarget { host: "mirrors.tuna.tsinghua.edu.cn", path: "/ubuntu/ls-lR.gz", port: 443 },
-    BenchTarget { host: "mirrors.tuna.tsinghua.edu.cn", path: "/ubuntu/ls-lR.gz", port: 80 },
-    BenchTarget { host: "mirrors.cloud.tencent.com", path: "/ubuntu/ls-lR.gz", port: 80 },
+    // 国内公共镜像优先：阿里云 / 清华 / 腾讯，国内极快、HTTP/HTTPS 均可达。
+    // Contents-amd64.gz 是 Ubuntu 镜像 dists 下恒久存在的大文件（约 40MB），适合吞吐采样。
+    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/dists/jammy/Contents-amd64.gz", port: 80 },
+    BenchTarget { host: "mirrors.aliyun.com", path: "/ubuntu/dists/jammy/Contents-amd64.gz", port: 443 },
+    BenchTarget { host: "mirrors.tuna.tsinghua.edu.cn", path: "/ubuntu/dists/jammy/Contents-amd64.gz", port: 443 },
+    BenchTarget { host: "mirrors.cloud.tencent.com", path: "/ubuntu/dists/jammy/Contents-amd64.gz", port: 80 },
+    BenchTarget { host: "mirrors.ustc.edu.cn", path: "/ubuntu/dists/jammy/Contents-amd64.gz", port: 443 },
     // 教育网 / 国际兜底
     BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 443 },
-    BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 80 },
     BenchTarget { host: "speed.cloudflare.com", path: "/__down?bytes=104857600", port: 443 },
     BenchTarget { host: "speedtest.tele2.net", path: "/100MB.zip", port: 80 },
-    BenchTarget { host: "speedtest.tele2.net", path: "/100MB.zip", port: 443 },
 ];
 const BENCH_PARALLEL: usize = 6;
 
@@ -668,13 +666,14 @@ async fn bench_one(app: &AppHandle, s: &SelectedNic, dur: std::time::Duration) -
         }
         for ip in ips {
             let dst = SocketAddrV4::new(ip, t.port);
-            if probe_target(&nic, dst, t.host, t.path, tls).await {
-                log(format!("[测速] [{}] 选用节点 {}:{} ({})", nic.name, t.host, t.port, ip));
+            let (ok, info) = probe_target(&nic, dst, t.host, t.path, tls).await;
+            if ok {
+                log(format!("[测速] [{}] 选用节点 {}:{} ({}) [{}]", nic.name, t.host, t.port, ip, info));
                 chosen = Some((dst, t.host, t.path, tls));
                 break 'outer;
             }
+            log(format!("[测速] [{}] 节点 {}:{} 不可用: {}", nic.name, t.host, t.port, info));
         }
-        log(format!("[测速] [{}] 节点 {}:{} 不可用，尝试下一个", nic.name, t.host, t.port));
     }
     let (dst, host, path, tls) = match chosen {
         Some(c) => c,
@@ -707,8 +706,8 @@ async fn bench_one(app: &AppHandle, s: &SelectedNic, dur: std::time::Duration) -
     Some(bytes as f64 / 1024.0 / 1024.0 / secs)
 }
 
-/// 通用：在已建立的流上发 GET 并读首包，校验 HTTP 200/206。
-async fn http_probe_stream<S>(mut s: S, host: &str, path: &str) -> bool
+/// 通用：在已建立的流上发 GET 并读首包，返回 HTTP 首行（状态行）。
+async fn http_probe_line<S>(mut s: S, host: &str, path: &str) -> Option<String>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -716,16 +715,15 @@ where
         "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
     );
     if s.write_all(req.as_bytes()).await.is_err() {
-        return false;
+        return None;
     }
     let mut buf = [0u8; 4096];
     match s.read(&mut buf).await {
         Ok(n) if n > 0 => {
             let head = String::from_utf8_lossy(&buf[..n]);
-            let first = head.lines().next().unwrap_or("");
-            first.contains(" 200") || first.contains(" 206")
+            Some(head.lines().next().unwrap_or("").trim().to_string())
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -756,20 +754,36 @@ where
     Some(())
 }
 
-/// 经网卡探测候选节点：连通 +（按需 TLS）+ HTTP 200/206。
-async fn probe_target(nic: &NicRuntime, dst: SocketAddrV4, host: &str, path: &str, tls: bool) -> bool {
+/// 经网卡探测候选节点：连通 +（按需 TLS）+ 取 HTTP 状态行。
+/// 返回 (是否 200/206 可用, 诊断信息：状态行或失败原因)。
+async fn probe_target(nic: &NicRuntime, dst: SocketAddrV4, host: &str, path: &str, tls: bool) -> (bool, String) {
     let fut = async {
-        let tcp = connect_via_nic(nic, dst).await.ok()?;
-        if tls {
+        let tcp = match connect_via_nic(nic, dst).await {
+            Ok(t) => t,
+            Err(e) => return format!("连接失败: {e}"),
+        };
+        let line = if tls {
             let connector = tls_connector();
-            let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
-            let stream = connector.connect(server_name, tcp).await.ok()?;
-            Some(http_probe_stream(stream, host, path).await)
+            let server_name = match tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()) {
+                Ok(n) => n,
+                Err(_) => return "无效 SNI".to_string(),
+            };
+            match connector.connect(server_name, tcp).await {
+                Ok(stream) => http_probe_line(stream, host, path).await,
+                Err(e) => return format!("TLS 失败: {e}"),
+            }
         } else {
-            Some(http_probe_stream(tcp, host, path).await)
-        }
+            http_probe_line(tcp, host, path).await
+        };
+        line.unwrap_or_else(|| "无响应".to_string())
     };
-    matches!(tokio::time::timeout(std::time::Duration::from_secs(6), fut).await, Ok(Some(true)))
+    match tokio::time::timeout(std::time::Duration::from_secs(6), fut).await {
+        Ok(info) => {
+            let ok = info.contains(" 200") || info.contains(" 206");
+            (ok, info)
+        }
+        Err(_) => (false, "探测超时".to_string()),
+    }
 }
 
 /// 单条下载连接，绑定到指定网卡，持续读取并累加字节数（HTTPS 或明文 HTTP）。
