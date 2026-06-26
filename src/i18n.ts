@@ -380,6 +380,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aggClose: "关闭",
     aggRetest: "再测一次",
     aggNoSel: "请先在网卡矩阵中勾选要测试的网卡",
+    nicWeight: "权重",
+    nicLimit: "限速",
+    nicWeightTip: "调度权重：越大该网卡分到越多连接（默认 100）",
+    nicLimitTip: "该网卡下行限速（MB/s，0=不限速）。例如借用室友网卡时可限制占用",
   },
 
   en: {
@@ -752,6 +756,10 @@ export const DICT: Record<Lang, Record<string, string>> = {
     aggClose: "Close",
     aggRetest: "Test Again",
     aggNoSel: "Select adapters in the matrix to test first",
+    nicWeight: "Weight",
+    nicLimit: "Limit",
+    nicWeightTip: "Scheduling weight: higher means more connections to this NIC (default 100)",
+    nicLimitTip: "Per-NIC download limit (MB/s, 0=unlimited). Handy when borrowing a roommate's link",
   },
 };
 

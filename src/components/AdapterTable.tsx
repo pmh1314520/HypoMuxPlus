@@ -70,6 +70,8 @@ interface Props {
   nicHistory: Record<string, number[]>;
   running: boolean;
   loading: boolean;
+  nicConfig: Record<number, { weight: number; limit: number }>;
+  setNicCfg: (index: number, patch: Partial<{ weight: number; limit: number }>) => void;
 }
 
 export function AdapterTable({
@@ -84,6 +86,8 @@ export function AdapterTable({
   nicHistory,
   running,
   loading,
+  nicConfig,
+  setNicCfg,
 }: Props) {
   const { t } = useSettings();
   const toast = useToast();
@@ -468,6 +472,47 @@ export function AdapterTable({
                   <span className="text-[10px] truncate" style={{ color: "var(--text-2)" }}>
                     {a.description}
                   </span>
+                  {checked && hasIp && (
+                    <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip label={t("nicWeightTip")} placement="top">
+                        <label className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-2)" }}>
+                          {t("nicWeight")}
+                          <input
+                            type="number"
+                            min={1}
+                            max={1000}
+                            value={nicConfig[a.index]?.weight ?? 100}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(1000, Math.round(Number(e.target.value) || 100)));
+                              setNicCfg(a.index, { weight: v });
+                            }}
+                            disabled={running}
+                            className="w-12 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
+                            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+                          />
+                        </label>
+                      </Tooltip>
+                      <Tooltip label={t("nicLimitTip")} placement="top">
+                        <label className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-2)" }}>
+                          {t("nicLimit")}
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            value={nicConfig[a.index]?.limit ?? 0}
+                            onChange={(e) => {
+                              const v = Math.max(0, Number(e.target.value) || 0);
+                              setNicCfg(a.index, { limit: v });
+                            }}
+                            disabled={running}
+                            className="w-14 px-1.5 py-0.5 rounded text-[10.5px] mono outline-none text-center"
+                            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+                          />
+                          <span style={{ color: "var(--text-2)" }}>MB/s</span>
+                        </label>
+                      </Tooltip>
+                    </div>
+                  )}
                 </div>
 
                 {/* IPv4 */}

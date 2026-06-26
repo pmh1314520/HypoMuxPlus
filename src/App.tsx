@@ -86,6 +86,20 @@ function loadSelected(): Set<number> {
   return new Set();
 }
 
+const NICCFG_KEY = "hmx-nic-config";
+function loadNicConfig(): Record<number, { weight: number; limit: number }> {
+  try {
+    const raw = localStorage.getItem(NICCFG_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 function AppInner() {
   const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics } =
     useSettings();
@@ -98,6 +112,7 @@ function AppInner() {
   });
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [selected, setSelected] = useState<Set<number>>(loadSelected);
+  const [nicConfig, setNicConfig] = useState<Record<number, { weight: number; limit: number }>>(loadNicConfig);
   const [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState(true);
 
@@ -319,6 +334,17 @@ function AppInner() {
     localStorage.setItem(SELECTED_KEY, JSON.stringify([...selected]));
   }, [selected]);
 
+  // 持久化每网卡权重/限速配置
+  useEffect(() => {
+    localStorage.setItem(NICCFG_KEY, JSON.stringify(nicConfig));
+  }, [nicConfig]);
+
+  const setNicCfg = (index: number, patch: Partial<{ weight: number; limit: number }>) =>
+    setNicConfig((prev) => {
+      const cur = prev[index] ?? { weight: 100, limit: 0 };
+      return { ...prev, [index]: { ...cur, ...patch } };
+    });
+
   // 首次扫描完成后的启动自动化：最小化到托盘 / 自动加速
   useEffect(() => {
     if (booted.current || loading) return;
@@ -514,7 +540,13 @@ function AppInner() {
 
     const chosen: SelectedNic[] = adapters
       .filter((a) => selected.has(a.index) && a.ipv4 && a.ipv4 !== "0.0.0.0")
-      .map((a) => ({ index: a.index, name: a.alias, ip: a.ipv4 }));
+      .map((a) => ({
+        index: a.index,
+        name: a.alias,
+        ip: a.ipv4,
+        weight: nicConfig[a.index]?.weight ?? 100,
+        limit_mbps: nicConfig[a.index]?.limit ?? 0,
+      }));
 
     if (chosen.length === 0) {
       notify2("warning", t("warnNoSelection"));
@@ -635,6 +667,8 @@ function AppInner() {
                     connHistory={connHistory}
                     clearHistory={clearConnHistory}
                     onAggregate={onAggregate}
+                    nicConfig={nicConfig}
+                    setNicCfg={setNicCfg}
                   />
                 ) : view === "tutorial" ? (
                   <TutorialPage />

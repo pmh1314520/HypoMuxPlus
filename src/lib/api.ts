@@ -15,6 +15,10 @@ export interface SelectedNic {
   index: number;
   name: string;
   ip: string;
+  /** 调度权重（默认 100） */
+  weight?: number;
+  /** 单卡下行限速 MB/s（0=不限速） */
+  limit_mbps?: number;
 }
 
 export interface NicTelemetry {

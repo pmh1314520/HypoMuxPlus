@@ -37,6 +37,12 @@ pub struct SelectedNic {
     pub index: u32,
     pub name: String,
     pub ip: String,
+    /// 调度权重（默认 100；越大分到越多连接）
+    #[serde(default)]
+    pub weight: Option<u32>,
+    /// 单卡下行限速（MB/s，0/缺省=不限速）
+    #[serde(default)]
+    pub limit_mbps: Option<f64>,
 }
 
 /// 单张网卡的运行时状态
@@ -49,6 +55,10 @@ pub struct NicRuntime {
     pub speed: AtomicU64,
     /// 是否在线（掉线守护：失联时置 false 并移出调度轮换）
     pub alive: AtomicBool,
+    /// 用户设定的调度权重（默认 100）
+    pub weight: u32,
+    /// 单卡下行限速器（None=不限速，回退全局限速）
+    pub limiter: Option<Arc<RateLimiter>>,
 }
 
 /// 连接调度策略
@@ -300,14 +310,16 @@ impl Engine {
 
         match self.strategy {
             Strategy::RoundRobin => {
-                let k = self.rr.fetch_add(1, Ordering::Relaxed) % pool.len();
-                self.nics[pool[k]].clone()
+                // 加权平滑轮询：默认权重相等时等价于经典轮询；权重不同则按比例倾斜
+                self.swrr_pick(&pool, |n| n.weight as i64)
             }
             Strategy::LeastConn => {
+                // 最少连接：按 活跃连接数 / 权重 归一，权重大的可承载更多连接
                 let mut best = pool[0];
-                let mut best_v = i64::MAX;
+                let mut best_v = f64::MAX;
                 for &i in &pool {
-                    let v = self.nics[i].active.load(Ordering::Relaxed);
+                    let w = self.nics[i].weight.max(1) as f64;
+                    let v = self.nics[i].active.load(Ordering::Relaxed) as f64 / w;
                     if v < best_v {
                         best_v = v;
                         best = i;
@@ -316,26 +328,32 @@ impl Engine {
                 self.nics[best].clone()
             }
             Strategy::WeightedSpeed => {
-                // 平滑加权轮询（nginx SWRR），仅在存活网卡间按实时速度倾斜分配
-                let mut cur = self.wrr.lock().unwrap();
-                let total: i64 = pool
-                    .iter()
-                    .map(|&i| self.nics[i].speed.load(Ordering::Relaxed) as i64 + 100)
-                    .sum();
-                let mut best = pool[0];
-                let mut best_v = i64::MIN;
-                for &i in &pool {
-                    let eff = self.nics[i].speed.load(Ordering::Relaxed) as i64 + 100;
-                    cur[i] += eff;
-                    if cur[i] > best_v {
-                        best_v = cur[i];
-                        best = i;
-                    }
-                }
-                cur[best] -= total;
-                self.nics[best].clone()
+                // 平滑加权轮询：eff = (实时速度 + 基值) × 用户权重，速度快 + 权重高者多分流量
+                self.swrr_pick(&pool, |n| {
+                    (n.speed.load(Ordering::Relaxed) as i64 + 100) * n.weight.max(1) as i64 / 100
+                })
             }
         }
+    }
+
+    /// 平滑加权轮询（nginx SWRR）：按 eff 权重在 pool 内选出本次网卡。
+    fn swrr_pick(&self, pool: &[usize], eff_of: impl Fn(&NicRuntime) -> i64) -> Arc<NicRuntime> {
+        let mut cur = match self.wrr.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let total: i64 = pool.iter().map(|&i| eff_of(&self.nics[i]).max(1)).sum();
+        let mut best = pool[0];
+        let mut best_v = i64::MIN;
+        for &i in pool {
+            cur[i] += eff_of(&self.nics[i]).max(1);
+            if cur[i] > best_v {
+                best_v = cur[i];
+                best = i;
+            }
+        }
+        cur[best] -= total;
+        self.nics[best].clone()
     }
 
     fn log(&self, msg: impl Into<String>) {
@@ -429,6 +447,11 @@ pub async fn start(
             active: AtomicI64::new(0),
             speed: AtomicU64::new(0),
             alive: AtomicBool::new(true),
+            weight: s.weight.unwrap_or(100).clamp(1, 10_000),
+            limiter: match s.limit_mbps {
+                Some(m) if m > 0.0 => Some(Arc::new(RateLimiter::new((m * 1024.0 * 1024.0) as u64))),
+                _ => None,
+            },
         }));
     }
 
@@ -529,6 +552,8 @@ pub async fn test_latency(selected: Vec<SelectedNic>) -> Vec<LatencyResult> {
             active: AtomicI64::new(0),
             speed: AtomicU64::new(0),
             alive: AtomicBool::new(true),
+            weight: 100,
+            limiter: None,
         };
         let start = std::time::Instant::now();
         let res =
@@ -660,6 +685,8 @@ async fn bench_one(app: &AppHandle, s: &SelectedNic, dur: std::time::Duration) -
         active: AtomicI64::new(0),
         speed: AtomicU64::new(0),
         alive: AtomicBool::new(true),
+        weight: 100,
+        limiter: None,
     });
     let log = |m: String| {
         let _ = app.emit("hmx-log", m);
@@ -1264,7 +1291,7 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
         .await?;
 
-    relay(&mut client, &mut upstream, engine.limiter.clone()).await;
+    relay(&mut client, &mut upstream, nic.limiter.clone().or_else(|| engine.limiter.clone())).await;
     Ok(())
 }
 
@@ -1432,7 +1459,7 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         upstream.write_all(&hdr).await?;
     }
 
-    relay(&mut client, &mut upstream, engine.limiter.clone()).await;
+    relay(&mut client, &mut upstream, nic.limiter.clone().or_else(|| engine.limiter.clone())).await;
     Ok(())
 }
 

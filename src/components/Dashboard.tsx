@@ -34,6 +34,8 @@ interface Props {
   connHistory: ClosedConn[];
   clearHistory: () => void;
   onAggregate: () => void;
+  nicConfig: Record<number, { weight: number; limit: number }>;
+  setNicCfg: (index: number, patch: Partial<{ weight: number; limit: number }>) => void;
 }
 
 export function Dashboard(props: Props) {
@@ -78,6 +80,8 @@ export function Dashboard(props: Props) {
             nicHistory={props.nicHistory}
             running={props.running}
             loading={props.loading}
+            nicConfig={props.nicConfig}
+            setNicCfg={props.setNicCfg}
           />
         </div>
         <div className="grid gap-4 grid-rows-2 min-h-[460px] min-[1180px]:min-h-0">
