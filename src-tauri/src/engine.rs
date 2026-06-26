@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
 use tauri::{AppHandle, Emitter};
-use tokio::io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 
@@ -200,35 +200,53 @@ impl RateLimiter {
 }
 
 /// 中继客户端与上游之间的双向流量。limiter 存在时对下行（上游→客户端）限速。
+///
+/// 采用显式双向中继：两个方向各用独立大缓冲，任一方向读到 EOF 后，
+/// 对对端写半执行 flush + shutdown，正确传递半关闭（half-close）语义。
+/// 这对“上传方向”至关重要：客户端上传完毕（EOF）后必须向上游发送 FIN，
+/// 否则服务器会一直挂起等待请求体，导致 Speedtest 等上传测速“socket error”。
 async fn relay(client: &mut TcpStream, upstream: &mut TcpStream, limiter: Option<Arc<RateLimiter>>) {
-    match limiter {
-        None => {
-            let _ = copy_bidirectional(client, upstream).await;
-        }
-        Some(lim) => {
-            let (mut cr, mut cw) = client.split();
-            let (mut ur, mut uw) = upstream.split();
-            // 下行：上游 -> 客户端（限速）
-            let down = async {
-                let mut buf = vec![0u8; 65536];
-                loop {
-                    let n = match ur.read(&mut buf).await {
-                        Ok(0) | Err(_) => break,
-                        Ok(n) => n,
-                    };
-                    lim.acquire(n).await;
-                    if cw.write_all(&buf[..n]).await.is_err() {
-                        break;
-                    }
-                }
+    let (mut cr, mut cw) = client.split();
+    let (mut ur, mut uw) = upstream.split();
+
+    // 下行：上游 -> 客户端（limiter 存在时限速）
+    let down = async {
+        let mut buf = vec![0u8; 65536];
+        loop {
+            let n = match ur.read(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
             };
-            // 上行：客户端 -> 上游（不限速）
-            let up = async {
-                let _ = tokio::io::copy(&mut cr, &mut uw).await;
-            };
-            tokio::join!(down, up);
+            if let Some(lim) = &limiter {
+                lim.acquire(n).await;
+            }
+            if cw.write_all(&buf[..n]).await.is_err() {
+                break;
+            }
         }
-    }
+        // 上游已无更多数据：刷新并向客户端发送 FIN（半关闭）
+        let _ = cw.flush().await;
+        let _ = cw.shutdown().await;
+    };
+
+    // 上行：客户端 -> 上游（不限速，上传方向）
+    let up = async {
+        let mut buf = vec![0u8; 65536];
+        loop {
+            let n = match cr.read(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            };
+            if uw.write_all(&buf[..n]).await.is_err() {
+                break;
+            }
+        }
+        // 客户端上传完毕：刷新并向上游发送 FIN，避免服务器无限等待请求体
+        let _ = uw.flush().await;
+        let _ = uw.shutdown().await;
+    };
+
+    tokio::join!(down, up);
 }
 
 /// 活跃连接信息（实时连接列表用）
