@@ -100,6 +100,24 @@ function loadNicConfig(): Record<number, { weight: number; limit: number }> {
   return {};
 }
 
+export interface RouteRule {
+  pattern: string;
+  action: string; // "direct" | "aggregate" | "nic:<ifindex>"
+}
+const RULES_KEY = "hmx-route-rules";
+function loadRouteRules(): RouteRule[] {
+  try {
+    const raw = localStorage.getItem(RULES_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.filter((r) => r && typeof r.pattern === "string" && typeof r.action === "string");
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
 function AppInner() {
   const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics } =
     useSettings();
@@ -113,6 +131,7 @@ function AppInner() {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [selected, setSelected] = useState<Set<number>>(loadSelected);
   const [nicConfig, setNicConfig] = useState<Record<number, { weight: number; limit: number }>>(loadNicConfig);
+  const [routeRules, setRouteRules] = useState<RouteRule[]>(loadRouteRules);
   const [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState(true);
 
@@ -338,6 +357,11 @@ function AppInner() {
   useEffect(() => {
     localStorage.setItem(NICCFG_KEY, JSON.stringify(nicConfig));
   }, [nicConfig]);
+
+  // 持久化分流规则
+  useEffect(() => {
+    localStorage.setItem(RULES_KEY, JSON.stringify(routeRules));
+  }, [routeRules]);
 
   const setNicCfg = (index: number, patch: Partial<{ weight: number; limit: number }>) =>
     setNicConfig((prev) => {
@@ -577,7 +601,7 @@ function AppInner() {
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass);
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules);
       notify2("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {
@@ -697,7 +721,7 @@ function AppInner() {
                 ) : view === "about" ? (
                   <AboutPage lifetimeMB={lifetimeMB} admin={admin} onReplayGuide={() => setShowOnboarding(true)} onCheckUpdate={onCheckUpdate} />
                 ) : (
-                  <SettingsPage running={running} />
+                  <SettingsPage running={running} adapters={adapters} routeRules={routeRules} setRouteRules={setRouteRules} />
                 )}
               </motion.div>
             </AnimatePresence>

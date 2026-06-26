@@ -16,17 +16,20 @@ import {
   Palette,
   PictureInPicture2,
   Plug,
+  Plus,
   Power,
   Rocket,
   Save,
   ServerCog,
   Shuffle,
+  Trash2,
   Wand2,
   Zap,
 } from "lucide-react";
 import { ACCENTS, useSettings, type AccentKey, type SchedStrategy, type Theme } from "../store";
 import { type Lang } from "../i18n";
 import { api } from "../lib/api";
+import type { AdapterInfo } from "../lib/api";
 import { useToast } from "./Toast";
 import { NumberField } from "./NumberField";
 import { Switch } from "./Switch";
@@ -34,9 +37,12 @@ import { Tooltip } from "./Tooltip";
 
 interface Props {
   running: boolean;
+  adapters: AdapterInfo[];
+  routeRules: { pattern: string; action: string }[];
+  setRouteRules: (rules: { pattern: string; action: string }[]) => void;
 }
 
-export function SettingsPage({ running }: Props) {
+export function SettingsPage({ running, adapters, routeRules, setRouteRules }: Props) {
   const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, set } =
     useSettings();
   const toast = useToast();
@@ -362,6 +368,11 @@ export function SettingsPage({ running }: Props) {
               ? t("schedLeastDesc")
               : t("schedWeightedDesc")}
           </p>
+        </Section>
+
+        {/* 应用分流规则（Plus 专属） */}
+        <Section id="sec-rules" icon={<Shuffle size={16} />} title={t("rulesTitle")} hint={t("rulesHint")}>
+          <RouteRulesEditor adapters={adapters} rules={routeRules} setRules={setRouteRules} />
         </Section>
 
         {/* 悬浮窗 HUD（Plus 专属） */}
@@ -777,5 +788,74 @@ function CompatRow({
         </button>
       </div>
     </Row>
+  );
+}
+
+/** 应用分流规则编辑器：域名/端口 → 直连 / 聚合 / 指定网卡 */
+function RouteRulesEditor({
+  adapters,
+  rules,
+  setRules,
+}: {
+  adapters: AdapterInfo[];
+  rules: { pattern: string; action: string }[];
+  setRules: (r: { pattern: string; action: string }[]) => void;
+}) {
+  const { t } = useSettings();
+  const nics = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
+
+  const update = (i: number, patch: Partial<{ pattern: string; action: string }>) => {
+    setRules(rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  };
+  const add = () => setRules([...rules, { pattern: "", action: "aggregate" }]);
+  const remove = (i: number) => setRules(rules.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="pt-1 flex flex-col gap-2">
+      {rules.length === 0 && (
+        <div className="text-[12px] py-2" style={{ color: "var(--text-2)" }}>
+          {t("rulesEmpty")}
+        </div>
+      )}
+      {rules.map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            value={r.pattern}
+            onChange={(e) => update(i, { pattern: e.target.value })}
+            placeholder={t("rulesPatternPh")}
+            className="flex-1 px-2.5 py-1.5 rounded-lg text-[12.5px] outline-none"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)" }}
+          />
+          <select
+            value={r.action}
+            onChange={(e) => update(i, { action: e.target.value })}
+            className="px-2 py-1.5 rounded-lg text-[12.5px] outline-none shrink-0"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)", maxWidth: 180 }}
+          >
+            <option value="aggregate">{t("ruleAggregate")}</option>
+            <option value="direct">{t("ruleDirect")}</option>
+            {nics.map((n) => (
+              <option key={n.index} value={`nic:${n.index}`}>
+                {t("ruleViaNic", { name: n.alias })}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => remove(i)}
+            className="grid place-items-center w-8 h-8 rounded-lg shrink-0 transition-colors hover:[background:var(--surface-hover)]"
+            style={{ color: "var(--text-2)" }}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={add}
+        className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors hover:[background:var(--surface-hover)]"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-soft)" }}
+      >
+        <Plus size={14} /> {t("rulesAdd")}
+      </button>
+    </div>
   );
 }

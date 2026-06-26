@@ -45,6 +45,14 @@ pub struct SelectedNic {
     pub limit_mbps: Option<f64>,
 }
 
+/// 前端下发的分流规则：pattern 为域名（支持子域、可带 :port），action 为
+/// "direct"(直连) / "aggregate"(走聚合，默认) / "nic:<ifindex>"(钉死到指定网卡)。
+#[derive(Debug, Clone, Deserialize)]
+pub struct RouteRuleDef {
+    pub pattern: String,
+    pub action: String,
+}
+
 /// 单张网卡的运行时状态
 pub struct NicRuntime {
     pub name: String,
@@ -249,6 +257,8 @@ pub struct Engine {
     limiter: Option<Arc<RateLimiter>>,
     /// 直连白名单（小写域名，命中则走默认网关直连、不参与分流）
     bypass: Vec<String>,
+    /// 域名→指定网卡规则：(小写 pattern, 目标 if_index)，命中则钉死到该网卡
+    rules_nic: Vec<(String, u32)>,
     /// DNS 解析缓存（host -> (真实IP, 解析时刻)）：经物理网卡解析后缓存，绕过 fake-ip
     dns_cache: Mutex<HashMap<String, (Ipv4Addr, std::time::Instant)>>,
 }
@@ -262,8 +272,47 @@ impl Engine {
         let h = host.to_lowercase();
         self.bypass
             .iter()
-            .any(|b| h == *b || h.ends_with(&format!(".{b}")))
+            .any(|b| pattern_match(b, &h, 0))
     }
+
+    /// 按域名→网卡规则选出指定网卡（命中且该网卡在线时），否则回退到策略调度。
+    fn pick_nic(&self, host: &str, port: u16) -> Arc<NicRuntime> {
+        if !self.rules_nic.is_empty() {
+            let h = host.to_lowercase();
+            for (pat, ifindex) in &self.rules_nic {
+                if pattern_match(pat, &h, port) {
+                    if let Some(n) = self
+                        .nics
+                        .iter()
+                        .find(|n| n.if_index == *ifindex && n.alive.load(Ordering::Relaxed))
+                    {
+                        return n.clone();
+                    }
+                }
+            }
+        }
+        self.next_nic()
+    }
+}
+
+/// 规则匹配：pattern 可为 "域名" 或 "域名:port"。域名支持精确 / 子域 / `*` 通配。
+fn pattern_match(pattern: &str, host: &str, port: u16) -> bool {
+    let (pat_host, pat_port) = match pattern.rsplit_once(':') {
+        Some((h, p)) if p.chars().all(|c| c.is_ascii_digit()) && !p.is_empty() => {
+            (h, p.parse::<u16>().ok())
+        }
+        _ => (pattern, None),
+    };
+    if let Some(pp) = pat_port {
+        if port != 0 && pp != port {
+            return false;
+        }
+    }
+    let pat_host = pat_host.trim_start_matches("*.").trim();
+    if pat_host == "*" || pat_host.is_empty() {
+        return pat_port.is_some();
+    }
+    host == pat_host || host.ends_with(&format!(".{pat_host}"))
 }
 
 impl Engine {
@@ -413,6 +462,7 @@ pub async fn start(
     lang: String,
     down_limit_mbps: f64,
     bypass: Vec<String>,
+    rules: Vec<RouteRuleDef>,
 ) -> Result<EngineHandle, String> {
     if selected.is_empty() {
         return Err("至少需要选择一张网卡".into());
@@ -428,11 +478,29 @@ pub async fn start(
         None
     };
     // 规整白名单：去空白、转小写、去空项
-    let bypass: Vec<String> = bypass
+    let mut bypass: Vec<String> = bypass
         .into_iter()
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect();
+
+    // 解析分流规则：direct → 并入直连白名单；nic:<ifindex> → 域名钉死到指定网卡；aggregate → 默认
+    let mut rules_nic: Vec<(String, u32)> = Vec::new();
+    for r in &rules {
+        let pat = r.pattern.trim().to_lowercase();
+        if pat.is_empty() {
+            continue;
+        }
+        let act = r.action.trim().to_lowercase();
+        if act == "direct" {
+            bypass.push(pat);
+        } else if let Some(idx) = act.strip_prefix("nic:") {
+            if let Ok(ifindex) = idx.trim().parse::<u32>() {
+                rules_nic.push((pat, ifindex));
+            }
+        }
+        // "aggregate" 即默认行为，无需处理
+    }
 
     let mut nics: Vec<Arc<NicRuntime>> = Vec::with_capacity(selected.len());
     for s in &selected {
@@ -474,6 +542,7 @@ pub async fn start(
         zh,
         limiter,
         bypass,
+        rules_nic,
         dns_cache: Mutex::new(HashMap::new()),
     });
 
@@ -1241,8 +1310,8 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         return Ok(());
     }
 
-    // 调度 + 物理绑定连接
-    let nic = engine.next_nic();
+    // 调度 + 物理绑定连接（先查域名→网卡规则，否则按策略调度）
+    let nic = engine.pick_nic(&target_display, port);
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
 
@@ -1408,8 +1477,8 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         return Ok(());
     }
 
-    // 调度 + 物理绑定连接
-    let nic = engine.next_nic();
+    // 调度 + 物理绑定连接（先查域名→网卡规则，否则按策略调度）
+    let nic = engine.pick_nic(&dst_host, dst_port);
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
 

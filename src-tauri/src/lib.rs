@@ -239,6 +239,7 @@ async fn start_boost(
     lang: String,
     down_limit_mbps: f64,
     bypass: Vec<String>,
+    rules: Vec<engine::RouteRuleDef>,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
@@ -253,6 +254,7 @@ async fn start_boost(
         lang,
         down_limit_mbps,
         bypass,
+        rules,
     )
     .await?;
 

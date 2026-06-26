@@ -384,6 +384,16 @@ export const DICT: Record<Lang, Record<string, string>> = {
     nicLimit: "限速",
     nicWeightTip: "调度权重：越大该网卡分到越多连接（默认 100）",
     nicLimitTip: "该网卡下行限速（MB/s，0=不限速）。例如借用室友网卡时可限制占用",
+    rulesTitle: "应用分流规则",
+    rulesHint: "按域名/端口指定走某张网卡、走聚合或直连。例如把游戏更新钉死在某张网卡、公司内网直连。下次开启加速时生效。",
+    rulesAdd: "添加规则",
+    rulesEmpty: "暂无规则，所有流量默认参与多网卡聚合",
+    rulesPattern: "域名 / 端口",
+    rulesPatternPh: "例如 steamcontent.com 或 *.example.com:443",
+    rulesAction: "去向",
+    ruleDirect: "直连（默认网关）",
+    ruleAggregate: "走聚合",
+    ruleViaNic: "钉死到：{name}",
   },
 
   en: {
@@ -760,6 +770,16 @@ export const DICT: Record<Lang, Record<string, string>> = {
     nicLimit: "Limit",
     nicWeightTip: "Scheduling weight: higher means more connections to this NIC (default 100)",
     nicLimitTip: "Per-NIC download limit (MB/s, 0=unlimited). Handy when borrowing a roommate's link",
+    rulesTitle: "App Routing Rules",
+    rulesHint: "Route by domain/port to a specific NIC, the aggregate pool, or direct. e.g. pin game updates to one NIC, send the office intranet direct. Takes effect on the next boost.",
+    rulesAdd: "Add Rule",
+    rulesEmpty: "No rules — all traffic joins multi-NIC aggregation by default",
+    rulesPattern: "Domain / Port",
+    rulesPatternPh: "e.g. steamcontent.com or *.example.com:443",
+    rulesAction: "Route to",
+    ruleDirect: "Direct (default gateway)",
+    ruleAggregate: "Aggregate",
+    ruleViaNic: "Pin to: {name}",
   },
 };
 
