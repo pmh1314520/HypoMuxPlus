@@ -39,19 +39,29 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 
 <div align="center">
 
-**Acceleration Console**
+**🚀 Acceleration Console**
 
-<img src="./docs/console-dark.png" width="760" alt="Acceleration Console" />
+<img src="./docs/console-dark.png" width="780" alt="Acceleration Console" />
 
-**Live Statistics · Link Diagnostics**
+**📊 Live Statistics · 🩺 Link Diagnostics**
 
-<img src="./docs/stats-dark.png" width="760" alt="Live Statistics" />
+<img src="./docs/stats-dark.png" width="780" alt="Live Statistics" />
 
-<img src="./docs/diagnostics-dark.png" width="760" alt="Link Diagnostics" />
+<img src="./docs/diagnostics-dark.png" width="780" alt="Link Diagnostics" />
 
-**Settings**
+**⚙️ Settings · 📖 Tutorial · ℹ️ About**
 
-<img src="./docs/settings-dark.png" width="760" alt="Settings" />
+<img src="./docs/settings-dark.png" width="780" alt="Settings" />
+
+<img src="./docs/tutorial-dark.png" width="780" alt="Tutorial" />
+
+<img src="./docs/about-dark.png" width="780" alt="About" />
+
+**🌗 Dark / Light Themes (Console as example)**
+
+| Dark Theme | Light Theme |
+| :---: | :---: |
+| <img src="./docs/console-dark.png" width="390" alt="Dark Theme" /> | <img src="./docs/console-light.png" width="390" alt="Light Theme" /> |
 
 <sub>Built-in dark / light themes and full Chinese/English bilingual support. Visit the project website for more screenshots.</sub>
 
