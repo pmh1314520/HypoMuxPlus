@@ -14,6 +14,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { Onboarding } from "./components/Onboarding";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { AggregateSpeedTest } from "./components/AggregateSpeedTest";
+import { SessionReport, type SessionStats } from "./components/SessionReport";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { View } from "./components/shell-types";
 import { useSettings, ACCENTS } from "./store";
@@ -156,6 +157,7 @@ function AppInner() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("hmx-onboarded"));
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [aggOpen, setAggOpen] = useState(false);
+  const [report, setReport] = useState<SessionStats | null>(null);
   const [lifetimeMB, setLifetimeMB] = useState<number>(() => Number(localStorage.getItem(LIFETIME_KEY)) || 0);
   const [lifetimePeak, setLifetimePeak] = useState<number>(() => Number(localStorage.getItem(LIFE_PEAK_KEY)) || 0);
   const [lifetimeSeconds, setLifetimeSeconds] = useState<number>(
@@ -167,6 +169,9 @@ function AppInner() {
   const runningRef = useRef(false);
   const lastTeleRef = useRef(0);
   const autoStartedRef = useRef(false);
+  const sessRef = useRef({ mb: 0, peak: 0, secs: 0 });
+  const sessNicsRef = useRef(0);
+  const prevRunningRef = useRef(false);
   useEffect(() => {
     runningRef.current = running;
   }, [running]);
@@ -241,6 +246,9 @@ function AppInner() {
       });
       setHistory((prev) => [...prev.slice(1), p.total.downMbps]);
       setPeak((prev) => Math.max(prev, p.total.downMbps));
+      // 记录本次会话出现过的最大活跃网卡数（供战报展示协同网卡数）
+      const activeNics = p.perNic.filter((nn) => nn.downMbps > 0).length;
+      if (activeNics > sessNicsRef.current) sessNicsRef.current = activeNics;
       // 按真实时间间隔积分本次下载量(MB)，避免遥测抖动导致统计偏差
       const now = Date.now();
       const last = lastTeleRef.current;
@@ -399,6 +407,25 @@ function AppInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
+
+  // 镜像本次会话数据到 ref，供停止时生成战报快照
+  useEffect(() => {
+    sessRef.current = { mb: sessionMB, peak, secs: uptime };
+  }, [sessionMB, peak, uptime]);
+
+  // 加速停止时弹出本次战报；开始时重置协同网卡计数
+  useEffect(() => {
+    if (prevRunningRef.current && !running) {
+      const s = sessRef.current;
+      if (s.mb >= 1) {
+        setReport({ mb: s.mb, peak: s.peak, secs: s.secs, nics: Math.max(sessNicsRef.current, 1) });
+      }
+    }
+    if (!prevRunningRef.current && running) {
+      sessNicsRef.current = 0;
+    }
+    prevRunningRef.current = running;
+  }, [running]);
 
   useEffect(() => {
     if (!running) {
@@ -778,6 +805,7 @@ function AppInner() {
           onRun={runAggregate}
         />
       )}
+      {report && <SessionReport stats={report} onClose={() => setReport(null)} />}
     </div>
   );
 }

@@ -28,7 +28,9 @@ export function LinkDistribution({ perNic, running }: Props) {
         {!running || list.length === 0 ? (
           <EmptyState icon={<GitFork size={20} />} text={t("linkDistEmpty")} />
         ) : (
-          <div className="flex flex-col gap-3.5">
+          <>
+            <MiniFlow list={list} total={total} />
+            <div className="flex flex-col gap-3.5">
             {list.map((n, i) => {
               const share = total > 0 ? n.downMbps / total : 0;
               const hue = HUES[i % HUES.length];
@@ -59,8 +61,40 @@ export function LinkDistribution({ perNic, running }: Props) {
               );
             })}
           </div>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+/** 实时分流流向图：流量从中心源沿曲线流向各网卡，线宽随实时占比、流速动画体现活跃度。 */
+function MiniFlow({ list, total }: { list: NicTelemetry[]; total: number }) {
+  const items = list.slice(0, 5);
+  const n = items.length;
+  const H = Math.max(64, n * 26 + 16);
+  const sx = 26;
+  const sy = H / 2;
+  const ex = 250;
+  return (
+    <svg className="hmx-diagram" viewBox={`0 0 280 ${H}`} style={{ height: H, marginBottom: 14 }} aria-hidden="true">
+      {items.map((nic, i) => {
+        const y = n <= 1 ? sy : 14 + (i * (H - 28)) / (n - 1);
+        const share = total > 0 ? nic.downMbps / total : 0;
+        const hue = HUES[i % HUES.length];
+        const d = `M${sx},${sy} C140,${sy} 140,${y} ${ex},${y}`;
+        return (
+          <g key={nic.name}>
+            <path className="pipe" d={d} />
+            {nic.downMbps > 0 && (
+              <path className="flow" d={d} style={{ stroke: hue, strokeWidth: 1.6 + share * 7, filter: "none" }} />
+            )}
+            <circle cx={ex} cy={y} r="4.5" fill={hue} />
+          </g>
+        );
+      })}
+      <circle cx={sx} cy={sy} r="6" fill="var(--accent-soft)" />
+      <circle cx={sx} cy={sy} r="9.5" fill="none" stroke="var(--accent-soft)" strokeOpacity="0.4" strokeWidth="1.4" />
+    </svg>
   );
 }
