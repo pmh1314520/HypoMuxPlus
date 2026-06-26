@@ -556,13 +556,19 @@ pub struct SpeedResult {
     pub ok: bool,
 }
 
-/// 测速候选节点：(host, path, 字面 anycast IP 列表)。
-/// 字面 IP 不经任何 DNS，TUN/fake-ip 也无从劫持；为空者再走 DoH / UDP / 系统解析。
-const BENCH_TARGETS: &[(&str, &str, &[&str])] = &[
-    // Cloudflare：直接用 anycast 边缘 IP + SNI，零 DNS 依赖
-    ("speed.cloudflare.com", "/__down?bytes=2000000000", &["1.1.1.1", "1.0.0.1"]),
-    // 中科大 LibreSpeed：国内快，经 DoH 解析真实 IP
-    ("test.ustc.edu.cn", "/backend/garbage.php?ckSize=1024", &[]),
+/// 测速候选节点：(host, path, port)。port=443 走 HTTPS，port=80 走明文 HTTP。
+/// 多目标 + 明文兜底：当网关对外 HTTPS 做拦截/重置或 TLS 中间人时，HTTP(80) 仍可能跑通。
+struct BenchTarget {
+    host: &'static str,
+    path: &'static str,
+    port: u16,
+}
+const BENCH_TARGETS: &[BenchTarget] = &[
+    BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 443 },
+    BenchTarget { host: "test.ustc.edu.cn", path: "/backend/garbage.php?ckSize=512", port: 80 },
+    BenchTarget { host: "speed.cloudflare.com", path: "/__down?bytes=104857600", port: 443 },
+    BenchTarget { host: "speedtest.tele2.net", path: "/100MB.zip", port: 80 },
+    BenchTarget { host: "speedtest.tele2.net", path: "/100MB.zip", port: 443 },
 ];
 const BENCH_PARALLEL: usize = 6;
 
@@ -587,13 +593,12 @@ fn tls_connector() -> tokio_rustls::TlsConnector {
     tokio_rustls::TlsConnector::from(cfg)
 }
 
-/// 逐张网卡跑分：经各网卡用多条并发 HTTPS 连接从 Cloudflare CDN 下载测速，
-/// 测真实聚合吞吐（MB/s）。每张测完即通过 `hmx-speedtest` 事件回传。
+/// 逐张网卡跑分：经各网卡多条并发连接从测速节点下载，测真实聚合吞吐（MB/s）。
 pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_secs: u64) -> Vec<SpeedResult> {
     let dur = std::time::Duration::from_secs(duration_secs.clamp(2, 15));
     let mut out = Vec::with_capacity(selected.len());
     for s in selected {
-        let r = match bench_one(&s, dur).await {
+        let r = match bench_one(&app, &s, dur).await {
             Some(mbps) => SpeedResult { index: s.index, name: s.name.clone(), mbps, ok: true },
             None => SpeedResult { index: s.index, name: s.name.clone(), mbps: 0.0, ok: false },
         };
@@ -603,7 +608,34 @@ pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_sec
     out
 }
 
-async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
+/// 收集候选 IP：优先系统解析（非 fake-ip 即用），失败再 DoH(443) → UDP(53)。
+async fn resolve_candidates(nic: &NicRuntime, host: &str) -> Vec<Ipv4Addr> {
+    if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        return vec![ip];
+    }
+    let mut ips: Vec<Ipv4Addr> = Vec::new();
+    if let Ok(Ok(d)) = tokio::time::timeout(std::time::Duration::from_secs(3), resolve_ipv4(host, 443)).await {
+        let ip = *d.ip();
+        let o = ip.octets();
+        let fake = o[0] == 198 && (o[1] == 18 || o[1] == 19);
+        if !fake {
+            ips.push(ip);
+        }
+    }
+    if ips.is_empty() {
+        if let Some(ip) = resolve_via_doh(nic, host).await {
+            ips.push(ip);
+        }
+    }
+    if ips.is_empty() {
+        if let Some(ip) = resolve_via_nic(nic, host).await {
+            ips.push(ip);
+        }
+    }
+    ips
+}
+
+async fn bench_one(app: &AppHandle, s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
     let ip: Ipv4Addr = s.ip.parse().ok()?;
     let nic = Arc::new(NicRuntime {
         name: s.name.clone(),
@@ -613,45 +645,36 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         speed: AtomicU64::new(0),
         alive: AtomicBool::new(true),
     });
+    let log = |m: String| {
+        let _ = app.emit("hmx-log", m);
+    };
 
-    // 逐个候选节点探测：经该网卡能解析、连通、且返回 200/206 有数据者才采用
-    let mut chosen: Option<(SocketAddrV4, &'static str, &'static str)> = None;
-    'outer: for (host, path, literal_ips) in BENCH_TARGETS {
-        // 候选 IP 优先级：字面 anycast IP → DoH(443, 绕过 TUN 劫持) → UDP 直发 → 系统解析
-        let mut ips: Vec<Ipv4Addr> = Vec::new();
-        for s in *literal_ips {
-            if let Ok(ip) = s.parse::<Ipv4Addr>() {
-                if !ips.contains(&ip) {
-                    ips.push(ip);
-                }
-            }
-        }
-        if let Some(ip) = resolve_via_doh(&nic, host).await {
-            if !ips.contains(&ip) {
-                ips.push(ip);
-            }
-        }
+    // 逐个候选节点探测：先解析候选 IP，再连通 + (TLS) + HTTP 200/206 校验
+    let mut chosen: Option<(SocketAddrV4, &'static str, &'static str, bool)> = None;
+    'outer: for t in BENCH_TARGETS {
+        let tls = t.port == 443;
+        let ips = resolve_candidates(&nic, t.host).await;
         if ips.is_empty() {
-            if let Some(ip) = resolve_via_nic(&nic, host).await {
-                ips.push(ip);
-            }
-        }
-        if ips.is_empty() {
-            if let Ok(Ok(d)) =
-                tokio::time::timeout(std::time::Duration::from_secs(4), resolve_ipv4(host, 443)).await
-            {
-                ips.push(*d.ip());
-            }
+            log(format!("[测速] [{}] 无法解析 {}，跳过", nic.name, t.host));
+            continue;
         }
         for ip in ips {
-            let dst = SocketAddrV4::new(ip, 443);
-            if probe_target(&nic, dst, host, path).await {
-                chosen = Some((dst, host, path));
+            let dst = SocketAddrV4::new(ip, t.port);
+            if probe_target(&nic, dst, t.host, t.path, tls).await {
+                log(format!("[测速] [{}] 选用节点 {}:{} ({})", nic.name, t.host, t.port, ip));
+                chosen = Some((dst, t.host, t.path, tls));
                 break 'outer;
             }
         }
+        log(format!("[测速] [{}] 节点 {}:{} 不可用，尝试下一个", nic.name, t.host, t.port));
     }
-    let (dst, host, path) = chosen?;
+    let (dst, host, path, tls) = match chosen {
+        Some(c) => c,
+        None => {
+            log(format!("[测速] [{}] 所有测速节点均不可达（可能被网关阻断）", nic.name));
+            return None;
+        }
+    };
 
     let total = Arc::new(AtomicU64::new(0));
     let mut handles = Vec::with_capacity(BENCH_PARALLEL);
@@ -659,73 +682,54 @@ async fn bench_one(s: &SelectedNic, dur: std::time::Duration) -> Option<f64> {
         let nic = nic.clone();
         let total = total.clone();
         handles.push(tauri::async_runtime::spawn(async move {
-            let _ = bench_conn(&nic, dst, host, path, dur, &total).await;
+            let _ = bench_conn(&nic, dst, host, path, tls, dur, &total).await;
         }));
     }
     for h in handles {
         let _ = tokio::time::timeout(dur + std::time::Duration::from_secs(8), h).await;
     }
 
-    // 吞吐 = 总下载字节 / 测速窗口时长（不计入连接 / 握手耗时，避免严重低估）
+    // 吞吐 = 总下载字节 / 测速窗口时长
     let bytes = total.load(Ordering::Relaxed);
     let secs = dur.as_secs_f64().max(0.001);
     if bytes == 0 {
+        log(format!("[测速] [{}] 已连通但未下行任何数据", nic.name));
         return None;
     }
     Some(bytes as f64 / 1024.0 / 1024.0 / secs)
 }
 
-/// 经网卡快速探测某候选节点：连通 + TLS + 收到 HTTP 200/206 且有响应体数据。
-async fn probe_target(nic: &NicRuntime, dst: SocketAddrV4, host: &str, path: &str) -> bool {
-    let fut = async {
-        let tcp = connect_via_nic(nic, dst).await.ok()?;
-        let connector = tls_connector();
-        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
-        let mut tls = connector.connect(server_name, tcp).await.ok()?;
-        let req = format!(
-            "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
-        );
-        tls.write_all(req.as_bytes()).await.ok()?;
-        let mut buf = vec![0u8; 4096];
-        let n = tls.read(&mut buf).await.ok()?;
-        if n == 0 {
-            return None;
-        }
-        let head = String::from_utf8_lossy(&buf[..n]);
-        let first = head.lines().next().unwrap_or("");
-        if first.contains(" 200") || first.contains(" 206") {
-            Some(())
-        } else {
-            None
-        }
-    };
-    matches!(tokio::time::timeout(std::time::Duration::from_secs(5), fut).await, Ok(Some(())))
-}
-
-/// 单条 HTTPS 下载连接，绑定到指定网卡，持续读取并累加字节数。
-async fn bench_conn(
-    nic: &NicRuntime,
-    dst: SocketAddrV4,
-    host: &str,
-    path: &str,
-    dur: std::time::Duration,
-    total: &AtomicU64,
-) -> Option<()> {
-    let tcp = tokio::time::timeout(std::time::Duration::from_secs(6), connect_via_nic(nic, dst))
-        .await
-        .ok()?
-        .ok()?;
-    let connector = tls_connector();
-    let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
-    let mut tls = tokio::time::timeout(std::time::Duration::from_secs(6), connector.connect(server_name, tcp))
-        .await
-        .ok()?
-        .ok()?;
+/// 通用：在已建立的流上发 GET 并读首包，校验 HTTP 200/206。
+async fn http_probe_stream<S>(mut s: S, host: &str, path: &str) -> bool
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let req = format!(
         "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
     );
-    tls.write_all(req.as_bytes()).await.ok()?;
+    if s.write_all(req.as_bytes()).await.is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 4096];
+    match s.read(&mut buf).await {
+        Ok(n) if n > 0 => {
+            let head = String::from_utf8_lossy(&buf[..n]);
+            let first = head.lines().next().unwrap_or("");
+            first.contains(" 200") || first.contains(" 206")
+        }
+        _ => false,
+    }
+}
 
+/// 通用：在已建立的流上发 GET 并持续读取累加字节，直到时间窗结束。
+async fn http_pump_stream<S>(mut s: S, host: &str, path: &str, dur: std::time::Duration, total: &AtomicU64) -> Option<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    let req = format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: HypoMuxPlus\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+    );
+    s.write_all(req.as_bytes()).await.ok()?;
     let start = std::time::Instant::now();
     let mut buf = vec![0u8; 65536];
     loop {
@@ -733,7 +737,7 @@ async fn bench_conn(
         if elapsed >= dur {
             break;
         }
-        match tokio::time::timeout(dur - elapsed, tls.read(&mut buf)).await {
+        match tokio::time::timeout(dur - elapsed, s.read(&mut buf)).await {
             Ok(Ok(0)) => break,
             Ok(Ok(n)) => {
                 total.fetch_add(n as u64, Ordering::Relaxed);
@@ -742,6 +746,49 @@ async fn bench_conn(
         }
     }
     Some(())
+}
+
+/// 经网卡探测候选节点：连通 +（按需 TLS）+ HTTP 200/206。
+async fn probe_target(nic: &NicRuntime, dst: SocketAddrV4, host: &str, path: &str, tls: bool) -> bool {
+    let fut = async {
+        let tcp = connect_via_nic(nic, dst).await.ok()?;
+        if tls {
+            let connector = tls_connector();
+            let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
+            let stream = connector.connect(server_name, tcp).await.ok()?;
+            Some(http_probe_stream(stream, host, path).await)
+        } else {
+            Some(http_probe_stream(tcp, host, path).await)
+        }
+    };
+    matches!(tokio::time::timeout(std::time::Duration::from_secs(6), fut).await, Ok(Some(true)))
+}
+
+/// 单条下载连接，绑定到指定网卡，持续读取并累加字节数（HTTPS 或明文 HTTP）。
+async fn bench_conn(
+    nic: &NicRuntime,
+    dst: SocketAddrV4,
+    host: &str,
+    path: &str,
+    tls: bool,
+    dur: std::time::Duration,
+    total: &AtomicU64,
+) -> Option<()> {
+    let tcp = tokio::time::timeout(std::time::Duration::from_secs(6), connect_via_nic(nic, dst))
+        .await
+        .ok()?
+        .ok()?;
+    if tls {
+        let connector = tls_connector();
+        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.to_string()).ok()?;
+        let stream = tokio::time::timeout(std::time::Duration::from_secs(6), connector.connect(server_name, tcp))
+            .await
+            .ok()?
+            .ok()?;
+        http_pump_stream(stream, host, path, dur, total).await
+    } else {
+        http_pump_stream(tcp, host, path, dur, total).await
+    }
 }
 
 #[derive(Clone, Copy)]
