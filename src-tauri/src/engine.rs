@@ -239,6 +239,8 @@ pub struct Engine {
     limiter: Option<Arc<RateLimiter>>,
     /// 直连白名单（小写域名，命中则走默认网关直连、不参与分流）
     bypass: Vec<String>,
+    /// DNS 解析缓存（host -> (真实IP, 解析时刻)）：经物理网卡解析后缓存，绕过 fake-ip
+    dns_cache: Mutex<HashMap<String, (Ipv4Addr, std::time::Instant)>>,
 }
 
 impl Engine {
@@ -255,6 +257,36 @@ impl Engine {
 }
 
 impl Engine {
+    /// 经所选物理网卡解析目标域名：DoH(443) → UDP 直发(53) → 系统解析，并缓存 60s。
+    /// 关键：绕过 Clash/Mihomo 的 fake-ip DNS 劫持，确保每条连接拿到真实公网 IP 后
+    /// 物理绑定到各自网卡直连出网，避免多网卡塌缩为单一上游。
+    async fn resolve_host(&self, nic: &NicRuntime, host: &str, port: u16) -> Option<SocketAddrV4> {
+        if let Ok(ip) = host.parse::<Ipv4Addr>() {
+            return Some(SocketAddrV4::new(ip, port));
+        }
+        if let Ok(cache) = self.dns_cache.lock() {
+            if let Some((ip, t)) = cache.get(host) {
+                if t.elapsed() < std::time::Duration::from_secs(60) {
+                    return Some(SocketAddrV4::new(*ip, port));
+                }
+            }
+        }
+        let ip = match resolve_via_doh(nic, host).await {
+            Some(ip) => ip,
+            None => match resolve_via_nic(nic, host).await {
+                Some(ip) => ip,
+                None => match resolve_ipv4(host, port).await {
+                    Ok(v4) => *v4.ip(),
+                    Err(_) => return None,
+                },
+            },
+        };
+        if let Ok(mut cache) = self.dns_cache.lock() {
+            cache.insert(host.to_string(), (ip, std::time::Instant::now()));
+        }
+        Some(SocketAddrV4::new(ip, port))
+    }
+
     fn next_nic(&self) -> Arc<NicRuntime> {
         // 仅在存活网卡间调度；若全部掉线则回退到全部，保证仍有出口可用
         let alive: Vec<usize> = (0..self.nics.len())
@@ -419,6 +451,7 @@ pub async fn start(
         zh,
         limiter,
         bypass,
+        dns_cache: Mutex::new(HashMap::new()),
     });
 
     let nic_names: Vec<&str> = nics.iter().map(|n| n.name.as_str()).collect();
@@ -1057,31 +1090,29 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
     client.read_exact(&mut port_buf).await?;
     let port = u16::from_be_bytes(port_buf);
 
-    // 前置异步 DNS 解析
-    let dst = if let Some(ip) = literal_ip {
-        SocketAddrV4::new(ip, port)
-    } else {
-        let host = domain.clone().unwrap_or_default();
-        match resolve_ipv4(&host, port).await {
-            Ok(v4) => v4,
-            Err(e) => {
-                engine.log(if engine.zh {
-                    format!("[DNS失败] 无法解析域名 {host}: {e}")
-                } else {
-                    format!("[DNS failed] cannot resolve {host}: {e}")
-                });
-                client
-                    .write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
-                    .await?;
-                return Ok(());
-            }
-        }
-    };
+    // 目标显示名：域名优先，否则用字面 IP
+    let target_display = domain
+        .clone()
+        .unwrap_or_else(|| literal_ip.map(|i| i.to_string()).unwrap_or_default());
 
-    let target_display = domain.unwrap_or_else(|| dst.ip().to_string());
-
-    // 白名单命中：走默认网关直连，不参与多网卡分流
+    // 白名单命中：走默认网关直连，不参与多网卡分流（用系统解析即可）
     if engine.is_bypass(&target_display) {
+        let dst = if let Some(ip) = literal_ip {
+            SocketAddrV4::new(ip, port)
+        } else {
+            match resolve_ipv4(&target_display, port).await {
+                Ok(v4) => v4,
+                Err(e) => {
+                    engine.log(if engine.zh {
+                        format!("[DNS失败] 无法解析域名 {target_display}: {e}")
+                    } else {
+                        format!("[DNS failed] cannot resolve {target_display}: {e}")
+                    });
+                    client.write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+                    return Ok(());
+                }
+            }
+        };
         let _ctg = engine.register_conn(format!("{target_display}:{port}"), "Direct".to_string(), "SOCKS");
         engine.log(if engine.zh {
             format!("[直连] 白名单命中 -> 默认网关 | 目标: {target_display}:{port}")
@@ -1108,6 +1139,25 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
+
+    // 经所选物理网卡解析（绕过 fake-ip/TUN 劫持），失败回退系统解析
+    let dst = if let Some(ip) = literal_ip {
+        SocketAddrV4::new(ip, port)
+    } else {
+        match engine.resolve_host(&nic, &target_display, port).await {
+            Some(v4) => v4,
+            None => {
+                engine.log(if engine.zh {
+                    format!("[DNS失败] 无法解析域名 {target_display}")
+                } else {
+                    format!("[DNS failed] cannot resolve {target_display}")
+                });
+                client.write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+                return Ok(());
+            }
+        }
+    };
+
     engine.log(if engine.zh {
         format!("[调度分配] 新连接 -> [{}] | 目标: {}:{}", nic.name, target_display, port)
     } else {
@@ -1210,24 +1260,22 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         return Ok(());
     }
 
-    // DNS 解析
-    let dst = match resolve_ipv4(&dst_host, dst_port).await {
-        Ok(v4) => v4,
-        Err(e) => {
-            engine.log(if engine.zh {
-                format!("[HTTP DNS失败] {dst_host}:{dst_port} -- {e}")
-            } else {
-                format!("[HTTP DNS failed] {dst_host}:{dst_port} -- {e}")
-            });
-            let _ = client
-                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
-                .await;
-            return Ok(());
-        }
-    };
-
-    // 白名单命中：走默认网关直连，不参与多网卡分流
+    // 白名单命中：走默认网关直连，不参与多网卡分流（系统解析即可）
     if engine.is_bypass(&dst_host) {
+        let dst = match resolve_ipv4(&dst_host, dst_port).await {
+            Ok(v4) => v4,
+            Err(e) => {
+                engine.log(if engine.zh {
+                    format!("[HTTP DNS失败] {dst_host}:{dst_port} -- {e}")
+                } else {
+                    format!("[HTTP DNS failed] {dst_host}:{dst_port} -- {e}")
+                });
+                let _ = client
+                    .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                    .await;
+                return Ok(());
+            }
+        };
         let _ctg = engine.register_conn(format!("{dst_host}:{dst_port}"), "Direct".to_string(), "HTTP");
         engine.log(if engine.zh {
             format!("[HTTP 直连] 白名单命中 -> 默认网关 | 目标: {dst_host}:{dst_port}")
@@ -1258,6 +1306,23 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
     let nic = engine.next_nic();
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
+
+    // 经所选物理网卡解析（绕过 fake-ip/TUN 劫持），失败回退系统解析
+    let dst = match engine.resolve_host(&nic, &dst_host, dst_port).await {
+        Some(v4) => v4,
+        None => {
+            engine.log(if engine.zh {
+                format!("[HTTP DNS失败] {dst_host}:{dst_port}")
+            } else {
+                format!("[HTTP DNS failed] {dst_host}:{dst_port}")
+            });
+            let _ = client
+                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                .await;
+            return Ok(());
+        }
+    };
+
     engine.log(if engine.zh {
         format!("[HTTP 调度分配] 新连接 -> [{}] | 目标: {}({}):{}", nic.name, dst_host, dst.ip(), dst_port)
     } else {

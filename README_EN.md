@@ -60,7 +60,7 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 ## Key Features
 
 - **Seamless Dual-Protocol Takeover**: Runs SOCKS5 and HTTP/HTTPS forwarders simultaneously, applying the Windows WinINet system proxy automatically. Compatible with Steam, IDM, browsers and any client honoring the system proxy.
-- **L3 Socket Binding**: Each outbound connection is pinned to a chosen NIC via `setsockopt(IP_UNICAST_IF)` plus source `bind`, eliminating the same-subnet `WinError 10049` wrong-adapter problem.
+- **Per-Connection NIC Egress Binding**: Each outbound TCP connection is directed out a chosen NIC via `setsockopt(IP_UNICAST_IF)` (egress interface index) plus a source `bind`, eliminating the same-subnet `WinError 10049` wrong-adapter problem. This is **connection-level egress selection**, not packet-level link bonding / MPTCP.
 - **Smart Scheduler**: Three connection strategies — classic round-robin, least-connections, and dynamic weighting by real-time download speed (smooth weighted round-robin) — so faster adapters carry more connections and weak links no longer hold aggregation back.
 - **Link Test & Benchmark**: One-click per-adapter latency (RTT) probing plus per-adapter download benchmarking to help you pick the healthiest, fastest links.
 - **Live Connection Monitor**: A live connection list shows each connection's target and the adapter it was assigned to — fully transparent dispatch.
@@ -95,13 +95,15 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
    HypoMuxPlus splitting engine (Rust + tokio)
                │
                ▼  Connection dispatch by strategy
-   L3 physical socket binding (IP_UNICAST_IF + bind)
+   Per-connection socket egress binding (IP_UNICAST_IF + bind)
    ├── NIC 1 (IfIndex) ──┐
-   ├── NIC 2 (IfIndex) ──┼─► Aggregated physical throughput
+   ├── NIC 2 (IfIndex) ──┼─► Multi-connection aggregated throughput
    └── NIC N (IfIndex) ──┘
 ```
 
-When boosting, the app writes a full proxy chain into `HKCU\...\Internet Settings`. Upon receiving a client TCP connection, the engine first locks the outbound NIC with `setsockopt(IPPROTO_IP, IP_UNICAST_IF, htonl(if_index))`, then binds the local source IP, forcing traffic off the default gateway for true multi-channel throughput.
+When boosting, the app writes a full proxy chain into `HKCU\...\Internet Settings`. Upon receiving a client TCP connection, the engine first resolves the target's real IP through the chosen physical NIC (DoH/UDP, bypassing fake-ip hijacking), then selects that connection's egress interface via `setsockopt(IPPROTO_IP, IP_UNICAST_IF, htonl(if_index))` and binds the local source IP, so the connection leaves through the target NIC. The many parallel connections of a multi-threaded download are distributed across NICs, stacking link bandwidth in a **connection-level load-balancing** sense.
+
+> **Scope & limitations**: HypoMuxPlus is a user-space **per-connection multi-NIC proxy dispatcher (L4)** — not an L3/L4 link-bonding, MPTCP or SD-WAN system. Speed gains come from "multiple parallel TCP connections + per-connection NIC distribution + server-side multi-connection support (CDN / HTTP Range)"; it **cannot accelerate a single TCP stream**. `IP_UNICAST_IF` is an egress-interface hint, not hard isolation. If **Clash/Mihomo TUN mode** is running, it takes over all IP-layer traffic via a virtual adapter at L3, overriding this app's L4 NIC binding and collapsing multi-NIC to a single uplink — in that case disable TUN (use Clash's system-proxy/rule mode) for real multi-NIC splitting.
 
 ## Use Cases
 

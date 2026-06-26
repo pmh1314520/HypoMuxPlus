@@ -540,8 +540,8 @@ pub fn run() {
             speed_test,
         ])
         .setup(|app| {
-            // 启动即清除任何残留的系统代理，保证干净起点
-            let _ = sysproxy::disable_system_proxy();
+            // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
+            sysproxy::clear_residual_proxy();
 
             // 构建系统托盘（初始中文，随客户端语言由 set_tray_language 刷新）
             let show = MenuItem::with_id(app, "show", "显示主界面", true, None::<&str>)?;

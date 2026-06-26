@@ -28,6 +28,27 @@ use windows_sys::Win32::Networking::WinSock::{AF_INET, SOCKADDR_IN};
 #[cfg(windows)]
 const IF_OPER_STATUS_UP: i32 = 1;
 
+/// 虚拟 / 隧道 / VPN 网卡关键字（命中即排除，避免误绑到虚拟接口造成自我回环或 TUN 收编）。
+/// 覆盖 Clash/Mihomo TUN、WSL/Hyper-V vEthernet、各类 TAP/VPN、虚拟机网卡等。
+#[cfg(windows)]
+const VIRTUAL_NIC_KEYWORDS: &[&str] = &[
+    "wintun", "tun", "tap-windows", "tap adapter", "tap-win", "openvpn",
+    "wireguard", "zerotier", "tailscale", "hyper-v", "vethernet", "virtual",
+    "vmware", "virtualbox", "vbox", "docker", "wsl", "loopback", "bluetooth",
+    "clash", "mihomo", "meta", "singbox", "sing-box", "radmin", "hamachi",
+    "npcap", "pcap", "miniport", "kernel debug", "teredo", "isatap",
+];
+
+/// 判断网卡名称 / 描述是否疑似虚拟网卡（大小写不敏感子串匹配）。
+#[cfg(windows)]
+fn is_virtual_nic(alias: &str, description: &str) -> bool {
+    let a = alias.to_ascii_lowercase();
+    let d = description.to_ascii_lowercase();
+    VIRTUAL_NIC_KEYWORDS
+        .iter()
+        .any(|kw| a.contains(kw) || d.contains(kw))
+}
+
 /// 暴露给前端的网卡信息。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -118,16 +139,22 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
                 }
 
                 if let Some(ip) = ipv4 {
-                    // 过滤无出口能力的地址：环回 127.0.0.0/8、链路本地 169.254.0.0/16（APIPA）
+                    // 过滤无出口能力的地址：环回 127/8、链路本地 169.254/16(APIPA)、
+                    // 以及 198.18/15（基准测试段，Clash/Mihomo fake-ip 常用，必非真实出口）
                     let o = ip.octets();
                     let is_loopback = o[0] == 127;
                     let is_link_local = o[0] == 169 && o[1] == 254;
-                    if !is_loopback && !is_link_local {
+                    let is_fake_ip = o[0] == 198 && (o[1] == 18 || o[1] == 19);
+                    let alias = pwstr_to_string(adapter.FriendlyName);
+                    let description = pwstr_to_string(adapter.Description);
+                    // 过滤虚拟 / 隧道 / VPN 网卡：它们无独立物理出口，绑定后会自我回环或被 TUN 收编
+                    let virtual_nic = is_virtual_nic(&alias, &description);
+                    if !is_loopback && !is_link_local && !is_fake_ip && !virtual_nic {
                         adapters.push(AdapterInfo {
                             index: if_index,
-                            alias: pwstr_to_string(adapter.FriendlyName),
+                            alias,
                             ipv4: ip.to_string(),
-                            description: pwstr_to_string(adapter.Description),
+                            description,
                             is_up,
                         });
                     }
