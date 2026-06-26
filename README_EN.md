@@ -120,8 +120,13 @@ Any network links that are **mutually independent — each with its own uplink b
 1. Connect your PC to multiple independent networks (e.g. wired broadband + Wi-Fi + phone USB tethering).
 2. Launch the app, wait for the adapter scan, and check the adapters to aggregate.
 3. Click **Boost**; the system proxy is engaged automatically.
-4. Start a Steam update or an IDM multi-threaded download and watch the dispatch console and live dashboard.
-5. Click **Stop** or close the app; the system proxy is restored automatically.
+4. **Point your download tool at the proxy (important)** — traffic only aggregates if it goes through this app's proxy:
+   - Clients that honor the system proxy (most browsers, Steam) usually work automatically.
+   - **Tools that ignore the system proxy (IDM, Thunder, qBittorrent…) must be set manually**: set **SOCKS5 proxy `127.0.0.1:10800`** (or HTTP `127.0.0.1:10801`; see Settings for ports). For Steam / IDM you can one-click apply in **Settings → App Compatibility**.
+5. Start a multi-threaded download and watch the dispatch console and live dashboard.
+6. Click **Stop** or close the app; the system proxy is restored automatically.
+
+> **Only one adapter carries traffic / no speed change?** 90% of the time step 4 was missed — the download tool isn't pointing at this app's proxy, so traffic never enters the splitting engine. Set SOCKS5 `127.0.0.1:10800` in the tool. Also confirm each participating adapter has its **own independent internet uplink** (the app runs a "NIC self-test" on boost and prints the result in the dispatch log) and that the download is multi-threaded.
 
 ## Development & Build
 

@@ -26,7 +26,7 @@ export function TutorialPage() {
     { icon: Download, title: t("tutStep4Title"), desc: t("tutStep4Desc") },
   ];
 
-  const tips = [t("tutTip1"), t("tutTip2"), t("tutTip3"), t("tutTip4")];
+  const tips = [t("tutTip1"), t("tutTip2"), t("tutTip3"), t("tutTip4"), t("tutTip5")];
 
   const scenarios = [
     { icon: Users, title: t("tutScen1Title"), desc: t("tutScen1Desc") },
@@ -40,6 +40,7 @@ export function TutorialPage() {
     { q: t("faqQ3"), a: t("faqA3") },
     { q: t("faqQ4"), a: t("faqA4") },
     { q: t("faqQ5"), a: t("faqA5") },
+    { q: t("faqQ6"), a: t("faqA6") },
   ];
 
   return (

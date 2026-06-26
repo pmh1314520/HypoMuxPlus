@@ -173,6 +173,9 @@ function AppInner() {
   const sessRef = useRef({ mb: 0, peak: 0, secs: 0 });
   const sessNicsRef = useRef(0);
   const prevRunningRef = useRef(false);
+  const sawConnRef = useRef(false);
+  const hintedProxyRef = useRef(false);
+  const hintedNicRef = useRef(false);
   useEffect(() => {
     runningRef.current = running;
   }, [running]);
@@ -250,6 +253,7 @@ function AppInner() {
       // 记录本次会话出现过的最大活跃网卡数（供战报展示协同网卡数）
       const activeNics = p.perNic.filter((nn) => nn.downMbps > 0).length;
       if (activeNics > sessNicsRef.current) sessNicsRef.current = activeNics;
+      if (p.total.connections > 0) sawConnRef.current = true;
       // 托盘图标实时显示合并下行速度
       api.updateTraySpeed(p.total.downMbps).catch(() => {});
       // 按真实时间间隔积分本次下载量(MB)，避免遥测抖动导致统计偏差
@@ -438,6 +442,9 @@ function AppInner() {
     }
     if (!prevRunningRef.current && running) {
       sessNicsRef.current = 0;
+      sawConnRef.current = false;
+      hintedProxyRef.current = false;
+      hintedNicRef.current = false;
     }
     prevRunningRef.current = running;
   }, [running]);
@@ -458,8 +465,21 @@ function AppInner() {
     }
     const start = Date.now();
     const timer = setInterval(() => {
-      setUptime((Date.now() - start) / 1000);
+      const secs = (Date.now() - start) / 1000;
+      setUptime(secs);
       setLifetimeSeconds((prev) => prev + 1);
+      // 加速 15s 仍无任何经代理的连接 → 多半是下载工具没配代理，提示用户
+      if (secs >= 15 && !sawConnRef.current && !hintedProxyRef.current && selected.size > 0) {
+        hintedProxyRef.current = true;
+        const msg = t("proxyUnusedHint", { port: socksPort });
+        toast("warning", msg);
+        emitHudNotice("warning", msg).catch(() => {});
+      }
+      // 有连接但流量只集中在单卡（且选了多卡）→ 提示检查多线程/独立出口
+      if (secs >= 24 && sawConnRef.current && !hintedNicRef.current && selected.size > 1 && sessNicsRef.current <= 1) {
+        hintedNicRef.current = true;
+        toast("info", t("oneNicHint"));
+      }
     }, 1000);
     return () => clearInterval(timer);
   }, [running]);
