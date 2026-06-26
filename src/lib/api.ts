@@ -91,6 +91,7 @@ export const api = {
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
   setTrayLanguage: (en: boolean) => invoke<void>("set_tray_language", { en }),
+  setAppWatch: (enabled: boolean) => invoke<void>("set_app_watch", { enabled }),
   isPortFree: (port: number) => invoke<boolean>("is_port_free", { port }),
   suggestFreePort: (start: number) => invoke<number>("suggest_free_port", { start }),
   checkUpdate: () => invoke<UpdateInfo>("check_update"),
@@ -150,6 +151,10 @@ export const onHudNotice = (cb: (n: { kind: string; msg: string }) => void): Pro
 
 export const onNicAlert = (cb: (a: { name: string; alive: boolean }) => void): Promise<UnlistenFn> =>
   listen<{ name: string; alive: boolean }>("hmx-nic-alert", (e) => cb(e.payload));
+
+/** 进程感知自动加速：后端检测到/退出下载类应用时推送 boost=true/false */
+export const onAutoBoost = (cb: (boost: boolean) => void): Promise<UnlistenFn> =>
+  listen<boolean>("hmx-autoboost", (e) => cb(e.payload));
 
 export const onConnClosed = (cb: (c: ConnInfo) => void): Promise<UnlistenFn> =>
   listen<ConnInfo>("hmx-conn-closed", (e) => cb(e.payload));

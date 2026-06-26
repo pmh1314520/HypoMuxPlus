@@ -29,6 +29,7 @@ import {
   onTelemetry,
   onTrayToggle,
   onNicAlert,
+  onAutoBoost,
   win,
   type AdapterInfo,
   type ConnInfo,
@@ -119,7 +120,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics } =
     useSettings();
   const toast = useToast();
 
@@ -165,6 +166,7 @@ function AppInner() {
   const onBoostRef = useRef<() => void>(() => {});
   const runningRef = useRef(false);
   const lastTeleRef = useRef(0);
+  const autoStartedRef = useRef(false);
   useEffect(() => {
     runningRef.current = running;
   }, [running]);
@@ -283,6 +285,19 @@ function AppInner() {
       toast(a.alive ? "success" : "warning", t(a.alive ? "nicUpToast" : "nicDownToast", { name: a.name })),
     ).then((u) => unlisteners.push(u));
 
+    // 进程感知自动加速：检测到下载类应用自动加速，全部退出自动停（仅停自动启动的）
+    onAutoBoost((boost) => {
+      if (boost) {
+        if (!runningRef.current) {
+          autoStartedRef.current = true;
+          onBoostRef.current();
+        }
+      } else if (runningRef.current && autoStartedRef.current) {
+        autoStartedRef.current = false;
+        onBoostRef.current();
+      }
+    }).then((u) => unlisteners.push(u));
+
     return () => unlisteners.forEach((u) => u());
   }, [scan]);
 
@@ -294,6 +309,11 @@ function AppInner() {
   useEffect(() => {
     api.setTrayLanguage(lang === "en").catch(() => {});
   }, [lang]);
+
+  // 同步"进程感知自动加速"开关到后端
+  useEffect(() => {
+    api.setAppWatch(autoBoostOnApp).catch(() => {});
+  }, [autoBoostOnApp]);
 
   // 窗口置顶开关
   useEffect(() => {
@@ -721,8 +741,7 @@ function AppInner() {
                 ) : view === "about" ? (
                   <AboutPage lifetimeMB={lifetimeMB} admin={admin} onReplayGuide={() => setShowOnboarding(true)} onCheckUpdate={onCheckUpdate} />
                 ) : (
-                  <SettingsPage running={running} adapters={adapters} routeRules={routeRules} setRouteRules={setRouteRules} />
-                )}
+                  <SettingsPage running={running} adapters={adapters} routeRules={routeRules} setRouteRules={setRouteRules} onStopBoost={() => { if (running) onBoost(); }} />)}
               </motion.div>
             </AnimatePresence>
           </div>

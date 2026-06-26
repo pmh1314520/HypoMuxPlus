@@ -394,6 +394,15 @@ export const DICT: Record<Lang, Record<string, string>> = {
     ruleDirect: "直连（默认网关）",
     ruleAggregate: "走聚合",
     ruleViaNic: "钉死到：{name}",
+    settingAutoBoostApp: "应用感知自动加速",
+    settingAutoBoostAppHint: "检测到 Steam / IDM / 迅雷 / qBittorrent 等下载类应用启动时自动加速，全部退出后自动停止",
+    sceneTitle: "情景模式",
+    sceneHint: "一键套用预设组合（调度策略 + 限速）。下次开启加速时生效；游戏模式会立即停止加速、回归单网关低延迟。",
+    sceneFull: "全速下载",
+    sceneBalanced: "均衡",
+    sceneSaver: "省流限速",
+    sceneGame: "游戏低延迟",
+    sceneApplied: "已切换到「{name}」",
   },
 
   en: {
@@ -780,6 +789,15 @@ export const DICT: Record<Lang, Record<string, string>> = {
     ruleDirect: "Direct (default gateway)",
     ruleAggregate: "Aggregate",
     ruleViaNic: "Pin to: {name}",
+    settingAutoBoostApp: "App-aware auto-boost",
+    settingAutoBoostAppHint: "Auto-boost when download apps (Steam / IDM / Thunder / qBittorrent…) start, and auto-stop when they all exit",
+    sceneTitle: "Scene Modes",
+    sceneHint: "Apply a preset combo (strategy + limit) in one click. Takes effect on the next boost; Game mode stops acceleration immediately for a single low-latency gateway.",
+    sceneFull: "Full Speed",
+    sceneBalanced: "Balanced",
+    sceneSaver: "Bandwidth Saver",
+    sceneGame: "Game (Low Latency)",
+    sceneApplied: "Switched to \"{name}\"",
   },
 };
 

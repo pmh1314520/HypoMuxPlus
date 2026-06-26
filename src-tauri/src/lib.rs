@@ -32,6 +32,8 @@ pub struct AppState {
     tray_quit: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
     /// 托盘菜单语言：true=英文，false=中文（跟随客户端选择）
     tray_en: AtomicBool,
+    /// 进程感知自动加速：是否启用（检测到下载类应用自动加速）
+    app_watch: AtomicBool,
 }
 
 impl Default for AppState {
@@ -45,6 +47,7 @@ impl Default for AppState {
             tray_toggle: Mutex::new(None),
             tray_quit: Mutex::new(None),
             tray_en: AtomicBool::new(false),
+            app_watch: AtomicBool::new(false),
         }
     }
 }
@@ -97,6 +100,35 @@ fn update_tray_toggle(app: &AppHandle, running: bool) {
             (false, true) => "Start Boost",
         });
     }
+}
+
+/// 已知下载 / 游戏平台进程名（小写），用于进程感知自动加速。
+const WATCH_PROCESSES: &[&str] = &[
+    "steam.exe", "idman.exe", "thunder.exe", "xldl.exe", "baidunetdisk.exe",
+    "qbittorrent.exe", "utorrent.exe", "bittorrent.exe", "aria2c.exe", "motrix.exe",
+    "fdm.exe", "epicgameslauncher.exe", "battle.net.exe", "eadesktop.exe",
+    "origin.exe", "galaxyclient.exe", "wegame.exe", "transmission.exe",
+];
+
+/// 启用 / 关闭进程感知自动加速（检测到下载类应用自动开始 / 停止加速）。
+#[tauri::command]
+fn set_app_watch(state: State<'_, AppState>, enabled: bool) {
+    state.app_watch.store(enabled, Ordering::Relaxed);
+}
+
+/// 经 tasklist 枚举当前进程，判断是否有目标下载 / 游戏进程在运行。
+fn any_watch_process_running() -> bool {
+    use std::os::windows::process::CommandExt;
+    let out = match std::process::Command::new("tasklist")
+        .args(["/fo", "csv", "/nh"])
+        .creation_flags(0x0800_0000)
+        .output()
+    {
+        Ok(o) => o,
+        Err(_) => return false,
+    };
+    let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
+    WATCH_PROCESSES.iter().any(|p| text.contains(p))
 }
 
 /// 按客户端选择的语言刷新整个托盘菜单（显示主界面 / 加速切换 / 退出）。
@@ -534,6 +566,7 @@ pub fn run() {
             write_text_file,
             write_binary_file,
             set_tray_language,
+            set_app_watch,
             is_port_free,
             suggest_free_port,
             check_update,
@@ -544,6 +577,27 @@ pub fn run() {
         .setup(|app| {
             // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
             sysproxy::clear_residual_proxy();
+
+            // 进程感知自动加速：后台轮询目标进程，状态变化时通知前端
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut last_present = false;
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                        let enabled = app_handle.state::<AppState>().app_watch.load(Ordering::Relaxed);
+                        if !enabled {
+                            last_present = false;
+                            continue;
+                        }
+                        let present = any_watch_process_running();
+                        if present != last_present {
+                            last_present = present;
+                            let _ = app_handle.emit("hmx-autoboost", present);
+                        }
+                    }
+                });
+            }
 
             // 构建系统托盘（初始中文，随客户端语言由 set_tray_language 刷新）
             let show = MenuItem::with_id(app, "show", "显示主界面", true, None::<&str>)?;

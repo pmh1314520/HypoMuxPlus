@@ -28,6 +28,7 @@ interface Settings {
   autostart: boolean;
   launchMinimized: boolean;
   autoBoost: boolean;
+  autoBoostOnApp: boolean;
   strategy: SchedStrategy;
   globalHotkey: boolean;
   notifications: boolean;
@@ -58,6 +59,7 @@ const DEFAULTS: Settings = {
   autostart: false,
   launchMinimized: false,
   autoBoost: false,
+  autoBoostOnApp: false,
   strategy: "weighted",
   globalHotkey: false,
   notifications: false,

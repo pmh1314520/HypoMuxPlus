@@ -40,10 +40,11 @@ interface Props {
   adapters: AdapterInfo[];
   routeRules: { pattern: string; action: string }[];
   setRouteRules: (rules: { pattern: string; action: string }[]) => void;
+  onStopBoost: () => void;
 }
 
-export function SettingsPage({ running, adapters, routeRules, setRouteRules }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, set } =
+export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -318,6 +319,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules }: P
           <Row icon={<Zap size={15} />} label={t("settingAutoBoost")} hint={t("settingAutoBoostHint")}>
             <Switch checked={autoBoost} onChange={(v) => set("autoBoost", v)} />
           </Row>
+          <Row icon={<Gamepad2 size={15} />} label={t("settingAutoBoostApp")} hint={t("settingAutoBoostAppHint")}>
+            <Switch checked={autoBoostOnApp} onChange={(v) => set("autoBoostOnApp", v)} />
+          </Row>
           <Row
             icon={<KeyRound size={15} />}
             label={t("settingHotkey")}
@@ -368,6 +372,30 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules }: P
               ? t("schedLeastDesc")
               : t("schedWeightedDesc")}
           </p>
+        </Section>
+
+        {/* 情景模式（Plus 专属） */}
+        <Section id="sec-scene" icon={<Wand2 size={16} />} title={t("sceneTitle")} hint={t("sceneHint")}>
+          <div className="pt-1 flex flex-wrap gap-2">
+            {[
+              { key: "sceneFull", apply: () => { set("strategy", "weighted"); set("downLimit", 0); } },
+              { key: "sceneBalanced", apply: () => { set("strategy", "least"); set("downLimit", 0); } },
+              { key: "sceneSaver", apply: () => { set("strategy", "weighted"); set("downLimit", 5); } },
+              { key: "sceneGame", apply: () => { onStopBoost(); } },
+            ].map((s) => (
+              <button
+                key={s.key}
+                onClick={() => {
+                  s.apply();
+                  toast("success", t("sceneApplied", { name: t(s.key) }));
+                }}
+                className="px-3.5 py-2 rounded-xl text-[12.5px] font-medium transition-transform hover:scale-105"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+              >
+                {t(s.key)}
+              </button>
+            ))}
+          </div>
         </Section>
 
         {/* 应用分流规则（Plus 专属） */}
