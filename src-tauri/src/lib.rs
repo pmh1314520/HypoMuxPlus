@@ -572,46 +572,75 @@ async fn download_and_install(app: AppHandle, url: String) -> Result<(), String>
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
-    let bytes = client
+    let mut resp = client
         .get(&url)
         .send()
         .await
         .map_err(|e| format!("下载失败: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("下载失败: {e}"))?
-        .bytes()
-        .await
         .map_err(|e| format!("下载失败: {e}"))?;
+    let total = resp.content_length().unwrap_or(0);
+
+    // 流式下载并向前端推送进度，驱动更新弹窗的进度条
+    let mut bytes: Vec<u8> = Vec::with_capacity(total.max(1) as usize);
+    let mut downloaded: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+    let emit_progress = |app: &AppHandle, downloaded: u64, total: u64, done: bool| {
+        let percent = if total > 0 {
+            (downloaded as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
+        } else if done {
+            100.0
+        } else {
+            0.0
+        };
+        let _ = app.emit(
+            "hmx-update-progress",
+            serde_json::json!({ "downloaded": downloaded, "total": total, "percent": percent }),
+        );
+    };
+    emit_progress(&app, 0, total, false);
+    while let Some(chunk) = resp.chunk().await.map_err(|e| format!("下载失败: {e}"))? {
+        bytes.extend_from_slice(&chunk);
+        downloaded += chunk.len() as u64;
+        if last_emit.elapsed() >= std::time::Duration::from_millis(80) {
+            emit_progress(&app, downloaded, total, false);
+            last_emit = std::time::Instant::now();
+        }
+    }
+    emit_progress(&app, downloaded, total.max(downloaded), true);
+
     if bytes.len() < 1024 * 1024 {
         return Err("下载内容异常（体积过小）".into());
     }
 
     let cur = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = cur.parent().ok_or("无法定位安装目录")?.to_path_buf();
-    let exe_name = cur
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "HypoMuxPlus.exe".into());
     let new_path = dir.join("HypoMuxPlus.update.exe");
     std::fs::write(&new_path, &bytes).map_err(|e| format!("写入更新文件失败: {e}"))?;
 
     #[cfg(windows)]
     {
-        let bat = dir.join("hmx_update.bat");
+        // 脚本写入系统临时目录（而非安装目录），更新后不会在程序文件夹留下 .bat 残留
+        let bat = std::env::temp_dir().join("hmx_update.bat");
         let cur_str = cur.to_string_lossy().replace('/', "\\");
         let new_str = new_path.to_string_lossy().replace('/', "\\");
-        // 等待主进程退出 -> 覆盖旧 exe -> 重新启动 -> 自删脚本
+        let pid = std::process::id();
+        // 按 PID 精确等待主进程退出 -> 覆盖旧 exe -> 重新启动 -> 自删脚本。
+        // 全程在隐藏控制台内执行（仅 CREATE_NO_WINDOW），不会弹出任何终端窗口。
         let script = format!(
-            "@echo off\r\nchcp 65001>nul\r\nping 127.0.0.1 -n 2 >nul\r\n:loop\r\ntasklist /fi \"imagename eq {exe_name}\" | find /i \"{exe_name}\" >nul && (ping 127.0.0.1 -n 2 >nul & goto loop)\r\nmove /y \"{new_str}\" \"{cur_str}\" >nul\r\nstart \"\" \"{cur_str}\"\r\ndel \"%~f0\"\r\n"
+            "@echo off\r\nchcp 65001>nul\r\n:wait\r\ntasklist /fi \"PID eq {pid}\" /nh 2>nul | find \"{pid}\" >nul && (ping 127.0.0.1 -n 2 >nul & goto wait)\r\nmove /y \"{new_str}\" \"{cur_str}\" >nul\r\nstart \"\" \"{cur_str}\"\r\ndel \"%~f0\"\r\n"
         );
         std::fs::write(&bat, &script).map_err(|e| format!("写入更新脚本失败: {e}"))?;
         use std::os::windows::process::CommandExt;
+        // 仅 CREATE_NO_WINDOW：cmd 在隐藏控制台运行，ping/tasklist/find/move/start
+        // 等子命令继承该隐藏控制台，全程不闪任何黑色终端窗口。
+        // 注意：不可叠加 DETACHED_PROCESS，否则子控制台程序会各自新建可见窗口而疯狂闪烁。
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
         std::process::Command::new("cmd")
             .arg("/c")
             .arg(&bat)
-            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+            .current_dir(std::env::temp_dir())
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("启动更新程序失败: {e}"))?;
     }

@@ -167,6 +167,15 @@ export const onCli = (cb: (action: string) => void): Promise<UnlistenFn> =>
 export const onConnClosed = (cb: (c: ConnInfo) => void): Promise<UnlistenFn> =>
   listen<ConnInfo>("hmx-conn-closed", (e) => cb(e.payload));
 
+/** 应用内更新下载进度：percent 为 0~100，total=0 表示服务器未提供长度 */
+export interface UpdateProgress {
+  downloaded: number;
+  total: number;
+  percent: number;
+}
+export const onUpdateProgress = (cb: (p: UpdateProgress) => void): Promise<UnlistenFn> =>
+  listen<UpdateProgress>("hmx-update-progress", (e) => cb(e.payload));
+
 // ---- 窗口控制 ----
 export const win = {
   minimize: () => getCurrentWindow().minimize(),

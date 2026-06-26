@@ -318,3 +318,13 @@ input:focus-visible {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+
+/* 应用内更新：未知总长时的不确定态进度条来回滑动 */
+@keyframes hmxUpdIndet {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+.hmx-upd-indet {
+  animation: hmxUpdIndet 1.1s ease-in-out infinite;
+}

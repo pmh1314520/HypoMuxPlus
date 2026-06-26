@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Download, Loader2, Rocket, X } from "lucide-react";
-import { api, type UpdateInfo } from "../lib/api";
+import { api, onUpdateProgress, type UpdateInfo } from "../lib/api";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 
@@ -14,6 +14,8 @@ export function UpdateDialog({ info, onClose }: Props) {
   const { t } = useSettings();
   const toast = useToast();
   const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [indeterminate, setIndeterminate] = useState(false);
 
   // Esc 关闭（安装中禁用）+ 锁定背景滚动
   useEffect(() => {
@@ -29,10 +31,28 @@ export function UpdateDialog({ info, onClose }: Props) {
     };
   }, [installing, onClose]);
 
+  // 订阅后端下载进度，驱动进度条
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    onUpdateProgress((p) => {
+      if (p.total > 0) {
+        setIndeterminate(false);
+        setProgress(p.percent);
+      } else {
+        // 服务器未返回长度：用不确定态动画
+        setIndeterminate(true);
+        setProgress(p.percent);
+      }
+    }).then((fn) => (un = fn));
+    return () => un?.();
+  }, []);
+
   const install = async () => {
     setInstalling(true);
+    setProgress(0);
+    setIndeterminate(false);
     try {
-      // 成功后后端会退出当前实例并由更新脚本替换重启
+      // 成功后后端会退出当前实例并由更新脚本静默替换重启
       await api.downloadAndInstall(info.url);
     } catch (e) {
       setInstalling(false);
@@ -116,9 +136,33 @@ export function UpdateDialog({ info, onClose }: Props) {
           )}
         </div>
         {installing && (
-          <p className="text-[11.5px] mt-3 text-center" style={{ color: "var(--text-2)" }}>
-            {t("updInstallingHint")}
-          </p>
+          <div className="mt-4">
+            <div
+              className="relative h-2 rounded-full overflow-hidden"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+            >
+              {indeterminate ? (
+                <div className="hmx-upd-indet absolute inset-y-0 w-1/3 rounded-full" style={{ background: "linear-gradient(90deg, var(--accent), var(--accent-deep))" }} />
+              ) : (
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{ background: "linear-gradient(90deg, var(--accent), var(--accent-deep))" }}
+                  animate={{ width: `${Math.max(2, progress)}%` }}
+                  transition={{ ease: "easeOut", duration: 0.2 }}
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[11.5px]" style={{ color: "var(--text-2)" }}>
+                {t("updInstallingHint")}
+              </span>
+              {!indeterminate && (
+                <span className="text-[11.5px] mono" style={{ color: "var(--accent-soft)" }}>
+                  {Math.round(progress)}%
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </motion.div>
     </motion.div>
