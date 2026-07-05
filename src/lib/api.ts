@@ -9,6 +9,8 @@ export interface AdapterInfo {
   ipv4: string;
   description: string;
   isUp: boolean;
+  /** 是否疑似虚拟/隧道/VPN/环回等网卡（仅作标记，供前端过滤器使用） */
+  isVirtual: boolean;
 }
 
 export interface SelectedNic {

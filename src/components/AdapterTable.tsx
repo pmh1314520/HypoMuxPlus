@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Clipboard, Copy, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
+import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Clipboard, Copy, Filter, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
@@ -98,6 +98,7 @@ export function AdapterTable({
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [sort, setSort] = useState<"default" | "speed" | "conns">("default");
+  const [nicFilter, setNicFilter] = useState<"all" | "physical" | "virtual">("all");
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; a: AdapterInfo } | null>(null);
 
   useEffect(() => {
@@ -127,10 +128,21 @@ export function AdapterTable({
 
   const sortLabel = sort === "speed" ? t("sortSpeed") : sort === "conns" ? t("sortConns") : t("sortDefault");
   const cycleSort = () => setSort((s) => (s === "default" ? "speed" : s === "speed" ? "conns" : "default"));
+
+  // 网卡过滤器（展示层）：全部 / 仅物理 / 仅虚拟。默认展示全部，不影响后端调度。
+  const filterLabel =
+    nicFilter === "physical" ? t("nicFilterPhysical") : nicFilter === "virtual" ? t("nicFilterVirtual") : t("nicFilterAll");
+  const cycleFilter = () =>
+    setNicFilter((f) => (f === "all" ? "physical" : f === "physical" ? "virtual" : "all"));
+  const filteredAdapters =
+    nicFilter === "all"
+      ? adapters
+      : adapters.filter((a) => (nicFilter === "virtual" ? a.isVirtual : !a.isVirtual));
+
   const sortedAdapters =
     sort === "default"
-      ? adapters
-      : [...adapters].sort((a, b) => {
+      ? filteredAdapters
+      : [...filteredAdapters].sort((a, b) => {
           const ta = perNic[a.alias];
           const tb = perNic[b.alias];
           const va = sort === "speed" ? ta?.downMbps ?? 0 : ta?.connections ?? 0;
@@ -182,9 +194,27 @@ export function AdapterTable({
 
   const deleteProfile = (name: string) => persist(profiles.filter((p) => p.name !== name));
 
-  // 全选 / 取消全选 切换（合并原"清空"按钮）
-  const validList = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
-  const allSelected = validList.length > 0 && validList.every((a) => selected.has(a.index));
+  // 全选 / 取消全选 切换（合并原"清空"按钮）——作用于当前过滤器下可见且具备有效 IPv4 的网卡
+  const visibleValid = filteredAdapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
+  const allSelected = visibleValid.length > 0 && visibleValid.every((a) => selected.has(a.index));
+
+  const handleSelectAll = () => {
+    if (nicFilter === "all") {
+      selectAll();
+      return;
+    }
+    const merged = new Set(selected);
+    visibleValid.forEach((a) => merged.add(a.index));
+    applySelection([...merged]);
+  };
+  const handleDeselectAll = () => {
+    if (nicFilter === "all") {
+      deselectAll();
+      return;
+    }
+    const visIdx = new Set(visibleValid.map((a) => a.index));
+    applySelection([...selected].filter((i) => !visIdx.has(i)));
+  };
 
   return (
     <div className="glass flex flex-col overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
@@ -220,8 +250,21 @@ export function AdapterTable({
             <ArrowDownUp size={13} /> {sortLabel}
           </button>
         </Tooltip>
+        <Tooltip label={t("nicFilterTip")} placement="top">
+          <button
+            onClick={cycleFilter}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap shrink-0"
+            style={{
+              background: nicFilter === "all" ? "var(--surface-strong)" : "color-mix(in srgb, var(--accent) 16%, transparent)",
+              border: `1px solid ${nicFilter === "all" ? "var(--border)" : "color-mix(in srgb, var(--accent) 35%, transparent)"}`,
+              color: nicFilter === "all" ? "var(--text-1)" : "var(--accent-soft)",
+            }}
+          >
+            <Filter size={13} /> {filterLabel}
+          </button>
+        </Tooltip>
         <Tooltip label={allSelected ? t("deselectAll") : t("selectAll")} placement="top">
-          <HeaderBtn onClick={() => (allSelected ? deselectAll() : selectAll())} disabled={running}>
+          <HeaderBtn onClick={() => (allSelected ? handleDeselectAll() : handleSelectAll())} disabled={running}>
             {allSelected ? <Square size={15} /> : <CheckSquare size={15} />}
           </HeaderBtn>
         </Tooltip>
@@ -334,8 +377,8 @@ export function AdapterTable({
 
       {/* 行 */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {adapters.length === 0 ? (
-          loading ? (
+        {sortedAdapters.length === 0 ? (
+          loading && adapters.length === 0 ? (
             <div className="px-1 pt-1">
               {[0, 1, 2, 3].map((i) => (
                 <div
@@ -361,19 +404,31 @@ export function AdapterTable({
                   className="grid place-items-center w-12 h-12 rounded-2xl mb-3"
                   style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
                 >
-                  <Cable size={22} />
+                  {adapters.length > 0 ? <Filter size={22} /> : <Cable size={22} />}
                 </span>
-                <div className="text-[14px] font-semibold mb-1.5">{t("statusNoAdapters")}</div>
+                <div className="text-[14px] font-semibold mb-1.5">
+                  {adapters.length > 0 ? t("nicFilterEmpty") : t("statusNoAdapters")}
+                </div>
                 <p className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--text-2)" }}>
-                  {t("noNicHint")}
+                  {adapters.length > 0 ? t("nicFilterEmptyHint") : t("noNicHint")}
                 </p>
-                <button
-                  onClick={refresh}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
-                  style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
-                >
-                  <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {t("btnRescan")}
-                </button>
+                {adapters.length > 0 ? (
+                  <button
+                    onClick={() => setNicFilter("all")}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
+                    style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
+                  >
+                    <Filter size={14} /> {t("nicFilterAll")}
+                  </button>
+                ) : (
+                  <button
+                    onClick={refresh}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
+                    style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
+                  >
+                    <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {t("btnRescan")}
+                  </button>
+                )}
               </div>
             </div>
           )

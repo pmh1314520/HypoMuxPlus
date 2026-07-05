@@ -28,7 +28,8 @@ use windows_sys::Win32::Networking::WinSock::{AF_INET, SOCKADDR_IN};
 #[cfg(windows)]
 const IF_OPER_STATUS_UP: i32 = 1;
 
-/// 虚拟 / 隧道 / VPN 网卡关键字（命中即排除，避免误绑到虚拟接口造成自我回环或 TUN 收编）。
+/// 虚拟 / 隧道 / VPN 网卡关键字（仅用于标记，不再作为扫描期硬过滤条件）。
+/// 命中后将 `is_virtual` 置为 true，交由前端过滤器决定是否展示，默认展示全部网卡。
 /// 覆盖 Clash/Mihomo TUN、WSL/Hyper-V vEthernet、各类 TAP/VPN、虚拟机网卡等。
 #[cfg(windows)]
 const VIRTUAL_NIC_KEYWORDS: &[&str] = &[
@@ -63,6 +64,9 @@ pub struct AdapterInfo {
     pub description: String,
     /// 是否处于活动（Up）状态
     pub is_up: bool,
+    /// 是否疑似虚拟 / 隧道 / VPN / 环回 / 链路本地 / fake-ip 网卡。
+    /// 仅作标记，供前端过滤器使用；扫描期不再据此剔除网卡。
+    pub is_virtual: bool,
 }
 
 #[cfg(windows)]
@@ -139,25 +143,25 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
                 }
 
                 if let Some(ip) = ipv4 {
-                    // 过滤无出口能力的地址：环回 127/8、链路本地 169.254/16(APIPA)、
-                    // 以及 198.18/15（基准测试段，Clash/Mihomo fake-ip 常用，必非真实出口）
+                    // 不再硬过滤任何网卡：环回 127/8、链路本地 169.254/16(APIPA)、
+                    // 198.18/15（Clash/Mihomo fake-ip 段）以及虚拟/隧道/VPN 网卡均一并返回，
+                    // 仅打上 is_virtual 标记，由前端过滤器决定是否展示（默认展示全部）。
                     let o = ip.octets();
                     let is_loopback = o[0] == 127;
                     let is_link_local = o[0] == 169 && o[1] == 254;
                     let is_fake_ip = o[0] == 198 && (o[1] == 18 || o[1] == 19);
                     let alias = pwstr_to_string(adapter.FriendlyName);
                     let description = pwstr_to_string(adapter.Description);
-                    // 过滤虚拟 / 隧道 / VPN 网卡：它们无独立物理出口，绑定后会自我回环或被 TUN 收编
-                    let virtual_nic = is_virtual_nic(&alias, &description);
-                    if !is_loopback && !is_link_local && !is_fake_ip && !virtual_nic {
-                        adapters.push(AdapterInfo {
-                            index: if_index,
-                            alias,
-                            ipv4: ip.to_string(),
-                            description,
-                            is_up,
-                        });
-                    }
+                    let is_virtual =
+                        is_loopback || is_link_local || is_fake_ip || is_virtual_nic(&alias, &description);
+                    adapters.push(AdapterInfo {
+                        index: if_index,
+                        alias,
+                        ipv4: ip.to_string(),
+                        description,
+                        is_up,
+                        is_virtual,
+                    });
                 }
             }
 
