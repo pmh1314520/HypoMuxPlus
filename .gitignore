@@ -41,3 +41,7 @@ website/
 
 # 发行可执行文件（通过 Releases 分发，不入库）
 *.exe
+
+# 版本号一键更新工具（维护者本地发布工具，不随仓库发布）
+/一键更新版本号.bat
+/scripts/update-version.ps1
