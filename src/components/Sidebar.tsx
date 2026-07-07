@@ -64,6 +64,7 @@ export function Sidebar({ view, setView, running }: Props) {
             <button
               key={item.id}
               onClick={() => setView(item.id)}
+              aria-current={active ? "page" : undefined}
               className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-colors"
               style={{ color: active ? "var(--text-0)" : "var(--text-1)" }}
             >
