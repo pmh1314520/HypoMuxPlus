@@ -64,6 +64,9 @@ export function AggregateSpeedTest({ adapters, selected, speedResults, running, 
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 250, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("aggTitle")}
         className="panel w-[560px] max-w-[94vw] p-6"
         style={{ boxShadow: "var(--shadow)" }}
       >
@@ -83,6 +86,7 @@ export function AggregateSpeedTest({ adapters, selected, speedResults, running, 
           {!running && (
             <button
               onClick={onClose}
+              aria-label={t("tipClose")}
               className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
               style={{ color: "var(--text-2)" }}
             >

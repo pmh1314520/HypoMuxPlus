@@ -41,6 +41,9 @@ export function Onboarding({ onClose }: Props) {
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("obTitle")}
         className="panel w-[440px] max-w-[90vw] p-7"
         style={{ boxShadow: "var(--shadow)" }}
       >

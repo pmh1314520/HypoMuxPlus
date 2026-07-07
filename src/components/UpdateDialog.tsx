@@ -74,6 +74,9 @@ export function UpdateDialog({ info, onClose }: Props) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("updTitle")}
         className="panel w-[460px] max-w-[92vw] p-6"
         style={{ boxShadow: "var(--shadow)" }}
       >
@@ -93,6 +96,7 @@ export function UpdateDialog({ info, onClose }: Props) {
           {!installing && (
             <button
               onClick={onClose}
+              aria-label={t("updLater")}
               className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
               style={{ color: "var(--text-2)" }}
             >

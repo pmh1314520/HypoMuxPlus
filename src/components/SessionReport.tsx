@@ -165,6 +165,9 @@ export function SessionReport({ stats, onClose }: Props) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 250, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("reportTitle")}
         className="panel w-[520px] max-w-[94vw] p-6"
         style={{ boxShadow: "var(--shadow)" }}
       >
@@ -180,6 +183,7 @@ export function SessionReport({ stats, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
+            aria-label={t("reportClose")}
             className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:[background:var(--surface-hover)]"
             style={{ color: "var(--text-2)" }}
           >
