@@ -43,6 +43,7 @@ import {
 } from "./lib/api";
 
 export interface ClosedConn {
+  id: number;
   proto: string;
   target: string;
   nic: string;
@@ -284,7 +285,7 @@ function AppInner() {
     onConnections((c) => setConnections(c)).then((u) => unlisteners.push(u));
     onConnClosed((c) =>
       setConnHistory((prev) => {
-        const next = [{ proto: c.proto, target: c.target, nic: c.nic, at: Date.now() }, ...prev];
+        const next = [{ id: c.id, proto: c.proto, target: c.target, nic: c.nic, at: Date.now() }, ...prev];
         return next.length > CONN_HISTORY_CAP ? next.slice(0, CONN_HISTORY_CAP) : next;
       }),
     ).then((u) => unlisteners.push(u));

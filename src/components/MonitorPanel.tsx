@@ -183,9 +183,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
             ) : filteredHistory.length === 0 ? (
               <EmptyState icon={<Search size={20} />} text={t("connNoMatch")} compact />
             ) : (
-              filteredHistory.map((c, i) => (
+              filteredHistory.map((c) => (
                 <div
-                  key={i}
+                  key={`${c.at}-${c.id}`}
                   onClick={() => copyOne(c.target)}
 
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors hover:[background:var(--surface-hover)]"
@@ -216,7 +216,7 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          {/* 过滤栏：按协�?/ 出口网卡 + 目标搜索 */}
+          {/* 过滤栏：按协议 / 出口网卡 + 目标搜索 */}
           {running && connections.length > 0 && (
             <FilterBar
               nicNames={connNicNames}
@@ -235,9 +235,9 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
             ) : filteredConns.length === 0 ? (
               <EmptyState icon={<Search size={20} />} text={t("connNoMatch")} compact />
             ) : (
-              filteredConns.map((c, i) => (
+              filteredConns.map((c) => (
                 <div
-                  key={i}
+                  key={c.id}
                   onClick={() => copyOne(c.target)}
 
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors hover:[background:var(--surface-hover)]"

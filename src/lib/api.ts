@@ -46,6 +46,8 @@ export interface SpeedResult {
 }
 
 export interface ConnInfo {
+  /** 连接唯一自增 ID（＝发生顺序），供前端稳定排序与列表 key */
+  id: number;
   target: string;
   nic: string;
   proto: string;

@@ -253,6 +253,8 @@ async fn relay(client: &mut TcpStream, upstream: &mut TcpStream, limiter: Option
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnInfo {
+    /// 连接唯一自增 ID（＝发生顺序），供前端稳定排序与 key，避免列表每秒抖动
+    pub id: u64,
     pub target: String,
     pub nic: String,
     pub proto: &'static str,
@@ -428,7 +430,7 @@ impl Engine {
 
     fn register_conn(&self, target: String, nic: String, proto: &'static str) -> ConnTableGuard {
         let id = self.conn_id.fetch_add(1, Ordering::Relaxed);
-        let info = ConnInfo { target, nic, proto };
+        let info = ConnInfo { id, target, nic, proto };
         if let Ok(mut map) = self.conns.lock() {
             map.insert(id, info.clone());
         }
@@ -481,11 +483,15 @@ pub async fn start(
     bypass: Vec<String>,
     rules: Vec<RouteRuleDef>,
 ) -> Result<EngineHandle, String> {
+    let zh = lang != "en";
     if selected.is_empty() {
-        return Err("至少需要选择一张网卡".into());
+        return Err(if zh {
+            "至少需要选择一张网卡".into()
+        } else {
+            "At least one network adapter must be selected".to_string()
+        });
     }
     let strategy = Strategy::parse(&strategy);
-    let zh = lang != "en";
     // 下行限速：MB/s 转字节/秒；<=0 表示不限速
     let limiter = if down_limit_mbps > 0.0 {
         Some(Arc::new(RateLimiter::new(
@@ -521,10 +527,13 @@ pub async fn start(
 
     let mut nics: Vec<Arc<NicRuntime>> = Vec::with_capacity(selected.len());
     for s in &selected {
-        let ip: Ipv4Addr = s
-            .ip
-            .parse()
-            .map_err(|_| format!("网卡 {} 的 IPv4 地址非法: {}", s.name, s.ip))?;
+        let ip: Ipv4Addr = s.ip.parse().map_err(|_| {
+            if zh {
+                format!("网卡 {} 的 IPv4 地址非法: {}", s.name, s.ip)
+            } else {
+                format!("Adapter {} has an invalid IPv4 address: {}", s.name, s.ip)
+            }
+        })?;
         nics.push(Arc::new(NicRuntime {
             name: s.name.clone(),
             ip,
@@ -540,12 +549,23 @@ pub async fn start(
         }));
     }
 
-    let socks_listener = TcpListener::bind(("127.0.0.1", socks_port))
-        .await
-        .map_err(|e| format!("无法监听 SOCKS5 端口 127.0.0.1:{socks_port} -- {e}"))?;
-    let http_listener = TcpListener::bind(("127.0.0.1", http_port))
-        .await
-        .map_err(|e| format!("无法监听 HTTP 端口 127.0.0.1:{http_port} -- {e}"))?;
+    // 说明：上层已在启动前做过端口预检，但预检与实际 bind 之间存在极短的 TOCTOU
+    // 竞争窗口（端口可能被其它进程抢占）。这里的 bind 失败即最终裁决，给出本地化的
+    // 明确提示，便于用户改端口或排查占用进程。
+    let socks_listener = TcpListener::bind(("127.0.0.1", socks_port)).await.map_err(|e| {
+        if zh {
+            format!("无法监听 SOCKS5 端口 127.0.0.1:{socks_port}（可能已被占用，请在设置里更换端口）-- {e}")
+        } else {
+            format!("Cannot listen on SOCKS5 port 127.0.0.1:{socks_port} (possibly in use, change it in Settings) -- {e}")
+        }
+    })?;
+    let http_listener = TcpListener::bind(("127.0.0.1", http_port)).await.map_err(|e| {
+        if zh {
+            format!("无法监听 HTTP 端口 127.0.0.1:{http_port}（可能已被占用，请在设置里更换端口）-- {e}")
+        } else {
+            format!("Cannot listen on HTTP port 127.0.0.1:{http_port} (possibly in use, change it in Settings) -- {e}")
+        }
+    })?;
 
     let cancel = CancellationToken::new();
     let engine = Arc::new(Engine {
@@ -740,9 +760,28 @@ fn tls_connector() -> tokio_rustls::TlsConnector {
     tokio_rustls::TlsConnector::from(cfg)
 }
 
+/// 全局测速互斥标志：防止诊断页与"一键聚合测速"并发触发跑分，
+/// 多任务同时争抢带宽会让各自测得的吞吐互相压制、结果严重失真。
+static BENCH_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// 测速运行守卫：drop 时自动释放标志，确保任何退出路径都能复位。
+struct BenchGuard;
+impl Drop for BenchGuard {
+    fn drop(&mut self) {
+        BENCH_RUNNING.store(false, Ordering::SeqCst);
+    }
+}
+
 /// 逐张网卡跑分：经各网卡多条并发连接从测速节点下载，测真实聚合吞吐（MB/s）。
 /// 所有网卡**并发**测试，既加速诊断，也支撑控制台"一键聚合测速"的同时跑分。
 pub async fn speed_test(app: AppHandle, selected: Vec<SelectedNic>, duration_secs: u64) -> Vec<SpeedResult> {
+    // 后端重入保护：已有测速在跑时直接忽略本次请求。
+    // 返回值不被前端直接消费（结果经 hmx-speedtest 事件推送），返回空安全无副作用。
+    if BENCH_RUNNING.swap(true, Ordering::SeqCst) {
+        let _ = app.emit("hmx-log", "[测速] 已有测速任务进行中，已忽略本次并发请求 / benchmark already running, request ignored");
+        return Vec::new();
+    }
+    let _bench_guard = BenchGuard;
     let dur = std::time::Duration::from_secs(duration_secs.clamp(2, 15));
     let mut handles = Vec::with_capacity(selected.len());
     for s in selected {
@@ -1132,13 +1171,32 @@ async fn resolve_via_nic(nic: &NicRuntime, host: &str) -> Option<Ipv4Addr> {
     let std_udp: std::net::UdpSocket = socket.into();
     let udp = tokio::net::UdpSocket::from_std(std_udp).ok()?;
     let query = build_dns_query(host);
-    udp.send_to(&query, "223.5.5.5:53").await.ok()?;
+    let server: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(223, 5, 5, 5), 53));
+    udp.send_to(&query, server).await.ok()?;
+    // 循环接收直到拿到「来源正确 + 事务 ID 匹配」的响应或超时，
+    // 丢弃伪造/延迟/串扰的 UDP 包（查询 ID 见 build_dns_query 首两字节 0x1234）。
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
     let mut buf = [0u8; 512];
-    let n = tokio::time::timeout(std::time::Duration::from_secs(3), udp.recv(&mut buf))
-        .await
-        .ok()?
-        .ok()?;
-    parse_dns_a(&buf[..n])
+    loop {
+        let remaining = deadline.checked_duration_since(std::time::Instant::now())?;
+        let (n, from) = tokio::time::timeout(remaining, udp.recv_from(&mut buf))
+            .await
+            .ok()?
+            .ok()?;
+        // 来源必须是我们发出查询的 DNS 服务器
+        if from != server {
+            continue;
+        }
+        // 事务 ID 必须与查询一致（build_dns_query 使用 0x1234）
+        if n < 2 || buf[0] != 0x12 || buf[1] != 0x34 {
+            continue;
+        }
+        if let Some(ip) = parse_dns_a(&buf[..n]) {
+            return Some(ip);
+        }
+        // ID 与来源都对但无 A 记录：视为无结果，停止等待
+        return None;
+    }
 }
 
 /// 经指定网卡用 DoH（DNS over HTTPS，443 端口）解析域名。
@@ -1739,9 +1797,18 @@ async fn telemetry_loop(
             let _ = tray.set_tooltip(Some(tip.as_str()));
         }
 
-        // 实时连接列表快照（最多 80 条，避免高并发刷爆 webview）
+        // 实时连接列表快照：按连接 ID（＝发生顺序）稳定排序后取最新 80 条，
+        // 避免 HashMap 遍历顺序不确定导致前端列表每秒乱跳/闪烁。
         let snapshot: Vec<ConnInfo> = match conns.lock() {
-            Ok(map) => map.values().take(80).cloned().collect(),
+            Ok(map) => {
+                let mut v: Vec<ConnInfo> = map.values().cloned().collect();
+                v.sort_by_key(|c| c.id);
+                // 保留最新的 80 条（ID 越大越新）
+                if v.len() > 80 {
+                    v.drain(0..v.len() - 80);
+                }
+                v
+            }
             Err(_) => Vec::new(),
         };
         let _ = app.emit("hmx-connections", snapshot);
