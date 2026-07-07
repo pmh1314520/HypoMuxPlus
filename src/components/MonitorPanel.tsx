@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ClipboardCopy, History, Inbox, ListTree, Search, Terminal, Trash2 } from "lucide-react";
 import { useSettings } from "../store";
 import { Tooltip } from "./Tooltip";
+import { copyText } from "../lib/clipboard";
 import { useToast } from "./Toast";
 import { EmptyState } from "./EmptyState";
 import type { ConnInfo } from "../lib/api";
@@ -55,21 +56,13 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
       return;
     }
     const text = filteredConns.map((c) => `[${c.proto}] ${c.target} -> ${c.nic}`).join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("success", t("msgConnCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(text);
+    toast(ok ? "success" : "error", t(ok ? "msgConnCopied" : "msgCopyFailed"));
   };
 
   const copyOne = async (target: string) => {
-    try {
-      await navigator.clipboard.writeText(target);
-      toast("success", t("msgCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(target);
+    toast(ok ? "success" : "error", t(ok ? "msgCopied" : "msgCopyFailed"));
   };
 
   const tabs: { id: "log" | "conns" | "history"; label: string; icon: typeof Terminal; badge?: number }[] = [

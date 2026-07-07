@@ -6,6 +6,7 @@ import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
 import { api } from "../lib/api";
+import { copyText } from "../lib/clipboard";
 import type { AdapterInfo, LatencyResult } from "../lib/api";
 
 interface Props {
@@ -120,12 +121,8 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
       lines.push(`• ${a.alias} (${a.ipv4})`);
       lines.push(`    ${t("diagLatency")}: ${latStr}  ${t("diagSpeed")}: ${spStr}  ${t("diagGrade")}: ${t(g.key)}`);
     }
-    try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      toast("success", t("msgReportCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(lines.join("\n"));
+    toast(ok ? "success" : "error", t(ok ? "msgReportCopied" : "msgCopyFailed"));
   };
 
   // 将体检结果绘制为 PNG 图片并保存（便于分享）

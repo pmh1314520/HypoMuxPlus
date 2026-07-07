@@ -7,6 +7,7 @@ import { useAppVersion } from "../lib/version";
 import { useToast } from "./Toast";
 import { Logo } from "./Logo";
 import { GitHubIcon, GiteeIcon, QQIcon, WeChatIcon } from "./BrandIcons";
+import { copyText } from "../lib/clipboard";
 import wechatQr from "../assets/sponsor-wechat.png";
 import alipayQr from "../assets/sponsor-alipay.jpg";
 
@@ -34,12 +35,8 @@ export function AboutPage({ lifetimeMB, admin, onReplayGuide, onCheckUpdate }: {
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
 
   const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("success", t("msgCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(text);
+    toast(ok ? "success" : "error", t(ok ? "msgCopied" : "msgCopyFailed"));
   };
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { AnimatedNumber } from "./AnimatedNumber";
 import { AreaChart } from "./AreaChart";
 import { BoostButton } from "./BoostButton";
 import { useToast } from "./Toast";
+import { copyText } from "../lib/clipboard";
 import type { TelemetryPayload } from "../lib/api";
 
 interface Props {
@@ -32,12 +33,8 @@ export function SpeedHero({ telemetry, history, peak, uptime, sessionMB, running
   const total = telemetry?.total ?? { downMbps: 0, upMbps: 0, connections: 0 };
 
   const copyVal = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("success", t("msgCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(text);
+    toast(ok ? "success" : "error", t(ok ? "msgCopied" : "msgCopyFailed"));
   };
 
   const stratLabel =

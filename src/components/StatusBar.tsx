@@ -3,6 +3,7 @@ import { useSettings } from "../store";
 import { useAppVersion } from "../lib/version";
 import { Tooltip } from "./Tooltip";
 import { useToast } from "./Toast";
+import { copyText } from "../lib/clipboard";
 
 interface Props {
   running: boolean;
@@ -19,12 +20,8 @@ export function StatusBar({ running, admin, selectedCount, socksPort, httpPort, 
   const version = useAppVersion();
 
   const copyAddr = async (addr: string) => {
-    try {
-      await navigator.clipboard.writeText(addr);
-      toast("success", t("msgCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(addr);
+    toast(ok ? "success" : "error", t(ok ? "msgCopied" : "msgCopyFailed"));
   };
 
   return (

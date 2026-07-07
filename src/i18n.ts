@@ -39,6 +39,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     statusStartFailed: "启动失败",
     tipCopyAddr: "点击复制代理地址",
     msgCopied: "已复制到剪贴板",
+    msgCopyFailed: "复制失败，请手动选择文本复制",
 
     // 数据大屏
     combinedDown: "合并下行总速度",
@@ -493,6 +494,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     statusStartFailed: "Start failed",
     tipCopyAddr: "Click to copy proxy address",
     msgCopied: "Copied to clipboard",
+    msgCopyFailed: "Copy failed, please select and copy the text manually",
 
     combinedDown: "Combined Download Speed",
     heroBypassN: "{n} direct",

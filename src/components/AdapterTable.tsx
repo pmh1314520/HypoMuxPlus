@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowDownUp, Bookmark, Cable, Check, CheckSquare, Clipboard, Copy, Filter, Layers, Pencil, Plus, RefreshCw, Server, Smartphone, Square, Wifi, X } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
+import { copyText as copyToClipboard } from "../lib/clipboard";
 import { Tooltip } from "./Tooltip";
 import type { AdapterInfo, NicTelemetry } from "../lib/api";
 
@@ -118,12 +119,8 @@ export function AdapterTable({
   }, [ctxMenu]);
 
   const copyText = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("success", t("msgCopied"));
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyToClipboard(text);
+    toast(ok ? "success" : "error", t(ok ? "msgCopied" : "msgCopyFailed"));
   };
 
   const sortLabel = sort === "speed" ? t("sortSpeed") : sort === "conns" ? t("sortConns") : t("sortDefault");
