@@ -14,7 +14,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?style=flat-square&logo=windows)](#)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-D22128?style=flat-square)](./LICENSE)
 
-[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.1.1-3b82f6?style=for-the-badge)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.1.1/HypoMuxPlus.exe)
+[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.2.0-3b82f6?style=for-the-badge)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.0/HypoMuxPlus.exe)
 [![GitHub](https://img.shields.io/badge/GitHub-pmh1314520%2FHypoMuxPlus-181717?style=for-the-badge&logo=github)](https://github.com/pmh1314520/HypoMuxPlus)
 [![Gitee](https://img.shields.io/badge/Gitee-peng--minghang%2Fhypo--mux--plus-C71D23?style=for-the-badge&logo=gitee)](https://gitee.com/peng-minghang/hypo-mux-plus)
 
@@ -31,7 +31,7 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 ## Download
 
 - **Windows 10 / 11 only.** Just download and run (running as administrator is recommended to enable all stability features).
-- Direct download: **[HypoMuxPlus.exe (v1.1.1)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.1.1/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.1.1/HypoMuxPlus.exe))
+- Direct download: **[HypoMuxPlus.exe (v1.2.0)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.0/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.0/HypoMuxPlus.exe))
 - Repositories: [GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
 - Website: **[hmp.pmhs.top](https://hmp.pmhs.top)**
 
@@ -69,20 +69,36 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 
 ## Key Features
 
+### Splitting & Scheduling
 - **Seamless Dual-Protocol Takeover**: Runs SOCKS5 and HTTP/HTTPS forwarders simultaneously, applying the Windows WinINet system proxy automatically. Compatible with Steam, IDM, browsers and any client honoring the system proxy.
 - **Per-Connection NIC Egress Binding**: Each outbound TCP connection is directed out a chosen NIC via `setsockopt(IP_UNICAST_IF)` (egress interface index) plus a source `bind`, eliminating the same-subnet `WinError 10049` wrong-adapter problem. This is **connection-level egress selection**, not packet-level link bonding / MPTCP.
 - **Smart Scheduler**: Three connection strategies — classic round-robin, least-connections, and dynamic weighting by real-time download speed (smooth weighted round-robin) — so faster adapters carry more connections and weak links no longer hold aggregation back.
-- **Link Test & Benchmark**: One-click per-adapter latency (RTT) probing plus per-adapter download benchmarking to help you pick the healthiest, fastest links.
-- **Live Connection Monitor**: A live connection list shows each connection's target and the adapter it was assigned to — fully transparent dispatch.
-- **Fail-Safe Proxy Restore**: Manual stop, startup failure, window close and process exit all force-restore the system proxy.
+- **Per-NIC Weight & Limit · Global Download Cap**: Set a scheduling weight and per-adapter download cap for each NIC, plus a global download speed cap, for fine-grained control over per-link load and total bandwidth usage.
+- **Routing Rules**: Custom rules by domain / port — direct (bypass proxy), aggregate, or pin to a specific NIC; plus a direct-connect allowlist and rule-list subscription from a URL.
+- **Global Takeover (TUN) Mode · No Per-App Proxy Config**: A built-in global-takeover mode using a wintun virtual adapter + user-space TCP/IP stack routes all system traffic into the multi-NIC engine in one click — no need to configure a proxy per application. DNS uses fake-ip to bypass hijacking. A **service mode** is supported: after a one-time install (single UAC prompt), TUN can be enabled with standard privileges thereafter, no admin needed each time.
+
+### Diagnostics & Monitoring
+- **Link Test & Benchmark**: One-click per-adapter latency (RTT) probing plus per-adapter download benchmarking to pick the healthiest, fastest links; results can be exported as an image or text report.
+- **One-Click Aggregate Benchmark**: Concurrently benchmarks all selected adapters and shows "single-NIC speed → combined speed" and the improvement.
+- **Live Connection Monitor**: A live connection list shows each connection's target and the adapter it was assigned to — fully transparent dispatch, with filtering by protocol / NIC / target and export.
 - **Live Telemetry Dashboard**: Per-second sampling via kernel counters (`GetIfEntry2`) shows combined speed, a live waveform, and per-NIC speed and active connections.
-- **Modern UI**: Dark / light themes, customizable accent color, glassmorphism, fluid motion, full Chinese/English bilingual support, vector icons throughout (no emoji).
+- **Floating HUD**: An optional always-on-top mini overlay showing combined speed, up/down, connection count and per-NIC sparklines; supports position lock, click-through, opacity and accent following the main UI.
+- **NIC Dropout Guard**: While boosting, participating adapters are monitored live; a lost link is removed from rotation (with a prompt) and re-added automatically once recovered.
+- **Lifetime & Daily Stats**: Persisted cumulative traffic, peak and duration across sessions, plus a recent daily-traffic trend; each boost ends with a "session report" you can export as PNG.
+
+### Stability & Automation
+- **Fail-Safe Proxy Restore**: Manual stop, startup failure, window close and process exit all force-restore the system proxy; on launch it only cleans up leftovers from this app, never touching third-party proxies like Clash.
 - **Stability Boost**: Dead Gateway Detection is disabled while boosting to keep slow links from being dropped by the OS.
+- **Process-Aware Auto-Boost**: Automatically starts boosting when download apps such as Steam / IDM / Thunder / qBittorrent are detected running, and stops once they all exit (only sessions it auto-started).
 - **App Compatibility**: One-click SOCKS5 config apply/restore for Steam and IDM.
-- **Global Hotkey & Notifications**: A global hotkey (default `Ctrl+Alt+H`, customizable) toggles boost/stop from anywhere; system notifications announce start/stop.
+- **Global Hotkeys & Notifications**: Bind separate "boost" and "stop" global hotkeys (default `Ctrl+Alt+H`, customizable) to toggle from anywhere; system notifications announce start/stop.
+- **CLI Control · Single Instance**: Supports `--start` / `--stop` / `--toggle` / `--show` / `--quit` command-line control; runs as a single instance and forwards commands to the existing instance.
+- **In-App Auto-Update**: Silently checks for new versions on launch; one click downloads and, after exit, silently replaces and restarts (with visible progress).
 - **Automation**: Launch at startup, start minimized to tray, and auto-boost with the last selected adapters on launch.
-- **Lifetime Stats**: Persisted cumulative accelerated-traffic counter shown on the About page.
-- **System Tray**: Minimize-to-tray or exit-on-close behaviors; tray tooltip shows the live aggregate speed.
+
+### UI & Experience
+- **Modern UI**: Dark / light themes (can follow the system), customizable accent color, high-contrast mode, glassmorphism, fluid motion, full Chinese/English bilingual support, vector icons throughout (no emoji), with keyboard and screen-reader accessibility.
+- **System Tray**: Minimize-to-tray or exit-on-close behaviors; the tray icon renders the live aggregate speed as a number, with speed and connection count on hover.
 
 ## Tech Stack
 
@@ -137,6 +153,8 @@ Any network links that are **mutually independent — each with its own uplink b
 6. Click **Stop** or close the app; the system proxy is restored automatically.
 
 > **Only one adapter carries traffic / no speed change?** 90% of the time step 4 was missed — the download tool isn't pointing at this app's proxy, so traffic never enters the splitting engine. Set SOCKS5 `127.0.0.1:10800` in the tool. Also confirm each participating adapter has its **own independent internet uplink** (the app runs a "NIC self-test" on boost and prints the result in the dispatch log) and that the download is multi-threaded.
+
+> **Don't want to configure a proxy per app?** Enable **Global Takeover (TUN) mode** in Settings to route all system traffic through the multi-NIC engine in one click — no per-tool proxy setup needed. It's recommended to install the "TUN service mode" first, so it can be enabled with standard privileges afterward (otherwise run the app as administrator). Note: TUN mode conflicts with Clash/Mihomo's TUN — only one can be enabled at a time.
 
 ## Development & Build
 
