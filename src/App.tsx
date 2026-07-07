@@ -122,7 +122,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
     useSettings();
   const toast = useToast();
 
@@ -684,7 +684,7 @@ function AppInner() {
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules);
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode);
       notify2("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {

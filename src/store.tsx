@@ -36,6 +36,7 @@ interface Settings {
   hotkeyStop: string;
   downLimit: number;
   bypassList: string;
+  tunMode: boolean;
   alwaysOnTop: boolean;
   hudEnabled: boolean;
   hudOpacity: number;
@@ -69,6 +70,7 @@ const DEFAULTS: Settings = {
   hotkeyStop: "Control+Alt+J",
   downLimit: 0,
   bypassList: "",
+  tunMode: false,
   alwaysOnTop: false,
   hudEnabled: false,
   hudOpacity: 0.92,

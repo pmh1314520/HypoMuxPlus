@@ -31,6 +31,9 @@ parking_lot = "0.12"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 webpki-roots = "0.26"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+# 全局接管 (TUN) 模式：wintun 虚拟网卡 + 用户态 TCP/IP 栈，把系统流量喂给本地 SOCKS 引擎
+ipstack = "1.0"
+tun = { version = "0.8", default-features = false, features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

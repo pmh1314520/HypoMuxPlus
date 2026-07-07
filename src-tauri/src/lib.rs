@@ -11,6 +11,7 @@ mod engine;
 mod netadapter;
 mod sysproxy;
 mod telemetry;
+mod tunmode;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -22,6 +23,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// 全局应用状态
 pub struct AppState {
     engine: Mutex<Option<engine::EngineHandle>>,
+    /// 全局接管（TUN）运行句柄；None 表示未启用 TUN 模式
+    tun: Mutex<Option<tunmode::TunHandle>>,
     boosting: AtomicBool,
     close_to_tray: AtomicBool,
     /// 悬浮窗是否启用（前端配置同步而来）
@@ -42,6 +45,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             engine: Mutex::new(None),
+            tun: Mutex::new(None),
             boosting: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(true),
             hud_enabled: AtomicBool::new(false),
@@ -381,6 +385,7 @@ async fn start_boost(
     down_limit_mbps: f64,
     bypass: Vec<String>,
     rules: Vec<engine::RouteRuleDef>,
+    tun_mode: bool,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
@@ -392,7 +397,7 @@ async fn start_boost(
         socks_port,
         http_port,
         strategy,
-        lang,
+        lang.clone(),
         down_limit_mbps,
         bypass,
         rules,
@@ -402,7 +407,19 @@ async fn start_boost(
     let socks_addr = format!("127.0.0.1:{socks_port}");
     let http_addr = format!("127.0.0.1:{http_port}");
 
-    if let Err(e) = sysproxy::enable_system_proxy(&socks_addr, &http_addr) {
+    if tun_mode {
+        // 全局接管：创建 TUN 虚拟网卡截获全部流量并喂给本地 SOCKS 引擎，
+        // 不再需要写入 WinINet 系统代理（TUN 已覆盖全部程序）。
+        match tunmode::start(app.clone(), socks_port, lang != "en").await {
+            Ok(t) => {
+                *state.tun.lock() = Some(t);
+            }
+            Err(e) => {
+                handle.stop();
+                return Err(format!("TUN 全局接管启动失败: {e}"));
+            }
+        }
+    } else if let Err(e) = sysproxy::enable_system_proxy(&socks_addr, &http_addr) {
         // 接管失败：强制回滚，避免代理残留导致断网
         handle.stop();
         let _ = sysproxy::disable_system_proxy();
@@ -425,6 +442,9 @@ async fn start_boost(
 fn stop_boost(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
+    }
+    if let Some(t) = state.tun.lock().take() {
+        t.stop();
     }
     let _ = sysproxy::disable_system_proxy();
     let _ = sysproxy::set_dead_gateway_detection(true);
@@ -673,6 +693,9 @@ fn cleanup(app: &AppHandle) {
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
     }
+    if let Some(t) = state.tun.lock().take() {
+        t.stop();
+    }
     let _ = sysproxy::disable_system_proxy();
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
@@ -736,6 +759,8 @@ pub fn run() {
         .setup(|app| {
             // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
             sysproxy::clear_residual_proxy();
+            // 清理上次可能残留的 TUN 接管路由（崩溃遗留），幂等无副作用
+            tunmode::cleanup_residual_routes();
 
             // 首个实例自身的命令行参数（CLI 控制）：延迟到前端就绪后执行
             {

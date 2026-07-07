@@ -44,7 +44,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -484,6 +484,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
 
         {/* 流量控制（Plus 专属） */}
         <Section id="sec-traffic" icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
+          <Row icon={<Network size={15} />} label={t("settingTunMode")} hint={t("settingTunModeHint")}>
+            <Switch checked={tunMode} onChange={(v) => set("tunMode", v)} />
+          </Row>
           <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
             <div className="flex items-center gap-2">
               <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} />

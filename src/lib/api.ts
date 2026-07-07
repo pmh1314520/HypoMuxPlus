@@ -80,8 +80,9 @@ export const api = {
     downLimitMbps: number,
     bypass: string[],
     rules: { pattern: string; action: string }[],
+    tunMode: boolean,
   ) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules }),
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>
