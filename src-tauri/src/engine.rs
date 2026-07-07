@@ -30,6 +30,9 @@ const IP_UNICAST_IF: i32 = 31;
 const IPPROTO_IP: i32 = 0;
 const WSAEWOULDBLOCK: i32 = 10035;
 const MAX_HEADER_BYTES: usize = 64 * 1024;
+/// 握手/请求头读取超时：客户端连上却迟迟不发协议数据时，回收该僵死连接，
+/// 避免任务与套接字无限泄漏。仅覆盖握手阶段，不影响后续长时间下载中继。
+const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// 前端勾选并下发的网卡（index 为 scan 阶段拿到的权威 IfIndex）
 #[derive(Debug, Clone, Deserialize)]
@@ -1320,9 +1323,12 @@ async fn connect_via_nic(nic: &NicRuntime, dst: SocketAddrV4) -> std::io::Result
 // ============================== SOCKS5 ==============================
 
 async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Result<()> {
-    // 1) 握手：版本 + 方法列表
+    // 1) 握手：版本 + 方法列表（首个读加超时，回收连上不发数据的僵死连接）
     let mut head = [0u8; 2];
-    client.read_exact(&mut head).await?;
+    match tokio::time::timeout(HANDSHAKE_TIMEOUT, client.read_exact(&mut head)).await {
+        Ok(Ok(_)) => {}
+        _ => return Ok(()),
+    }
     if head[0] != 0x05 {
         return Ok(());
     }
@@ -1472,21 +1478,31 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
 // ============================== HTTP / HTTPS ==============================
 
 async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Result<()> {
-    // 逐字节读取直到 \r\n\r\n（请求头），避免吞掉请求体
-    let mut header = Vec::with_capacity(1024);
-    let mut byte = [0u8; 1];
-    loop {
-        client.read_exact(&mut byte).await?;
-        header.push(byte[0]);
-        if header.len() >= 4 && &header[header.len() - 4..] == b"\r\n\r\n" {
-            break;
+    // 逐字节读取直到 \r\n\r\n（请求头），避免吞掉请求体。
+    // 整个请求头读取加超时，回收连上却迟迟不发完整请求头的僵死连接。
+    let read_header = async {
+        let mut header = Vec::with_capacity(1024);
+        let mut byte = [0u8; 1];
+        loop {
+            client.read_exact(&mut byte).await?;
+            header.push(byte[0]);
+            if header.len() >= 4 && &header[header.len() - 4..] == b"\r\n\r\n" {
+                return std::io::Result::Ok((header, false));
+            }
+            if header.len() > MAX_HEADER_BYTES {
+                return std::io::Result::Ok((header, true)); // 超长：交由外层回 431
+            }
         }
-        if header.len() > MAX_HEADER_BYTES {
-            let _ = client
-                .write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\nConnection: close\r\n\r\n")
-                .await;
-            return Ok(());
-        }
+    };
+    let (header, oversized) = match tokio::time::timeout(HANDSHAKE_TIMEOUT, read_header).await {
+        Ok(Ok(v)) => v,
+        _ => return Ok(()), // 超时或读错误：放弃该连接
+    };
+    if oversized {
+        let _ = client
+            .write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\nConnection: close\r\n\r\n")
+            .await;
+        return Ok(());
     }
 
     let header_text = String::from_utf8_lossy(&header).to_string();
