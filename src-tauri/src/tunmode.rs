@@ -25,7 +25,6 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
@@ -326,11 +325,11 @@ where
                 match stream {
                     IpStackStream::Tcp(tcp) => {
                         let f = fake.clone();
-                        tauri::async_runtime::spawn(handle_tcp(tcp, dst, socks_port, f));
+                        tokio::spawn(handle_tcp(tcp, dst, socks_port, f));
                     }
                     IpStackStream::Udp(udp) => {
                         let f = fake.clone();
-                        tauri::async_runtime::spawn(handle_udp(udp, dst, f));
+                        tokio::spawn(handle_udp(udp, dst, f));
                     }
                     // ICMP / 未知网络层：丢弃（ping 等本模块不代理）
                     _ => {}
@@ -403,7 +402,8 @@ impl TunHandle {
 
 /// 启动 TUN 全局接管：创建 wintun 适配器 → 接管路由/DNS → 运行用户态栈。
 /// `socks_port` 为已在运行的本地 SOCKS5 引擎端口。
-pub async fn start(app: AppHandle, socks_port: u16, zh: bool) -> Result<TunHandle, String> {
+/// 本函数不依赖 Tauri，可在 GUI 进程（管理员直连模式）或服务进程（服务模式）中调用。
+pub async fn start(socks_port: u16) -> Result<TunHandle, String> {
     // 1) 创建 wintun 虚拟网卡并配置地址
     let mut config = tun::Configuration::default();
     config
@@ -416,7 +416,7 @@ pub async fn start(app: AppHandle, socks_port: u16, zh: bool) -> Result<TunHandl
         p.device_guid(TUN_GUID);
     });
     let device = tun::create_as_async(&config).map_err(|e| {
-        format!("创建 TUN 虚拟网卡失败（需管理员权限，且 wintun.dll 须位于程序目录）: {e}")
+        format!("创建 TUN 虚拟网卡失败（需管理员/服务权限，且 wintun.dll 须位于程序目录）: {e}")
     })?;
 
     // 2) 适配器注册需要片刻，稍等后再接管路由/DNS
@@ -433,19 +433,10 @@ pub async fn start(app: AppHandle, socks_port: u16, zh: bool) -> Result<TunHandl
 
     {
         let c = cancel.clone();
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             run_stack(device, socks_port, fake, c).await;
         });
     }
-
-    let _ = app.emit(
-        "hmx-log",
-        if zh {
-            "[TUN] 全局接管已启用：全部系统流量将经多网卡引擎分流，无需再逐个程序配置代理".to_string()
-        } else {
-            "[TUN] Global capture enabled: all system traffic now flows through the multi-NIC engine; no per-app proxy config needed".to_string()
-        },
-    );
 
     Ok(TunHandle { cancel })
 }

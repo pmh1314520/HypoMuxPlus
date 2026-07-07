@@ -90,6 +90,9 @@ export const api = {
   configureSteam: (enable: boolean, port: number) =>
     invoke<void>("configure_steam", { enable, port }),
   configureIdm: (enable: boolean, port: number) => invoke<void>("configure_idm", { enable, port }),
+  installTunService: () => invoke<void>("install_tun_service"),
+  uninstallTunService: () => invoke<void>("uninstall_tun_service"),
+  tunServiceStatus: () => invoke<[boolean, boolean]>("tun_service_status"),
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),

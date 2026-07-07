@@ -34,6 +34,8 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # 全局接管 (TUN) 模式：wintun 虚拟网卡 + 用户态 TCP/IP 栈，把系统流量喂给本地 SOCKS 引擎
 ipstack = "1.0"
 tun = { version = "0.8", default-features = false, features = ["async"] }
+# 服务模式：以 SYSTEM 常驻的 Windows 服务承载 TUN，主程序经命名管道 IPC 控制，免每次管理员
+windows-service = "0.7"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
@@ -45,6 +47,8 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Threading",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_UI_Shell",
+    "Win32_Security",
+    "Win32_Security_Authorization",
 ] }
 
 [profile.release]

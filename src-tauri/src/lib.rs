@@ -12,6 +12,7 @@ mod netadapter;
 mod sysproxy;
 mod telemetry;
 mod tunmode;
+pub mod service;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -23,8 +24,10 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// 全局应用状态
 pub struct AppState {
     engine: Mutex<Option<engine::EngineHandle>>,
-    /// 全局接管（TUN）运行句柄；None 表示未启用 TUN 模式
+    /// 全局接管（TUN）运行句柄；None 表示未启用 TUN 模式（仅"直连模式"下使用，服务模式由服务持有句柄）
     tun: Mutex<Option<tunmode::TunHandle>>,
+    /// 本次 TUN 是否经服务模式启动（true=服务持有句柄，停止时走 IPC；false=进程内直连）
+    tun_via_service: AtomicBool,
     boosting: AtomicBool,
     close_to_tray: AtomicBool,
     /// 悬浮窗是否启用（前端配置同步而来）
@@ -46,6 +49,7 @@ impl Default for AppState {
         Self {
             engine: Mutex::new(None),
             tun: Mutex::new(None),
+            tun_via_service: AtomicBool::new(false),
             boosting: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(true),
             hud_enabled: AtomicBool::new(false),
@@ -408,15 +412,33 @@ async fn start_boost(
     let http_addr = format!("127.0.0.1:{http_port}");
 
     if tun_mode {
-        // 全局接管：创建 TUN 虚拟网卡截获全部流量并喂给本地 SOCKS 引擎，
-        // 不再需要写入 WinINet 系统代理（TUN 已覆盖全部程序）。
-        match tunmode::start(app.clone(), socks_port, lang != "en").await {
-            Ok(t) => {
-                *state.tun.lock() = Some(t);
+        // 全局接管：优先走服务模式（普通权限即可），服务不可用时回退到进程内直连模式（需 GUI 自身管理员）。
+        if service::is_available().await {
+            match service::client_command(&format!("START {socks_port}")).await {
+                Ok(r) if r == "OK" => {
+                    state.tun_via_service.store(true, Ordering::Relaxed);
+                }
+                Ok(r) => {
+                    handle.stop();
+                    return Err(format!("TUN 服务启动失败: {}", r.trim_start_matches("ERR ").trim()));
+                }
+                Err(e) => {
+                    handle.stop();
+                    return Err(format!("与 TUN 服务通信失败: {e}"));
+                }
             }
-            Err(e) => {
-                handle.stop();
-                return Err(format!("TUN 全局接管启动失败: {e}"));
+        } else {
+            match tunmode::start(socks_port).await {
+                Ok(t) => {
+                    state.tun_via_service.store(false, Ordering::Relaxed);
+                    *state.tun.lock() = Some(t);
+                }
+                Err(e) => {
+                    handle.stop();
+                    return Err(format!(
+                        "TUN 全局接管启动失败: {e}（提示：可在设置里安装“TUN 服务模式”，或以管理员身份运行本程序）"
+                    ));
+                }
             }
         }
     } else if let Err(e) = sysproxy::enable_system_proxy(&socks_addr, &http_addr) {
@@ -437,15 +459,22 @@ async fn start_boost(
     Ok(format!("http={http_addr};https={http_addr};socks={socks_addr}"))
 }
 
+/// 停止 TUN 全局接管：服务模式经 IPC 通知服务拆除，直连模式停止本进程句柄。
+fn stop_tun(state: &AppState) {
+    if state.tun_via_service.swap(false, Ordering::Relaxed) {
+        let _ = tauri::async_runtime::block_on(service::client_command("STOP"));
+    } else if let Some(t) = state.tun.lock().take() {
+        t.stop();
+    }
+}
+
 /// 停止加速：销毁引擎并强制还原系统代理。
 #[tauri::command]
 fn stop_boost(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
     }
-    if let Some(t) = state.tun.lock().take() {
-        t.stop();
-    }
+    stop_tun(state.inner());
     let _ = sysproxy::disable_system_proxy();
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
@@ -464,6 +493,49 @@ fn configure_steam(enable: bool, port: u16) -> Result<(), String> {
 #[tauri::command]
 fn configure_idm(enable: bool, port: u16) -> Result<(), String> {
     appcompat::configure_idm(enable, "127.0.0.1", port)
+}
+
+/// 安装 TUN 服务模式（自我提权，弹一次 UAC）。装好后普通权限即可开启 TUN，无需每次管理员。
+#[tauri::command]
+async fn install_tun_service() -> Result<(), String> {
+    let code = tauri::async_runtime::spawn_blocking(|| service::run_self_elevated("--install-service"))
+        .await
+        .map_err(|e| e.to_string())??;
+    if code != 0 {
+        return Err("服务安装未完成（可能取消了 UAC 授权）".into());
+    }
+    // 轮询等待服务管道就绪
+    for _ in 0..20 {
+        if service::is_available().await {
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    }
+    if service::is_installed() {
+        Ok(())
+    } else {
+        Err("服务安装失败".into())
+    }
+}
+
+/// 卸载 TUN 服务模式（自我提权）。
+#[tauri::command]
+async fn uninstall_tun_service() -> Result<(), String> {
+    let code = tauri::async_runtime::spawn_blocking(|| service::run_self_elevated("--uninstall-service"))
+        .await
+        .map_err(|e| e.to_string())??;
+    if code != 0 {
+        return Err("服务卸载未完成".into());
+    }
+    Ok(())
+}
+
+/// 查询 TUN 服务状态：(是否已安装, 是否可用)。
+#[tauri::command]
+async fn tun_service_status() -> (bool, bool) {
+    let installed = service::is_installed();
+    let available = if installed { service::is_available().await } else { false };
+    (installed, available)
 }
 
 /// 读取文本文件（用于配置导入，路径由原生文件对话框提供）。
@@ -693,9 +765,7 @@ fn cleanup(app: &AppHandle) {
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
     }
-    if let Some(t) = state.tun.lock().take() {
-        t.stop();
-    }
+    stop_tun(state.inner());
     let _ = sysproxy::disable_system_proxy();
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
@@ -741,6 +811,9 @@ pub fn run() {
             stop_boost,
             configure_steam,
             configure_idm,
+            install_tun_service,
+            uninstall_tun_service,
+            tun_service_status,
             read_text_file,
             write_text_file,
             write_binary_file,

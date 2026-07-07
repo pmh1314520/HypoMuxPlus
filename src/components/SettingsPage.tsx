@@ -48,6 +48,45 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
+  const [svc, setSvc] = useState<{ installed: boolean; available: boolean }>({ installed: false, available: false });
+  const [svcBusy, setSvcBusy] = useState(false);
+
+  const refreshSvc = () =>
+    api
+      .tunServiceStatus()
+      .then(([installed, available]) => setSvc({ installed, available }))
+      .catch(() => {});
+
+  useEffect(() => {
+    refreshSvc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const installSvc = async () => {
+    setSvcBusy(true);
+    try {
+      await api.installTunService();
+      toast("success", t("tunSvcInstalled"));
+      await refreshSvc();
+    } catch (e) {
+      toast("error", t("tunSvcInstallFailed", { err: String(e) }));
+    } finally {
+      setSvcBusy(false);
+    }
+  };
+
+  const uninstallSvc = async () => {
+    setSvcBusy(true);
+    try {
+      await api.uninstallTunService();
+      toast("success", t("tunSvcUninstalled"));
+      await refreshSvc();
+    } catch (e) {
+      toast("error", t("tunSvcUninstallFailed", { err: String(e) }));
+    } finally {
+      setSvcBusy(false);
+    }
+  };
 
   useEffect(() => {
     api.checkAdmin().then(setAdmin).catch(() => setAdmin(true));
@@ -487,6 +526,48 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
           <Row icon={<Network size={15} />} label={t("settingTunMode")} hint={t("settingTunModeHint")}>
             <Switch checked={tunMode} onChange={(v) => set("tunMode", v)} />
           </Row>
+          {tunMode && (
+            <div className="flex flex-col gap-2 py-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--text-1)" }}>
+                  <ServerCog size={15} style={{ color: "var(--accent-soft)" }} />
+                  {t("tunSvcTitle")}
+                </span>
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-md"
+                  style={{
+                    background: svc.available ? "color-mix(in srgb, var(--series-2) 20%, transparent)" : "var(--surface-2)",
+                    color: svc.available ? "var(--series-2)" : "var(--text-2)",
+                  }}
+                >
+                  {svc.available ? t("tunSvcRunning") : svc.installed ? t("tunSvcInstalledNotRunning") : t("tunSvcNotInstalled")}
+                </span>
+                <div className="flex-1" />
+                {!svc.installed ? (
+                  <button
+                    onClick={installSvc}
+                    disabled={svcBusy}
+                    className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white transition-transform hover:scale-105"
+                    style={{ background: "var(--accent)", opacity: svcBusy ? 0.5 : 1 }}
+                  >
+                    {svcBusy ? t("tunSvcWorking") : t("tunSvcInstall")}
+                  </button>
+                ) : (
+                  <button
+                    onClick={uninstallSvc}
+                    disabled={svcBusy}
+                    className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+                    style={{ background: "var(--surface-strong)", border: "1px solid var(--border)", color: "var(--text-1)", opacity: svcBusy ? 0.5 : 1 }}
+                  >
+                    {svcBusy ? t("tunSvcWorking") : t("tunSvcUninstall")}
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-2)" }}>
+                {svc.available ? t("tunSvcHintReady") : t("tunSvcHint")}
+              </p>
+            </div>
+          )}
           <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
             <div className="flex items-center gap-2">
               <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} />
