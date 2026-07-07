@@ -1,7 +1,7 @@
-import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Cpu, Download, Zap } from "lucide-react";
 import { useSettings } from "../store";
+import { useModal } from "../lib/useModal";
 import { Logo } from "./Logo";
 
 interface Props {
@@ -11,17 +11,7 @@ interface Props {
 /** 首屏使用引导：仅首次启动时展示一次（localStorage 标记），三步快速上手。 */
 export function Onboarding({ onClose }: Props) {
   const { t } = useSettings();
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
+  const dialogRef = useModal(onClose);
 
   const steps = [
     { icon: <Cpu size={16} />, text: t("obStep1") },
@@ -41,10 +31,12 @@ export function Onboarding({ onClose }: Props) {
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("obTitle")}
-        className="panel w-[440px] max-w-[90vw] p-7"
+        className="panel w-[440px] max-w-[90vw] p-7 outline-none"
         style={{ boxShadow: "var(--shadow)" }}
       >
         <div className="flex flex-col items-center text-center">

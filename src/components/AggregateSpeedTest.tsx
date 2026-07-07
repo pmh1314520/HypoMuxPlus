@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Gauge, Loader2, RotateCw, X, Zap } from "lucide-react";
 import { useSettings } from "../store";
+import { useModal } from "../lib/useModal";
 import { AnimatedNumber } from "./AnimatedNumber";
 import type { AdapterInfo } from "../lib/api";
 
@@ -19,20 +20,8 @@ const NIC_HUES = ["var(--accent-soft)", "#38bdf8", "#34d399", "#a78bfa", "#f59e0
 /** 一键聚合测速：并发跑分所有已选网卡，展示「单卡速度 → 合并总速度」与提升幅度。 */
 export function AggregateSpeedTest({ adapters, selected, speedResults, running, onClose, onRun }: Props) {
   const { t } = useSettings();
-
-  // Esc 关闭（测速中禁用）+ 锁滚动
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !running) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [running, onClose]);
+  // Esc 关闭（测速中禁用）+ 锁滚动 + 焦点管理
+  const dialogRef = useModal(onClose, !running);
 
   const nics = useMemo(
     () => adapters.filter((a) => selected.has(a.index) && a.ipv4 && a.ipv4 !== "0.0.0.0"),
@@ -64,10 +53,12 @@ export function AggregateSpeedTest({ adapters, selected, speedResults, running, 
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 250, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("aggTitle")}
-        className="panel w-[560px] max-w-[94vw] p-6"
+        className="panel w-[560px] max-w-[94vw] p-6 outline-none"
         style={{ boxShadow: "var(--shadow)" }}
       >
         <div className="flex items-center gap-3 mb-1">

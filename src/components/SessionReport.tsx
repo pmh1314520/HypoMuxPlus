@@ -1,9 +1,9 @@
-import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { Clock, Database, Gauge, ImageDown, Network, TrendingUp, X, Zap } from "lucide-react";
 import { useSettings } from "../store";
 import { api } from "../lib/api";
+import { useModal } from "../lib/useModal";
 import { useToast } from "./Toast";
 
 export interface SessionStats {
@@ -37,17 +37,7 @@ function fmtTime(sec: number): string {
 export function SessionReport({ stats, onClose }: Props) {
   const { t } = useSettings();
   const toast = useToast();
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
+  const dialogRef = useModal(onClose);
 
   const avg = stats.secs > 0 ? stats.mb / stats.secs : 0;
   // 估算节省时长：多网卡并进相对单卡的粗略收益（仅供参考）
@@ -165,10 +155,12 @@ export function SessionReport({ stats, onClose }: Props) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 250, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("reportTitle")}
-        className="panel w-[520px] max-w-[94vw] p-6"
+        className="panel w-[520px] max-w-[94vw] p-6 outline-none"
         style={{ boxShadow: "var(--shadow)" }}
       >
         <div className="flex items-center gap-3 mb-4">

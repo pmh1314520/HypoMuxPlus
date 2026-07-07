@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Download, Loader2, Rocket, X } from "lucide-react";
 import { api, onUpdateProgress, type UpdateInfo } from "../lib/api";
 import { useSettings } from "../store";
+import { useModal } from "../lib/useModal";
 import { useToast } from "./Toast";
 
 interface Props {
@@ -17,19 +18,8 @@ export function UpdateDialog({ info, onClose }: Props) {
   const [progress, setProgress] = useState(0);
   const [indeterminate, setIndeterminate] = useState(false);
 
-  // Esc 关闭（安装中禁用）+ 锁定背景滚动
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !installing) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [installing, onClose]);
+  // Esc 关闭（安装中禁用）+ 锁定背景滚动 + 焦点管理
+  const dialogRef = useModal(onClose, !installing);
 
   // 订阅后端下载进度，驱动进度条
   useEffect(() => {
@@ -74,10 +64,12 @@ export function UpdateDialog({ info, onClose }: Props) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("updTitle")}
-        className="panel w-[460px] max-w-[92vw] p-6"
+        className="panel w-[460px] max-w-[92vw] p-6 outline-none"
         style={{ boxShadow: "var(--shadow)" }}
       >
         <div className="flex items-center gap-3 mb-4">
