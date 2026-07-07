@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -140,7 +140,7 @@ struct NicAlert {
 
 /// 全局下行令牌桶限速器：限制所有连接合计的下载速率（字节/秒）。
 /// 仅在用户设置了限速（>0）时启用，cap=0 时引擎走零开销的直通中继。
-struct RateLimiter {
+pub(crate) struct RateLimiter {
     rate: f64,            // 每秒补充的令牌（字节）
     capacity: f64,        // 桶容量（允许 1 秒突发）
     tokens: Mutex<f64>,
@@ -261,7 +261,6 @@ pub struct ConnInfo {
 /// 代理引擎核心，含调度器与网卡集合
 pub struct Engine {
     nics: Vec<Arc<NicRuntime>>,
-    rr: AtomicUsize,
     strategy: Strategy,
     /// 平滑加权轮询的动态权重累加器（仅 WeightedSpeed 使用）
     wrr: Mutex<Vec<i64>>,
@@ -551,7 +550,6 @@ pub async fn start(
     let cancel = CancellationToken::new();
     let engine = Arc::new(Engine {
         nics: nics.clone(),
-        rr: AtomicUsize::new(0),
         strategy,
         wrr: Mutex::new(vec![0i64; nics.len()]),
         conns: Arc::new(Mutex::new(HashMap::new())),
