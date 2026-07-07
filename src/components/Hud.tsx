@@ -279,7 +279,9 @@ export function Hud() {
                   ? "rgba(227,179,65,0.16)"
                   : notice.kind === "success"
                   ? "rgba(62,207,142,0.16)"
-                  : "var(--surface-2)",
+                  : light
+                  ? "rgba(15,30,60,0.06)"
+                  : "rgba(255,255,255,0.06)",
               color:
                 notice.kind === "error"
                   ? "#f0616d"

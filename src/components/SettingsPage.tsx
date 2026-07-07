@@ -310,13 +310,13 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
                   <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
                     {t("portHttp")}
                   </span>
-                  <NumberField value={httpPort} disabled={running} onChange={(v) => set("httpPort", v)} />
+                  <NumberField value={httpPort} disabled={running} onChange={(v) => set("httpPort", v)} ariaLabel={`${t("portHttp")} ${t("settingPorts")}`} />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
                     {t("portSocks")}
                   </span>
-                  <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} />
+                  <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} ariaLabel={`${t("portSocks")} ${t("settingPorts")}`} />
                 </div>
                 <Tooltip label={t("btnAutoPort")} placement="top">
                   <button
@@ -577,7 +577,7 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
           )}
           <Row icon={<Gauge size={15} />} label={t("settingDownLimit")} hint={t("settingDownLimitHint")}>
             <div className="flex items-center gap-2">
-              <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} />
+              <NumberField value={downLimit} min={0} max={100000} disabled={running} onChange={(v) => set("downLimit", v)} ariaLabel={t("settingDownLimit")} />
               <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
                 {t("unitMbps")}
               </span>
