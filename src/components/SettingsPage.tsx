@@ -304,35 +304,42 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
             </div>
           </Row>
           <Row icon={<Plug size={15} />} label={t("settingPorts")}>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
-                  {t("portHttp")}
-                </span>
-                <NumberField value={httpPort} disabled={running} onChange={(v) => set("httpPort", v)} />
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+                    {t("portHttp")}
+                  </span>
+                  <NumberField value={httpPort} disabled={running} onChange={(v) => set("httpPort", v)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
+                    {t("portSocks")}
+                  </span>
+                  <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} />
+                </div>
+                <Tooltip label={t("btnAutoPort")} placement="top">
+                  <button
+                    onClick={autoPickPorts}
+                    disabled={running}
+                    className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
+                    style={{
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      color: "var(--accent-soft)",
+                      opacity: running ? 0.4 : 1,
+                      cursor: running ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <Wand2 size={15} />
+                  </button>
+                </Tooltip>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px]" style={{ color: "var(--text-2)" }}>
-                  {t("portSocks")}
+              {socksPort === httpPort && (
+                <span className="text-[11px] font-medium" style={{ color: "var(--danger)" }}>
+                  {t("portSameWarn")}
                 </span>
-                <NumberField value={socksPort} disabled={running} onChange={(v) => set("socksPort", v)} />
-              </div>
-              <Tooltip label={t("btnAutoPort")} placement="top">
-                <button
-                  onClick={autoPickPorts}
-                  disabled={running}
-                  className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
-                  style={{
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--border)",
-                    color: "var(--accent-soft)",
-                    opacity: running ? 0.4 : 1,
-                    cursor: running ? "not-allowed" : "pointer",
-                  }}
-                >
-                  <Wand2 size={15} />
-                </button>
-              </Tooltip>
+              )}
             </div>
           </Row>
           <Row icon={<MonitorDown size={15} />} label={t("settingCloseBehavior")}>

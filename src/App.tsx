@@ -661,6 +661,12 @@ function AppInner() {
       return;
     }
 
+    // SOCKS 与 HTTP 端口相同会导致第二个监听绑定失败，提前拦截并给出明确指引
+    if (socksPort === httpPort) {
+      notify2("error", t("msgSamePort", { port: socksPort }));
+      return;
+    }
+
     setBusy(true);
     setLogs([]);
     try {

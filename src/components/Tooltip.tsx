@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -62,21 +62,36 @@ export function Tooltip({ label, placement = "top", children }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
+  const hide = () => {
+    setShow(false);
+    setCoords(null);
+  };
+
+  // 无障碍：label 为纯字符串时，自动为子元素（通常是图标按钮）注入 aria-label，
+  // 让屏幕阅读器能读出按钮含义（否则图标按钮对读屏用户是"无名按钮"）。
+  const accessibleName = typeof label === "string" ? label : undefined;
+  let content: ReactNode = children;
+  if (accessibleName) {
+    const only = Children.toArray(children).find((c) => isValidElement(c));
+    if (only && Children.count(children) === 1) {
+      const el = only as ReactElement<{ "aria-label"?: string }>;
+      if (el.props["aria-label"] == null) {
+        content = cloneElement(el, { "aria-label": accessibleName });
+      }
+    }
+  }
+
   return (
     <span
       ref={ref}
       onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => {
-        setShow(false);
-        setCoords(null);
-      }}
-      onMouseDown={() => {
-        setShow(false);
-        setCoords(null);
-      }}
+      onMouseLeave={hide}
+      onMouseDown={hide}
+      onFocusCapture={() => setShow(true)}
+      onBlurCapture={hide}
       className="inline-flex"
     >
-      {children}
+      {content}
       {createPortal(
         <AnimatePresence>
           {show && (
