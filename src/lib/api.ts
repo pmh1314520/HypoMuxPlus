@@ -7,6 +7,8 @@ export interface AdapterInfo {
   index: number;
   alias: string;
   ipv4: string;
+  /** 网卡的 IPv6 地址；无 IPv6 时为空字符串 */
+  ipv6: string;
   description: string;
   isUp: boolean;
   /** 是否疑似虚拟/隧道/VPN/环回等网卡（仅作标记，供前端过滤器使用） */
@@ -17,6 +19,8 @@ export interface SelectedNic {
   index: number;
   name: string;
   ip: string;
+  /** 网卡的 IPv6 地址（可选，无则省略） */
+  ipv6?: string;
   /** 调度权重（默认 100） */
   weight?: number;
   /** 单卡下行限速 MB/s（0=不限速） */
@@ -34,8 +38,17 @@ export interface NicTelemetry {
 export interface LatencyResult {
   index: number;
   name: string;
+  /** 代表性 RTT（成功时=avg），-1 表示全失败 */
   latencyMs: number;
   ok: boolean;
+  /** 最小 RTT（ms），-1 表示全失败 */
+  minMs: number;
+  /** 平均 RTT（ms），-1 表示全失败 */
+  avgMs: number;
+  /** 抖动（ms，成功样本标准差），-1 表示不可用 */
+  jitterMs: number;
+  /** 丢包率 0~1 */
+  lossPct: number;
 }
 
 export interface SpeedResult {
@@ -81,10 +94,12 @@ export const api = {
     lang: string,
     downLimitMbps: number,
     bypass: string[],
-    rules: { pattern: string; action: string }[],
+    rules: { pattern: string; action: string; kind?: "domain" | "process" }[],
     tunMode: boolean,
+    ipVersion: string,
+    udpAssociate: boolean,
   ) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode }),
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode, ipVersion, udpAssociate }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>
@@ -110,6 +125,8 @@ export const api = {
   setHudEnabled: (enabled: boolean) => invoke<void>("set_hud_enabled", { enabled }),
   hideToTray: () => invoke<void>("hide_to_tray"),
   restoreMain: () => invoke<void>("restore_main"),
+  /** 在系统文件管理器中打开本地日志文件夹 */
+  openLogDir: () => invoke<void>("open_log_dir"),
 };
 
 export interface HudConfig {

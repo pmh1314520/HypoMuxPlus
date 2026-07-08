@@ -90,7 +90,7 @@ export function AreaChart({ data, running = false, gridLines = 4 }: Props) {
   );
 }
 
-function niceCeil(v: number): number {
+export function niceCeil(v: number): number {
   if (v <= 1) return 1;
   const mag = Math.pow(10, Math.floor(Math.log10(v)));
   const norm = v / mag;

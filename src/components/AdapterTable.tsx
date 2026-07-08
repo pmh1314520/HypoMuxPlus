@@ -567,10 +567,26 @@ export function AdapterTable({
                   )}
                 </div>
 
-                {/* IPv4 */}
-                <span className="text-[12px] tabular-nums truncate" style={{ color: hasIp ? "var(--text-1)" : "var(--text-2)" }}>
-                  {hasIp ? a.ipv4 : t("noValidIp")}
-                </span>
+                {/* IPv4 / IPv6 */}
+                <div className="flex flex-col leading-tight min-w-0">
+                  <span className="text-[12px] tabular-nums truncate" style={{ color: hasIp ? "var(--text-1)" : "var(--text-2)" }}>
+                    {hasIp ? a.ipv4 : t("noValidIp")}
+                  </span>
+                  {a.ipv6 && (
+                    <span
+                      className="text-[10px] tabular-nums truncate flex items-center gap-1"
+                      style={{ color: "var(--text-2)" }}
+                    >
+                      <span
+                        className="px-1 py-px rounded mono shrink-0"
+                        style={{ background: "var(--surface-2)", color: "var(--text-2)", fontSize: 9 }}
+                      >
+                        {t("ipv6Label")}
+                      </span>
+                      {a.ipv6}
+                    </span>
+                  )}
+                </div>
 
                 {/* 速度 + 迷你曲线 */}
                 <div className="flex items-center justify-end gap-2">

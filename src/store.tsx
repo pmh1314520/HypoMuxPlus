@@ -37,6 +37,8 @@ interface Settings {
   downLimit: number;
   bypassList: string;
   tunMode: boolean;
+  ipVersion: "auto" | "v4first" | "v6first" | "v4only";
+  udpAssociate: boolean;
   alwaysOnTop: boolean;
   hudEnabled: boolean;
   hudOpacity: number;
@@ -71,6 +73,8 @@ const DEFAULTS: Settings = {
   downLimit: 0,
   bypassList: "",
   tunMode: false,
+  ipVersion: "auto",
+  udpAssociate: false,
   alwaysOnTop: false,
   hudEnabled: false,
   hudOpacity: 0.92,

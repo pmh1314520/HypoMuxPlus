@@ -4,14 +4,17 @@ interface Props {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  /** 无障碍标签：当开关无可见文字标签时提供（可选） */
+  ariaLabel?: string;
 }
 
 /** 自研开关，统一设计语言，替代原生 checkbox。 */
-export function Switch({ checked, onChange, disabled }: Props) {
+export function Switch({ checked, onChange, disabled, ariaLabel }: Props) {
   return (
     <motion.button
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       whileTap={disabled ? undefined : { scale: 0.92 }}

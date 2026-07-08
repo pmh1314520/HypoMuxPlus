@@ -1,6 +1,6 @@
 [package]
 name = "hypomuxplus"
-version = "1.1.1"
+version = "1.2.0"
 description = "HypoMuxPlus - 多网卡带宽聚合工具"
 authors = ["青云制作_彭明航"]
 edition = "2021"
@@ -50,6 +50,10 @@ windows-sys = { version = "0.59", features = [
     "Win32_Security",
     "Win32_Security_Authorization",
 ] }
+
+[dev-dependencies]
+# 属性测试基建：统一约定 ProptestConfig { cases: 100, .. }，测试独立于 GUI 与网络运行
+proptest = "1"
 
 [profile.release]
 panic = "abort"

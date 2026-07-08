@@ -8,13 +8,22 @@
 
 mod appcompat;
 mod engine;
+// Logger sink 与统一日志入口（hmx_log）已接线；部分级别变体（Warn/Error）
+// 待后续任务接入，暂允许未使用告警。
+#[allow(dead_code)]
+mod logger;
 mod netadapter;
+// Process_Resolver（按进程名分流的 PID→进程名反查）已落地纯函数与系统调用薄封装，
+// pick_nic 进程匹配接线为后续任务（4.2），暂允许未使用告警。
+#[allow(dead_code)]
+mod process;
 mod sysproxy;
 mod telemetry;
 mod tunmode;
 pub mod service;
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use parking_lot::Mutex;
 use tauri::menu::{Menu, MenuItem};
@@ -42,6 +51,8 @@ pub struct AppState {
     app_watch: AtomicBool,
     /// 托盘图标句柄，用于动态渲染实时速度数字图标
     tray: Mutex<Option<tauri::tray::TrayIcon<tauri::Wry>>>,
+    /// 本地滚动日志 sink（在 setup 阶段指向 app_log_dir 初始化）；未初始化时日志仅前端输出
+    log: OnceLock<Arc<logger::Logger>>,
 }
 
 impl Default for AppState {
@@ -59,7 +70,20 @@ impl Default for AppState {
             tray_en: AtomicBool::new(false),
             app_watch: AtomicBool::new(false),
             tray: Mutex::new(None),
+            log: OnceLock::new(),
         }
+    }
+}
+
+/// 统一日志入口：先保持既有前端日志面板行为（`emit("hmx-log")`），再把脱敏后的
+/// 记录写入本地滚动日志文件。写盘失败静默降级，绝不 panic、不阻断主流程
+/// （Req 8.5：仅前端输出；Req 8.6：前端面板行为不变）。
+pub(crate) fn hmx_log(app: &AppHandle, level: logger::LogLevel, msg: &str) {
+    // 既有行为：无条件推送到前端日志面板
+    let _ = app.emit("hmx-log", msg.to_string());
+    // 附加行为：写入本地文件（sink 未就绪或写盘失败时静默跳过）
+    if let Some(logger) = app.try_state::<AppState>().and_then(|s| s.log.get().cloned()) {
+        logger.write(level, msg);
     }
 }
 
@@ -390,6 +414,8 @@ async fn start_boost(
     bypass: Vec<String>,
     rules: Vec<engine::RouteRuleDef>,
     tun_mode: bool,
+    ip_version: String,
+    udp_associate: bool,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
@@ -405,6 +431,8 @@ async fn start_boost(
         down_limit_mbps,
         bypass,
         rules,
+        ip_version,
+        udp_associate,
     )
     .await?;
 
@@ -428,7 +456,9 @@ async fn start_boost(
                 }
             }
         } else {
-            match tunmode::start(socks_port).await {
+            // 进程内直连（管理员）模式：把同进程引擎下沉给 TUN 用户态栈，
+            // 使 fake-ip QUIC/HTTP3 等 UDP 流经引擎逐卡出口中继，而非被丢弃（Req 3.1/3.2/3.4）。
+            match tunmode::start_with_engine(socks_port, handle.engine()).await {
                 Ok(t) => {
                     state.tun_via_service.store(false, Ordering::Relaxed);
                     *state.tun.lock() = Some(t);
@@ -759,6 +789,26 @@ async fn speed_test(
     Ok(engine::speed_test(app, nics, duration).await)
 }
 
+/// 在系统文件管理器中打开本地日志目录（Req 8.4）。
+///
+/// 目录若尚未创建（如尚未产生任何日志），先 `create_dir_all` 确保入口始终可用，
+/// 再经 opener 插件在资源管理器中打开。任一步失败返回可读错误串，交由前端
+/// 既有 `toast("error", ...)` 反馈，不影响主流程。
+#[tauri::command]
+fn open_log_dir(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("无法定位日志目录: {e}"))?;
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("创建日志目录失败: {e}"))?;
+    }
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| format!("打开日志目录失败: {e}"))
+}
+
 /// 退出前的统一清理：停止引擎、还原系统代理与死网关检测。
 fn cleanup(app: &AppHandle) {
     let state = app.state::<AppState>();
@@ -828,12 +878,20 @@ pub fn run() {
             download_and_install,
             test_latency,
             speed_test,
+            open_log_dir,
         ])
         .setup(|app| {
             // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
             sysproxy::clear_residual_proxy();
             // 清理上次可能残留的 TUN 接管路由（崩溃遗留），幂等无副作用
             tunmode::cleanup_residual_routes();
+
+            // 初始化本地滚动日志 sink，指向 Tauri app_log_dir；获取目录失败则不落地
+            // （降级为仅前端日志面板输出），不阻断启动。
+            if let Ok(dir) = app.path().app_log_dir() {
+                let logger = Arc::new(logger::Logger::new(dir, 2 * 1024 * 1024, 5));
+                let _ = app.state::<AppState>().log.set(logger);
+            }
 
             // 首个实例自身的命令行参数（CLI 控制）：延迟到前端就绪后执行
             {
@@ -937,4 +995,48 @@ pub fn run() {
                 cleanup(app_handle);
             }
         });
+}
+
+// ============================= 属性测试 =============================
+
+#[cfg(test)]
+mod tests {
+    use super::version_gt;
+    use proptest::prelude::*;
+
+    proptest! {
+        // Feature: network-capability-expansion, Property 16
+        // 版本比较与逐段数值序一致（version_gt）：与逐段数值字典序一致（缺位按 0）；
+        // 反自反（version_gt(a,a)=false）；反对称（不可同时 a>b 且 b>a）。
+        // Validates: Requirements 6.4, 7.4
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_version_gt(
+            a in prop::collection::vec(0u32..50, 1..4),
+            b in prop::collection::vec(0u32..50, 1..4),
+        ) {
+            let sa = a.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(".");
+            let sb = b.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(".");
+
+            // 反自反
+            prop_assert!(!version_gt(&sa, &sa));
+
+            // 与逐段数值序一致（缺位按 0）
+            let n = a.len().max(b.len());
+            let mut cmp = 0i32;
+            for i in 0..n {
+                let x = *a.get(i).unwrap_or(&0);
+                let y = *b.get(i).unwrap_or(&0);
+                if x != y {
+                    cmp = if x > y { 1 } else { -1 };
+                    break;
+                }
+            }
+            prop_assert_eq!(version_gt(&sa, &sb), cmp > 0);
+
+            // 反对称
+            prop_assert!(!(version_gt(&sa, &sb) && version_gt(&sb, &sa)));
+        }
+    }
 }

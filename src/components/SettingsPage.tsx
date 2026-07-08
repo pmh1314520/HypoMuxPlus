@@ -38,13 +38,13 @@ import { Tooltip } from "./Tooltip";
 interface Props {
   running: boolean;
   adapters: AdapterInfo[];
-  routeRules: { pattern: string; action: string }[];
-  setRouteRules: (rules: { pattern: string; action: string }[]) => void;
+  routeRules: { pattern: string; action: string; kind?: "domain" | "process" }[];
+  setRouteRules: (rules: { pattern: string; action: string; kind?: "domain" | "process" }[]) => void;
   onStopBoost: () => void;
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -173,6 +173,15 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
   };
 
   // 自动选择两个互不相同的可用端口并填入
+  // 在系统文件管理器中打开本地日志文件夹；失败经既有 toast 反馈，不崩溃
+  const openLogFolder = async () => {
+    try {
+      await api.openLogDir();
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   const autoPickPorts = async () => {
     try {
       const http = await api.suggestFreePort(httpPort);
@@ -273,6 +282,18 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
                 set("autoTheme", false);
                 set("theme", v);
               }}
+            />
+          </Row>
+          <Row icon={<Network size={15} />} label={t("ipVersion")}>
+            <Segmented<"auto" | "v4first" | "v6first" | "v4only">
+              value={ipVersion}
+              options={[
+                { value: "auto", label: t("ipVerAuto") },
+                { value: "v4first", label: t("ipVerV4First") },
+                { value: "v6first", label: t("ipVerV6First") },
+                { value: "v4only", label: t("ipVerV4Only") },
+              ]}
+              onChange={(v) => set("ipVersion", v)}
             />
           </Row>
           <Row icon={<MonitorCog size={15} />} label={t("settingAutoTheme")} hint={t("settingAutoThemeHint")}>
@@ -583,6 +604,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
               </span>
             </div>
           </Row>
+          <Row icon={<Network size={15} />} label={t("udpAssociate")} hint={t("udpAssociateHint")}>
+            <Switch checked={udpAssociate} onChange={(v) => set("udpAssociate", v)} ariaLabel={t("udpAssociate")} />
+          </Row>
           <div className="flex flex-col gap-2 py-3" style={{ borderTop: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-1)" }}>
               <span style={{ color: "var(--text-2)" }}>
@@ -627,6 +651,14 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
               style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
             >
               {t("btnImportConfig")}
+            </button>
+            <button
+              onClick={openLogFolder}
+              aria-label={t("openLogDir")}
+              className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+            >
+              {t("openLogDir")}
             </button>
           </div>
         </Section>
@@ -916,15 +948,16 @@ function CompatRow({
   );
 }
 
-/** 应用分流规则编辑器：域名/端口 → 直连 / 聚合 / 指定网卡 */
+/** 应用分流规则编辑器：域名/端口 或 进程名 → 直连 / 聚合 / 指定网卡 */
+type RouteRuleItem = { pattern: string; action: string; kind?: "domain" | "process" };
 function RouteRulesEditor({
   adapters,
   rules,
   setRules,
 }: {
   adapters: AdapterInfo[];
-  rules: { pattern: string; action: string }[];
-  setRules: (r: { pattern: string; action: string }[]) => void;
+  rules: RouteRuleItem[];
+  setRules: (r: RouteRuleItem[]) => void;
 }) {
   const { t } = useSettings();
   const toast = useToast();
@@ -932,10 +965,10 @@ function RouteRulesEditor({
   const [importing, setImporting] = useState(false);
   const nics = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
 
-  const update = (i: number, patch: Partial<{ pattern: string; action: string }>) => {
+  const update = (i: number, patch: Partial<RouteRuleItem>) => {
     setRules(rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   };
-  const add = () => setRules([...rules, { pattern: "", action: "aggregate" }]);
+  const add = () => setRules([...rules, { pattern: "", action: "aggregate", kind: "domain" }]);
   const remove = (i: number) => setRules(rules.filter((_, idx) => idx !== i));
 
   // 规则订阅：从 URL 拉取规则列表并合并（每行：pattern 或 pattern,action）
@@ -945,14 +978,14 @@ function RouteRulesEditor({
     setImporting(true);
     try {
       const text = await api.fetchText(url);
-      const parsed: { pattern: string; action: string }[] = [];
+      const parsed: RouteRuleItem[] = [];
       for (const raw of text.split(/\r?\n/)) {
         const line = raw.trim();
         if (!line || line.startsWith("#") || line.startsWith("//")) continue;
         const [pat, act] = line.split(/[,\s]+/);
         if (!pat) continue;
         const action = act && /^(direct|aggregate|nic:\d+)$/.test(act) ? act : "direct";
-        parsed.push({ pattern: pat.toLowerCase(), action });
+        parsed.push({ pattern: pat.toLowerCase(), action, kind: "domain" });
       }
       if (parsed.length === 0) {
         toast("warning", t("rulesEmpty"));
@@ -987,15 +1020,27 @@ function RouteRulesEditor({
       )}
       {rules.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
+          <select
+            value={r.kind ?? "domain"}
+            onChange={(e) => update(i, { kind: e.target.value as "domain" | "process" })}
+            aria-label={t("ruleKind")}
+            className="px-2 py-1.5 rounded-lg text-[12.5px] outline-none shrink-0"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)", maxWidth: 120 }}
+          >
+            <option value="domain">{t("ruleKindDomain")}</option>
+            <option value="process">{t("ruleKindProcess")}</option>
+          </select>
           <input
             value={r.pattern}
             onChange={(e) => update(i, { pattern: e.target.value })}
-            placeholder={t("rulesPatternPh")}
+            placeholder={(r.kind ?? "domain") === "process" ? t("procNamePlaceholder") : t("rulesPatternPh")}
+            aria-label={(r.kind ?? "domain") === "process" ? t("procNamePlaceholder") : t("rulesPattern")}
             className="flex-1 px-2.5 py-1.5 rounded-lg text-[12.5px] outline-none"
             style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-0)" }}
           />
           <select
             value={r.action}
+            aria-label={t("rulesAction")}
             onChange={(e) => update(i, { action: e.target.value })}
             className="px-2 py-1.5 rounded-lg text-[12.5px] outline-none shrink-0"
             style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)", maxWidth: 180 }}

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, ShieldCheck, Stethoscope } from "lucide-react";
+import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, ShieldCheck, Stethoscope, TrendingUp, Waves, PackageX } from "lucide-react";
 import { useSettings } from "../store";
 import { useToast } from "./Toast";
 import { Tooltip } from "./Tooltip";
+import { AreaChart } from "./AreaChart";
 import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
+import { buildReportLines, appendTrendPoint, capTrend, type DiagReportRow, type DiagTrend, type DiagTrendPoint } from "../lib/diag";
 import type { AdapterInfo, LatencyResult } from "../lib/api";
 
 interface Props {
@@ -27,6 +29,23 @@ function loadDiagHistory(): DiagHistory {
     if (raw) {
       const obj = JSON.parse(raw);
       if (obj && typeof obj === "object") return obj;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+// 诊断趋势历史（独立于"上次评级"历史）：每卡按时间追加采样点，上限 50，持久化。
+const DIAG_TREND_KEY = "hmx-diag-trend";
+const DIAG_TREND_MAX = 50;
+type TrendMetric = "latencyMs" | "jitterMs" | "lossPct" | "mbps";
+function loadDiagTrend(): DiagTrend {
+  try {
+    const raw = localStorage.getItem(DIAG_TREND_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj as DiagTrend;
     }
   } catch {
     /* ignore */
@@ -55,6 +74,15 @@ function gradeOf(lat: LatencyResult | undefined, sp: { mbps: number; ok: boolean
   return { key: "gradeFail", color: "var(--danger)" };
 }
 
+/** 抖动的展示文本：成功且有效时 "N ms"，否则占位 "—" */
+function jitterText(lat: LatencyResult | undefined): string {
+  return lat && lat.ok && typeof lat.jitterMs === "number" && lat.jitterMs >= 0 ? `${lat.jitterMs} ms` : "—";
+}
+/** 丢包率的展示文本：有值时百分比，否则占位 "—" */
+function lossText(lat: LatencyResult | undefined): string {
+  return lat && typeof lat.lossPct === "number" ? `${Math.round(lat.lossPct * 100)}%` : "—";
+}
+
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
@@ -63,6 +91,8 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
   const toast = useToast();
   const [testingIdx, setTestingIdx] = useState<number | null>(null);
   const [history, setHistory] = useState<DiagHistory>(loadDiagHistory);
+  const [trend, setTrend] = useState<DiagTrend>(loadDiagTrend);
+  const [trendMetric, setTrendMetric] = useState<TrendMetric>("latencyMs");
   const valid = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
   const hasResults = valid.some((a) => latencies[a.index] || speedResults[a.index]);
 
@@ -80,6 +110,45 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latencies, speedResults]);
+
+  // 诊断结果追加到趋势历史（每卡一采样点，复用纯函数 appendTrendPoint/capTrend，上限裁剪）
+  useEffect(() => {
+    if (!hasResults) return;
+    setTrend((prev) => {
+      const next: DiagTrend = { ...prev };
+      const ts = Date.now();
+      for (const a of valid) {
+        const lat = latencies[a.index];
+        const sp = speedResults[a.index];
+        if (!lat && !sp) continue;
+        const point: DiagTrendPoint = {
+          ts,
+          latencyMs: lat && lat.ok ? lat.latencyMs : -1,
+          jitterMs: lat && typeof lat.jitterMs === "number" ? lat.jitterMs : -1,
+          lossPct: lat && typeof lat.lossPct === "number" ? lat.lossPct : lat && !lat.ok ? 1 : 0,
+          mbps: sp && sp.ok ? sp.mbps : 0,
+          ok: !!(lat?.ok || sp?.ok),
+        };
+        next[a.index] = capTrend(appendTrendPoint(next[a.index] ?? [], point), DIAG_TREND_MAX);
+      }
+      localStorage.setItem(DIAG_TREND_KEY, JSON.stringify(next));
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latencies, speedResults]);
+
+  // 把趋势点按所选指标映射为绘图数值序列（丢包率转百分比，其余取原值，负值/失败归零便于展示）
+  const metricSeries = (points: DiagTrendPoint[] | undefined): number[] =>
+    (points ?? []).map((p) => {
+      const v =
+        trendMetric === "lossPct"
+          ? p.lossPct * 100
+          : trendMetric === "mbps"
+            ? p.mbps
+            : (p[trendMetric] as number);
+      return v > 0 ? v : 0;
+    });
+  const hasTrend = valid.some((a) => (trend[a.index]?.length ?? 0) > 1);
 
   // 健康网卡：综合评级为优秀/良好/一般者
   const applyHealthy = () => {
@@ -111,16 +180,32 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
       toast("warning", t("diagReportNoData"));
       return;
     }
-    const lines: string[] = [t("diagReportTitle"), new Date().toLocaleString(), ""];
-    for (const a of valid) {
+    const rows: DiagReportRow[] = valid.map((a) => {
       const lat = latencies[a.index];
       const sp = speedResults[a.index];
       const g = gradeOf(lat, sp);
-      const latStr = lat ? (lat.ok ? `${lat.latencyMs} ms` : t("latencyTimeout")) : "—";
-      const spStr = sp ? (sp.ok ? `${sp.mbps.toFixed(1)} MB/s` : t("latencyTimeout")) : "—";
-      lines.push(`• ${a.alias} (${a.ipv4})`);
-      lines.push(`    ${t("diagLatency")}: ${latStr}  ${t("diagSpeed")}: ${spStr}  ${t("diagGrade")}: ${t(g.key)}`);
-    }
+      return {
+        alias: a.alias,
+        ipv4: a.ipv4,
+        latency: lat ? (lat.ok ? `${lat.latencyMs} ms` : t("latencyTimeout")) : "—",
+        jitter: jitterText(lat),
+        loss: lossText(lat),
+        speed: sp ? (sp.ok ? `${sp.mbps.toFixed(1)} MB/s` : t("latencyTimeout")) : "—",
+        grade: t(g.key),
+      };
+    });
+    const lines = buildReportLines(
+      rows,
+      {
+        title: t("diagReportTitle"),
+        latency: t("diagLatency"),
+        jitter: t("diagJitter"),
+        loss: t("diagLoss"),
+        speed: t("diagSpeed"),
+        grade: t("diagGrade"),
+      },
+      new Date().toLocaleString(),
+    );
     const ok = await copyText(lines.join("\n"));
     toast(ok ? "success" : "error", t(ok ? "msgReportCopied" : "msgCopyFailed"));
   };
@@ -146,7 +231,7 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
     const accent = cv("--accent-soft", "#6ea8ff");
 
     const rows = valid.length;
-    const W = 760;
+    const W = 940;
     const padX = 32;
     const headerH = 130;
     const rowH = 58;
@@ -183,14 +268,18 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
 
     // 列标题
     const colName = padX;
-    const colLat = 388;
-    const colSpeed = 510;
-    const colGrade = 632;
+    const colLat = 360;
+    const colJitter = 470;
+    const colLoss = 570;
+    const colSpeed = 660;
+    const colGrade = 790;
     const headY = headerH - 10;
     ctx.font = `600 11px ${FONT}`;
     ctx.fillStyle = text2;
     ctx.fillText(t("colAlias").toUpperCase(), colName, headY);
     ctx.fillText(t("diagLatency").toUpperCase(), colLat, headY);
+    ctx.fillText(t("diagJitter").toUpperCase(), colJitter, headY);
+    ctx.fillText(t("diagLoss").toUpperCase(), colLoss, headY);
     ctx.fillText(t("diagSpeed").toUpperCase(), colSpeed, headY);
     ctx.fillText(t("diagGrade").toUpperCase(), colGrade, headY);
     ctx.strokeStyle = border;
@@ -227,6 +316,12 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
       ctx.font = `600 15px ${MONO}`;
       ctx.fillStyle = !lat || lat.ok ? text0 : resolve("var(--danger)");
       ctx.fillText(lat ? (lat.ok ? `${lat.latencyMs} ms` : t("latencyTimeout")) : "—", colLat, cy);
+      // 抖动
+      ctx.fillStyle = !lat || lat.ok ? text0 : resolve("var(--danger)");
+      ctx.fillText(jitterText(lat), colJitter, cy);
+      // 丢包
+      ctx.fillStyle = !lat || lat.lossPct < 1 ? text0 : resolve("var(--danger)");
+      ctx.fillText(lossText(lat), colLoss, cy);
       // 吞吐
       ctx.fillStyle = !sp || sp.ok ? text0 : resolve("var(--danger)");
       ctx.fillText(sp ? (sp.ok ? `${sp.mbps.toFixed(1)} MB/s` : t("latencyTimeout")) : "—", colSpeed, cy);
@@ -408,6 +503,20 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
                       ok={!lat || lat.ok}
                     />
                     <Metric
+                      icon={<Waves size={13} />}
+                      label={t("diagJitter")}
+                      value={lat ? (lat.ok && lat.jitterMs >= 0 ? `${lat.jitterMs}` : "—") : "—"}
+                      unit={lat && lat.ok && lat.jitterMs >= 0 ? "ms" : ""}
+                      ok={!lat || lat.ok}
+                    />
+                    <Metric
+                      icon={<PackageX size={13} />}
+                      label={t("diagLoss")}
+                      value={lat ? lossText(lat).replace("%", "") : "—"}
+                      unit={lat && typeof lat.lossPct === "number" ? "%" : ""}
+                      ok={!lat || lat.lossPct < 1}
+                    />
+                    <Metric
                       icon={<ArrowDownToLine size={13} />}
                       label={t("diagSpeed")}
                       value={sp ? (sp.ok ? sp.mbps.toFixed(1) : t("latencyTimeout")) : "—"}
@@ -419,6 +528,59 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
               );
             })}
           </motion.div>
+        )}
+
+        {/* 诊断历史趋势曲线（Plus 专属）：按所选指标展示各网卡随时间变化 */}
+        {hasTrend && (
+          <div className="panel p-5 flex flex-col gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                <TrendingUp size={15} style={{ color: "var(--accent-soft)" }} />
+                {t("diagTrend")}
+              </span>
+              <div className="flex-1" />
+              <div className="flex items-center gap-1 rounded-lg p-0.5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                {(
+                  [
+                    ["latencyMs", t("diagLatency")],
+                    ["jitterMs", t("diagJitter")],
+                    ["lossPct", t("diagLoss")],
+                    ["mbps", t("diagSpeed")],
+                  ] as [TrendMetric, string][]
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => setTrendMetric(m)}
+                    aria-label={label}
+                    className="px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors"
+                    style={{
+                      background: trendMetric === m ? "color-mix(in srgb, var(--accent) 20%, transparent)" : "transparent",
+                      color: trendMetric === m ? "var(--accent-soft)" : "var(--text-2)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+              {valid
+                .filter((a) => (trend[a.index]?.length ?? 0) > 1)
+                .map((a) => (
+                  <div key={a.index} className="rounded-xl p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[12px] font-medium truncate">{a.alias}</span>
+                      <span className="mono text-[10px]" style={{ color: "var(--text-2)" }}>
+                        {trend[a.index]?.length ?? 0} pts
+                      </span>
+                    </div>
+                    <div style={{ height: 120 }}>
+                      <AreaChart data={metricSeries(trend[a.index])} />
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

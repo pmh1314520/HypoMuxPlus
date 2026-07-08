@@ -107,6 +107,8 @@ function loadNicConfig(): Record<number, { weight: number; limit: number }> {
 export interface RouteRule {
   pattern: string;
   action: string; // "direct" | "aggregate" | "nic:<ifindex>"
+  /** 规则类型：域名规则（默认）或按进程可执行文件名匹配；缺省视为 "domain"（向后兼容旧配置） */
+  kind?: "domain" | "process";
 }
 const RULES_KEY = "hmx-route-rules";
 function loadRouteRules(): RouteRule[] {
@@ -123,7 +125,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
     useSettings();
   const toast = useToast();
 
@@ -691,7 +693,7 @@ function AppInner() {
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode);
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode, ipVersion, udpAssociate);
       notify2("success", t("msgBoostStarted"));
       notify(t("msgBoostStarted"));
     } catch (e) {

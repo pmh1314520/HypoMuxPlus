@@ -1,8 +1,8 @@
 //! 网卡发现模块
 //!
-//! 通过 Win32 IPHLPAPI 的 `GetAdaptersAddresses` 直接枚举所有处于 Up 状态、
-//! 拥有 IPv4 地址的物理/虚拟网卡，拿到权威的接口索引（IfIndex）、友好名称
-//! （FriendlyName）与单播 IPv4 地址。
+//! 通过 Win32 IPHLPAPI 的 `GetAdaptersAddresses`（`AF_UNSPEC` 双栈枚举）直接枚举
+//! 所有处于 Up 状态、拥有 IPv4 地址的物理/虚拟网卡，拿到权威的接口索引（IfIndex）、
+//! 友好名称（FriendlyName）、单播 IPv4 地址与代表性全局单播 IPv6 地址。
 //!
 //! 这是修复 WinError 10049（同网段多网卡 bind 本地 IP 随机命中错误网卡）的
 //! 物理地基：拿到 IfIndex 后，代理引擎用 `IP_UNICAST_IF` 把出站 socket 死锁
@@ -12,7 +12,7 @@
 //! 与 `scan_network_adapters` 的功能合并。
 
 use serde::Serialize;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS};
@@ -22,7 +22,7 @@ use windows_sys::Win32::NetworkManagement::IpHelper::{
     GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH,
 };
 #[cfg(windows)]
-use windows_sys::Win32::Networking::WinSock::{AF_INET, SOCKADDR_IN};
+use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR_IN, SOCKADDR_IN6};
 
 /// 接口运行状态：Up
 #[cfg(windows)]
@@ -60,6 +60,8 @@ pub struct AdapterInfo {
     pub alias: String,
     /// 第一个有效的 IPv4 地址
     pub ipv4: String,
+    /// 代表性全局单播 IPv6 地址（优先于 fe80::/10 链路本地）；无 IPv6 时为空字符串
+    pub ipv6: String,
     /// 网卡描述（厂商/适配器型号）
     pub description: String,
     /// 是否处于活动（Up）状态
@@ -67,6 +69,22 @@ pub struct AdapterInfo {
     /// 是否疑似虚拟 / 隧道 / VPN / 环回 / 链路本地 / fake-ip 网卡。
     /// 仅作标记，供前端过滤器使用；扫描期不再据此剔除网卡。
     pub is_virtual: bool,
+}
+
+/// 判定一个 IPv6 地址是否属于链路本地段 `fe80::/10`。
+///
+/// `fe80::/10` 的前 10 位为 `1111111010`，即首个 16 位段与掩码 `0xffc0`
+/// 相与后等于 `0xfe80`。
+pub(crate) fn is_link_local_v6(ip: &Ipv6Addr) -> bool {
+    (ip.segments()[0] & 0xffc0) == 0xfe80
+}
+
+/// 从一组 IPv6 单播地址中挑选代表性地址：全局单播优先于 `fe80::/10` 链路本地。
+///
+/// 若集合中存在至少一个非链路本地地址，返回其中第一个（保持枚举顺序）；
+/// 若集合为空或全部为链路本地地址，返回 `None`（上层映射为空字符串）。
+pub(crate) fn select_global_ipv6(addrs: &[Ipv6Addr]) -> Option<Ipv6Addr> {
+    addrs.iter().find(|ip| !is_link_local_v6(ip)).copied()
 }
 
 #[cfg(windows)]
@@ -99,7 +117,7 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
         buffer.resize(size as usize, 0);
         ret = unsafe {
             GetAdaptersAddresses(
-                AF_INET as u32,
+                AF_UNSPEC as u32,
                 flags,
                 std::ptr::null_mut(),
                 buffer.as_mut_ptr() as *mut IP_ADAPTER_ADDRESSES_LH,
@@ -126,23 +144,43 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
             let is_up = adapter.OperStatus == IF_OPER_STATUS_UP;
 
             if is_up && if_index != 0 {
-                // 取第一个 IPv4 单播地址
+                // 遍历单播地址链表：IPv4 取首个（行为不变），IPv6 收集后择代表
                 let mut ipv4: Option<Ipv4Addr> = None;
+                let mut ipv6_addrs: Vec<Ipv6Addr> = Vec::new();
                 let mut uni = adapter.FirstUnicastAddress;
                 while !uni.is_null() {
                     let u = &*uni;
                     let sa = u.Address.lpSockaddr;
-                    if !sa.is_null() && (*sa).sa_family == AF_INET {
-                        let sin = sa as *const SOCKADDR_IN;
-                        let raw = (*sin).sin_addr.S_un.S_addr; // 网络字节序
-                        let b = raw.to_ne_bytes();
-                        ipv4 = Some(Ipv4Addr::new(b[0], b[1], b[2], b[3]));
-                        break;
+                    if !sa.is_null() {
+                        match (*sa).sa_family {
+                            AF_INET => {
+                                // 仅记录首个 IPv4（与既有逻辑一致）
+                                if ipv4.is_none() {
+                                    let sin = sa as *const SOCKADDR_IN;
+                                    let raw = (*sin).sin_addr.S_un.S_addr; // 网络字节序
+                                    let b = raw.to_ne_bytes();
+                                    ipv4 = Some(Ipv4Addr::new(b[0], b[1], b[2], b[3]));
+                                }
+                            }
+                            AF_INET6 => {
+                                let sin6 = sa as *const SOCKADDR_IN6;
+                                // IN6_ADDR 以网络字节序存放 16 字节，直接构造 Ipv6Addr
+                                let bytes = (*sin6).sin6_addr.u.Byte;
+                                ipv6_addrs.push(Ipv6Addr::from(bytes));
+                            }
+                            _ => {}
+                        }
                     }
                     uni = u.Next;
                 }
 
+                // 保持既有行为：仅当网卡具备有效 IPv4 时才纳入列表
                 if let Some(ip) = ipv4 {
+                    // 代表性全局 IPv6：全局单播优先于链路本地，无则空字符串
+                    let ipv6 = select_global_ipv6(&ipv6_addrs)
+                        .map(|a| a.to_string())
+                        .unwrap_or_default();
+
                     // 不再硬过滤任何网卡：环回 127/8、链路本地 169.254/16(APIPA)、
                     // 198.18/15（Clash/Mihomo fake-ip 段）以及虚拟/隧道/VPN 网卡均一并返回，
                     // 仅打上 is_virtual 标记，由前端过滤器决定是否展示（默认展示全部）。
@@ -158,6 +196,7 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
                         index: if_index,
                         alias,
                         ipv4: ip.to_string(),
+                        ipv6,
                         description,
                         is_up,
                         is_virtual,
@@ -175,4 +214,39 @@ pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
 #[cfg(not(windows))]
 pub fn scan_adapters() -> Result<Vec<AdapterInfo>, String> {
     Err("HypoMuxPlus 仅支持 Windows 平台".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_link_local_v6, select_global_ipv6};
+    use proptest::prelude::*;
+    use std::net::Ipv6Addr;
+
+    proptest! {
+        // Feature: network-capability-expansion, Property 5
+        // 代表性全局 IPv6 选择（select_global_ipv6）：
+        // 存在至少一个全局单播（非链路本地）时返回非链路本地地址；
+        // 集合为空或全为链路本地时返回 None。
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_select_global_ipv6(raw in proptest::collection::vec(any::<u128>(), 0..16)) {
+            let addrs: Vec<Ipv6Addr> = raw.into_iter().map(Ipv6Addr::from).collect();
+            let has_global = addrs.iter().any(|ip| !is_link_local_v6(ip));
+
+            match select_global_ipv6(&addrs) {
+                Some(picked) => {
+                    // 存在全局单播时才应返回 Some，且返回值必非链路本地
+                    prop_assert!(has_global);
+                    prop_assert!(!is_link_local_v6(&picked));
+                    // 返回值必来自输入集合
+                    prop_assert!(addrs.contains(&picked));
+                }
+                None => {
+                    // 返回 None 当且仅当集合为空或全部为链路本地
+                    prop_assert!(!has_global);
+                }
+            }
+        }
+    }
 }
