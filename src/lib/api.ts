@@ -2,6 +2,43 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { UpstreamProxy, UpstreamBinding } from "./upstream";
+
+// 上游代理链类型的单一真源为 lib/upstream.ts，此处 re-export 供依赖 api.ts 的调用方使用，避免重复定义
+export type { UpstreamProxy, UpstreamBinding } from "./upstream";
+
+/** 上游代理链回退策略：回退直连 / 失败。 */
+export type UpstreamFallback = "direct" | "fail";
+
+/**
+ * 上游健康探测配置（Health_Prober）。默认 enabled=false，未启用时全部上游视为 Healthy，
+ * 走既有 pick_upstream_for_nic 调度序，行为与升级前一致（零回归）。
+ */
+export interface HealthCfg {
+  /** 是否启用后台健康探测与加权优选（默认 false） */
+  enabled: boolean;
+  /** 探测间隔（毫秒，缺省 30000） */
+  intervalMs: number;
+  /** 探测超时（毫秒，缺省 5000） */
+  timeoutMs: number;
+  /** 连续失败达该阈值进入熔断（缺省 3） */
+  failThreshold: number;
+  /** 熔断冷却期（毫秒，缺省 60000） */
+  cooldownMs: number;
+}
+
+/**
+ * 每网卡独立 DNS / DoH 配置（Per_NIC_DNS），按网卡 IfIndex 映射。
+ * 未配置的网卡走既有全局 DNS / DoH 解析路径（零回归）。
+ */
+export interface PerNicDnsCfg {
+  /** 网卡接口索引（IfIndex） */
+  ifIndex: number;
+  /** 解析方式：明文 DNS 服务器 / DoH 端点 */
+  kind: "plain" | "doh";
+  /** 明文 DNS 地址（如 "1.1.1.1"）或 DoH URL（如 "https://dns.google/dns-query"） */
+  endpoint: string;
+}
 
 export interface AdapterInfo {
   index: number;
@@ -98,8 +135,17 @@ export const api = {
     tunMode: boolean,
     ipVersion: string,
     udpAssociate: boolean,
+    upstreams: UpstreamProxy[],
+    upstreamBindings: UpstreamBinding[],
+    upstreamChain: boolean,
+    upstreamFallback: UpstreamFallback,
+    healthCfg: HealthCfg,
+    perNicDns: PerNicDnsCfg[],
+    connCap: number,
+    taskCap: number,
+    proxyGuardian: boolean,
   ) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode, ipVersion, udpAssociate }),
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>

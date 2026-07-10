@@ -27,7 +27,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 static SAVED_PROXY: std::sync::Mutex<Option<(u32, String)>> = std::sync::Mutex::new(None);
 
 /// 读取当前系统代理原始值：(ProxyEnable, ProxyServer)。
-fn read_proxy_raw() -> (u32, String) {
+pub(crate) fn read_proxy_raw() -> (u32, String) {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey_with_flags(INTERNET_SETTINGS, KEY_READ) {
         let enabled: u32 = key.get_value("ProxyEnable").unwrap_or(0);
@@ -38,8 +38,33 @@ fn read_proxy_raw() -> (u32, String) {
 }
 
 /// 判断代理串是否疑似本程序写入（含 socks=127.0.0.1: 签名）。
-fn looks_like_ours(server: &str) -> bool {
+pub(crate) fn looks_like_ours(server: &str) -> bool {
     server.contains("socks=127.0.0.1:")
+}
+
+/// 据给定原始值还原系统代理并刷新（供 Proxy_Guardian 的落盘快照补偿还原调用，Req 5.2/5.3）。
+///
+/// 与 `disable_system_proxy` 的还原语义一致：`server` 为空表示接管前本无代理，清空即可；
+/// 否则写回给定的 `enable` / `server`。仅经 WinINet 注册表操作，端点仅 `127.0.0.1`（Req 5.7）。
+pub(crate) fn restore_proxy_raw(enable: u32, server: &str) -> Result<(), String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) = hkcu
+        .create_subkey_with_flags(INTERNET_SETTINGS, KEY_WRITE | KEY_READ)
+        .map_err(|e| format!("打开注册表失败: {e}"))?;
+
+    if server.is_empty() {
+        key.set_value("ProxyEnable", &0u32)
+            .map_err(|e| format!("写入 ProxyEnable 失败: {e}"))?;
+        let _ = key.set_value("ProxyServer", &"");
+    } else {
+        key.set_value("ProxyEnable", &enable)
+            .map_err(|e| format!("还原 ProxyEnable 失败: {e}"))?;
+        key.set_value("ProxyServer", &server.to_string())
+            .map_err(|e| format!("还原 ProxyServer 失败: {e}"))?;
+    }
+
+    refresh_proxy();
+    Ok(())
 }
 
 /// 启用系统代理：写入 HTTP/HTTPS/SOCKS 全覆盖代理链条。
@@ -53,6 +78,8 @@ pub fn enable_system_proxy(socks_addr: &str, http_addr: &str) -> Result<(), Stri
             }
         }
     }
+    // Proxy_Guardian：接管前把原始快照落盘，供强杀 / 崩溃后下次启动补偿还原（Req 5.1）。
+    crate::proxyguardian::capture_and_persist_default();
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (key, _) = hkcu
         .create_subkey_with_flags(INTERNET_SETTINGS, KEY_WRITE | KEY_READ)
@@ -94,6 +121,8 @@ pub fn disable_system_proxy() -> Result<(), String> {
     }
 
     refresh_proxy();
+    // Proxy_Guardian：正常还原后删除落盘守护快照，避免下次启动误触发补偿还原（Req 5.2）。
+    crate::proxyguardian::restore_and_clear_default();
     Ok(())
 }
 

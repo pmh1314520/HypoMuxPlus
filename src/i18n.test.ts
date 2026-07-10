@@ -29,3 +29,34 @@ describe("i18n 字典键对齐 (Property 17)", () => {
     );
   });
 });
+
+// Feature: pro-differentiation-and-hardening, Property 10
+// Property 10: i18n 中英字典键集合完全一致
+// 中文字典 zh 与英文字典 en 的键集合相等（对称差为空），不存在仅在一侧出现的键。
+// 本 spec 新增的全部 UI 文案键（健康探测/订阅导入/每网卡 DNS/稳定性上限/看门狗/
+// 分流决策模拟器）均已并入双字典，故此全字典键对齐属性直接覆盖本 spec 新增文案键的
+// 中英对齐，无需单独枚举新键。
+// Validates: Requirements 12.4
+describe("i18n 字典键对齐 (Property 10 · pro-differentiation-and-hardening)", () => {
+  const zhKeys = Object.keys(DICT.zh);
+  const enKeys = Object.keys(DICT.en);
+  const zhSet = new Set(zhKeys);
+  const enSet = new Set(enKeys);
+
+  it("zh 与 en 键集合完全一致（对称差为空）", () => {
+    const onlyZh = zhKeys.filter((k) => !enSet.has(k));
+    const onlyEn = enKeys.filter((k) => !zhSet.has(k));
+    expect(onlyZh).toEqual([]);
+    expect(onlyEn).toEqual([]);
+  });
+
+  it("对任意键：存在于 zh 当且仅当存在于 en", () => {
+    const allKeys = Array.from(new Set([...zhKeys, ...enKeys]));
+    fc.assert(
+      fc.property(fc.constantFrom(...allKeys), (key) => {
+        expect(zhSet.has(key)).toBe(enSet.has(key));
+      }),
+      { numRuns: 100 },
+    );
+  });
+});

@@ -1,6 +1,8 @@
 // 全局设置 / 国际化上下文（localStorage 持久化）
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Lang, translate } from "./i18n";
+import type { UpstreamProxy, UpstreamBinding } from "./lib/upstream";
+import type { HealthCfg, PerNicDnsCfg } from "./lib/api";
 
 export type Theme = "dark" | "light";
 export type SchedStrategy = "rr" | "least" | "weighted";
@@ -39,6 +41,18 @@ interface Settings {
   tunMode: boolean;
   ipVersion: "auto" | "v4first" | "v6first" | "v4only";
   udpAssociate: boolean;
+  /** 上游代理链总开关（默认关闭，未启用时行为与既有直连聚合完全一致） */
+  upstreamChain: boolean;
+  /** 上游全部不可用时的回退策略：回退直连 / 失败 */
+  upstreamFallback: "direct" | "fail";
+  /** 上游健康探测与加权优选配置（默认 enabled=false，零回归） */
+  healthCfg: HealthCfg;
+  /** 活跃中继连接数上限（Connection_Cap，默认 4096） */
+  connCap: number;
+  /** 后台任务并发数上限（Task_Cap，默认 64） */
+  taskCap: number;
+  /** 系统代理防泄漏看门狗开关（默认开启，正常路径行为与既有等价） */
+  proxyGuardian: boolean;
   alwaysOnTop: boolean;
   hudEnabled: boolean;
   hudOpacity: number;
@@ -75,6 +89,18 @@ const DEFAULTS: Settings = {
   tunMode: false,
   ipVersion: "auto",
   udpAssociate: false,
+  upstreamChain: false,
+  upstreamFallback: "direct",
+  healthCfg: {
+    enabled: false,
+    intervalMs: 30000,
+    timeoutMs: 5000,
+    failThreshold: 3,
+    cooldownMs: 60000,
+  },
+  connCap: 4096,
+  taskCap: 64,
+  proxyGuardian: true,
   alwaysOnTop: false,
   hudEnabled: false,
   hudOpacity: 0.92,
@@ -89,6 +115,11 @@ const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "hmx-plus-settings";
+// 上游代理链的节点列表与网卡↔上游映射作为独立持久化状态（各自单独的 localStorage key）
+const UPSTREAMS_KEY = "hmx-upstreams";
+const UPSTREAM_BINDINGS_KEY = "hmx-upstream-bindings";
+// 每网卡 DNS / DoH 映射作为独立持久化状态（单独的 localStorage key）
+const PER_NIC_DNS_KEY = "hmx-per-nic-dns";
 
 function load(): Settings {
   try {
@@ -100,15 +131,84 @@ function load(): Settings {
   return DEFAULTS;
 }
 
+function loadUpstreams(): UpstreamProxy[] {
+  try {
+    const raw = localStorage.getItem(UPSTREAMS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        return arr.filter(
+          (u) =>
+            u &&
+            typeof u.id === "string" &&
+            (u.kind === "socks5" || u.kind === "http") &&
+            typeof u.host === "string" &&
+            typeof u.port === "number",
+        );
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+function loadUpstreamBindings(): UpstreamBinding[] {
+  try {
+    const raw = localStorage.getItem(UPSTREAM_BINDINGS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        return arr.filter(
+          (b) => b && typeof b.ifIndex === "number" && Array.isArray(b.upstreamIds),
+        );
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+function loadPerNicDns(): PerNicDnsCfg[] {
+  try {
+    const raw = localStorage.getItem(PER_NIC_DNS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        return arr.filter(
+          (d) =>
+            d &&
+            typeof d.ifIndex === "number" &&
+            (d.kind === "plain" || d.kind === "doh") &&
+            typeof d.endpoint === "string",
+        );
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
 interface Ctx extends Settings {
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  /** 上游代理链节点列表（持久化于 localStorage key `hmx-upstreams`）。 */
+  upstreams: UpstreamProxy[];
+  setUpstreams: (upstreams: UpstreamProxy[]) => void;
+  /** 网卡↔上游映射（持久化于 localStorage key `hmx-upstream-bindings`）。 */
+  upstreamBindings: UpstreamBinding[];
+  setUpstreamBindings: (bindings: UpstreamBinding[]) => void;
+  /** 每网卡 DNS / DoH 映射（持久化于 localStorage key `hmx-per-nic-dns`）。 */
+  perNicDns: PerNicDnsCfg[];
+  setPerNicDns: (dns: PerNicDnsCfg[]) => void;
 }
 
 const SettingsCtx = createContext<Ctx | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(load);
+  const [upstreams, setUpstreams] = useState<UpstreamProxy[]>(loadUpstreams);
+  const [upstreamBindings, setUpstreamBindings] = useState<UpstreamBinding[]>(loadUpstreamBindings);
+  const [perNicDns, setPerNicDns] = useState<PerNicDnsCfg[]>(loadPerNicDns);
   const firstRun = useRef(true);
 
   // 主题 / 强调色 / 对比度切换时短暂启用过渡动画，使配色变化平滑
@@ -150,13 +250,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--accent-glow", a.glow);
   }, [settings]);
 
+  // 持久化上游代理链节点列表
+  useEffect(() => {
+    localStorage.setItem(UPSTREAMS_KEY, JSON.stringify(upstreams));
+  }, [upstreams]);
+
+  // 持久化网卡↔上游映射
+  useEffect(() => {
+    localStorage.setItem(UPSTREAM_BINDINGS_KEY, JSON.stringify(upstreamBindings));
+  }, [upstreamBindings]);
+
+  // 持久化每网卡 DNS / DoH 映射
+  useEffect(() => {
+    localStorage.setItem(PER_NIC_DNS_KEY, JSON.stringify(perNicDns));
+  }, [perNicDns]);
+
   const value = useMemo<Ctx>(
     () => ({
       ...settings,
       set,
       t: (key, vars) => translate(settings.lang, key, vars),
+      upstreams,
+      setUpstreams,
+      upstreamBindings,
+      setUpstreamBindings,
+      perNicDns,
+      setPerNicDns,
     }),
-    [settings],
+    [settings, upstreams, upstreamBindings, perNicDns],
   );
 
   return <SettingsCtx.Provider value={value}>{children}</SettingsCtx.Provider>;

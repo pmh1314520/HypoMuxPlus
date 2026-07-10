@@ -46,6 +46,18 @@ pub(crate) fn format_log_line(ts: &str, level: LogLevel, msg: &str) -> String {
     format!("[{}] [{}] {}", ts, level.label(), msg)
 }
 
+/// 组装单行结构化日志：`[ts] [LEVEL] [subsystem] <redacted msg>`（Crash_Logger，Req 9.1/9.2）。
+///
+/// 在 [`format_log_line`] 的「时间戳 + 级别」之上追加子系统字段，用于崩溃 / 错误事件的
+/// 结构化归属定位。`msg` 在此函数内部经 [`redact`] 脱敏（本机 IP / 用户名路径），
+/// 时间戳与子系统名按原样嵌入（由调用方保证不含敏感信息）。
+///
+/// 此函数为纯函数、不做任何 IO，且对任意输入（含特殊字符 / 空串）均不 panic。
+/// 例："[2024-01-01 00:00:00] [ERROR] [Health_Prober] <redacted msg>"。
+pub(crate) fn format_structured(ts: &str, level: LogLevel, subsystem: &str, msg: &str) -> String {
+    format!("[{}] [{}] [{}] {}", ts, level.label(), subsystem, redact(msg))
+}
+
 /// 对日志消息中的本机可标识信息脱敏。
 ///
 /// 规则：
@@ -249,16 +261,36 @@ impl Logger {
     /// 任何文件操作失败都会被静默吞掉，绝不 panic、不阻断调用方。
     pub(crate) fn write(&self, level: LogLevel, msg: &str) {
         let line = format_log_line(&now_timestamp(), level, &redact(msg));
+        let _ = self.write_line(line);
+    }
+
+    /// 写入一条结构化错误 / 崩溃记录：`[ts] [LEVEL] [subsystem] <redacted msg>`，
+    /// 复用既有滚动 / 脱敏机制（Crash_Logger，Req 9.1/9.2/9.3/9.4）。
+    ///
+    /// 与 [`write`](Self::write) 一致：脱敏在 [`format_structured`] 内部完成，落盘后达
+    /// 上限触发滚动；任何文件操作失败都被静默吞掉，绝不 panic、不阻断调用方（Req 9.5）。
+    /// 与 [`write_structured`](Self::write_structured) 一致，但返回是否成功落盘。
+    ///
+    /// 供进程级 panic hook 使用：`false` 表示未能写入崩溃日志文件（无 sink 或写盘失败），
+    /// 调用方据此降级为前端 `emit("hmx-log")`（Req 9.5）。此函数绝不 panic。
+    pub(crate) fn write_structured(&self, level: LogLevel, subsystem: &str, msg: &str) -> bool {
+        let line = format_structured(&now_timestamp(), level, subsystem, msg);
+        self.write_line(line)
+    }
+
+    /// 把一条已渲染好的日志行落盘并按需触发滚动（供 [`write`] 与
+    /// [`write_structured`](Self::write_structured) 复用）。返回是否成功写入文件。
+    fn write_line(&self, line: String) -> bool {
         self.ensure_open();
         let written = {
             let mut guard = self.lock_file();
             let Some(file) = guard.as_mut() else {
-                return; // 文件未打开：降级为不落地
+                return false; // 文件未打开：降级为不落地
             };
             let mut data = line;
             data.push('\n');
             if file.write_all(data.as_bytes()).is_err() {
-                return;
+                return false;
             }
             let _ = file.flush();
             data.len() as u64
@@ -267,6 +299,7 @@ impl Logger {
         if total >= self.max_bytes {
             self.rotate_if_needed();
         }
+        true
     }
 
     /// 达到大小上限则滚动：归档当前文件、按 [`files_to_prune`] 裁剪历史、重开活动文件。
@@ -593,6 +626,185 @@ mod tests {
                 "原始用户名段仍存在: out={:?}, segment={:?}",
                 path_out,
                 original_segment
+            );
+        }
+    }
+
+    // Feature: pro-differentiation-and-hardening, Property 8
+    //
+    // Property 8: 结构化日志与脱敏（format_structured + redact）
+    //
+    // 子属性 8a：结构化日志恒包含全部字段且内部复用 redact。
+    //   对任意时间戳、级别、子系统名与消息，`format_structured` 的输出必须：
+    //     1. 对任意输入不 panic；
+    //     2. 同时包含传入的时间戳子串、级别标签（INFO/WARN/ERROR）、子系统名子串；
+    //     3. 严格等于 `[ts] [LEVEL] [subsystem] {redact(msg)}`——即消息段恰为对 msg
+    //        直接调用 redact 的结果（证明 format_structured 内部复用 redact）。
+    // Validates: Requirements 9.1, 9.2
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_format_structured_contains_fields_and_reuses_redact(
+            ts in ".*",
+            subsystem in ".*",
+            msg in ".*",
+            level_idx in 0usize..3,
+        ) {
+            let level = match level_idx {
+                0 => LogLevel::Info,
+                1 => LogLevel::Warn,
+                _ => LogLevel::Error,
+            };
+
+            let out = format_structured(&ts, level, &subsystem, &msg);
+
+            // 子属性 8a-2：包含时间戳 / 级别标签 / 子系统名。
+            prop_assert!(
+                out.contains(&ts),
+                "结构化输出未包含时间戳子串: out={:?}, ts={:?}",
+                out,
+                ts
+            );
+            prop_assert!(
+                out.contains(level.label()),
+                "结构化输出未包含级别标签: out={:?}, label={:?}",
+                out,
+                level.label()
+            );
+            prop_assert!(
+                out.contains(&subsystem),
+                "结构化输出未包含子系统名子串: out={:?}, subsystem={:?}",
+                out,
+                subsystem
+            );
+
+            // 子属性 8a-3：消息段恰为 redact(msg)，证明内部复用 redact。
+            let expected = format!(
+                "[{}] [{}] [{}] {}",
+                ts,
+                level.label(),
+                subsystem,
+                redact(&msg)
+            );
+            prop_assert_eq!(&out, &expected, "结构化输出与「复用 redact 的格式」不一致");
+        }
+    }
+
+    // Feature: pro-differentiation-and-hardening, Property 8
+    //
+    // 子属性 8b：结构化路径对嵌入敏感信息的消息脱敏。
+    //   当 msg 含本机可标识信息（IPv4 / IPv6 / 用户名路径）时，`format_structured`
+    //   的输出必须出现掩码令牌且不再出现原始敏感明文（脱敏经 redact 覆盖到消息段）。
+    //   时间戳与子系统名用不含 `.`/`:` 的干净字符集生成，避免与敏感明文意外重叠导致伪失败。
+    // Validates: Requirements 9.3
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_format_structured_redacts_sensitive_message(
+            ts in "[A-Za-z0-9 _-]{0,16}",
+            subsystem in "[A-Za-z0-9_-]{1,16}",
+            level_idx in 0usize..3,
+            a in any::<u8>(),
+            b in any::<u8>(),
+            c in any::<u8>(),
+            d in any::<u8>(),
+            seg in prop::array::uniform8(1u16..=0xffff),
+            name in "[A-Za-z0-9]{1,10}",
+        ) {
+            let level = match level_idx {
+                0 => LogLevel::Info,
+                1 => LogLevel::Warn,
+                _ => LogLevel::Error,
+            };
+
+            // 一条同时含 IPv4 / IPv6 / 用户名路径的消息。
+            let ip6 = std::net::Ipv6Addr::new(
+                seg[0], seg[1], seg[2], seg[3], seg[4], seg[5], seg[6], seg[7],
+            );
+            let ipv4_full = format!("{}.{}.{}.{}", a, b, c, d);
+            let ipv6_full = ip6.to_string();
+            let msg = format!(
+                "ip={} addr={} path=C:\\Users\\{}\\AppData",
+                ipv4_full, ipv6_full, name
+            );
+
+            let out = format_structured(&ts, level, &subsystem, &msg);
+
+            // IPv4 后两段掩码：出现掩码令牌、不再出现完整地址。
+            let ipv4_masked = format!("{}.{}.*.*", a, b);
+            prop_assert!(
+                out.contains(&ipv4_masked),
+                "结构化输出缺 IPv4 掩码令牌: out={:?}, masked={:?}",
+                out,
+                ipv4_masked
+            );
+            prop_assert!(
+                !out.contains(&ipv4_full),
+                "结构化输出泄露 IPv4 完整地址: out={:?}, full={:?}",
+                out,
+                ipv4_full
+            );
+
+            // IPv6 前缀外掩码：出现掩码令牌、不再出现完整地址。
+            let ipv6_masked = format!("{:x}:{:x}::*", seg[0], seg[1]);
+            prop_assert!(
+                out.contains(&ipv6_masked),
+                "结构化输出缺 IPv6 掩码令牌: out={:?}, masked={:?}",
+                out,
+                ipv6_masked
+            );
+            prop_assert!(
+                !out.contains(&ipv6_full),
+                "结构化输出泄露 IPv6 完整地址: out={:?}, full={:?}",
+                out,
+                ipv6_full
+            );
+
+            // 用户名路径段替换为 <USER>，原始 Users\<name> 段不再出现。
+            prop_assert!(
+                out.contains("<USER>"),
+                "结构化输出未替换用户名段: out={:?}",
+                out
+            );
+            let original_segment = format!("Users\\{}", name);
+            prop_assert!(
+                !out.contains(&original_segment),
+                "结构化输出泄露原始用户名段: out={:?}, segment={:?}",
+                out,
+                original_segment
+            );
+        }
+    }
+
+    // Feature: pro-differentiation-and-hardening, Property 8
+    //
+    // 子属性 8c：redact 的健壮性与确定性。
+    //   对任意字节字符串（含特殊字符 / 空串）`redact` 不 panic；且作为纯函数，
+    //   对同一输入多次调用结果一致（determinism）。
+    //
+    //   说明：`redact` 并非幂等。掩码输出（如 IPv6 前缀被掩码为 `s0:s1::*`）本身仍属
+    //   合法的 IPv6 字符集片段，会被 `mask_ipv6` 再次识别并掩码（例如 `"::"` -> `"0:0::*"`
+    //   -> `"0:0::**"`）。Req 9.1/9.2/9.3 仅要求单次脱敏覆盖本机可标识信息，并不要求
+    //   `redact(redact(x)) == redact(x)`，故此处不作幂等断言。单次脱敏的覆盖性由子属性
+    //   8b（`prop_format_structured_redacts_sensitive_message`）以干净字符集生成器验证。
+    // Validates: Requirements 9.3
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_redact_robust(input in ".*") {
+            // 不 panic 即通过健壮性；纯函数确定性：同输入必得同输出。
+            let a = redact(&input);
+            let b = redact(&input);
+            prop_assert_eq!(
+                &a,
+                &b,
+                "redact 非确定性: input={:?}, a={:?}, b={:?}",
+                input,
+                a,
+                b
             );
         }
     }

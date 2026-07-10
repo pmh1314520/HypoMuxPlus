@@ -17,10 +17,43 @@ mod netadapter;
 // pick_nic 进程匹配接线为后续任务（4.2），暂允许未使用告警。
 #[allow(dead_code)]
 mod process;
+mod proxyguardian;
+mod subscription;
 mod sysproxy;
 mod telemetry;
 mod tunmode;
 pub mod service;
+
+// --- 单元测试可执行文件的加载修复 ---------------------------------------------
+// `cargo test --lib` 生成的测试可执行文件会经 rfd / tauri-plugin-dialog 间接静态导入
+// `comctl32.dll!TaskDialogIndirect`。该导出仅存在于 ComCtl32 v6；若可执行文件未声明对
+// `Microsoft.Windows.Common-Controls` 6.0.0.0 的依赖，加载器会绑定到 System32 中的旧版
+// comctl32 v5.82（无该导出），导致测试二进制在**加载时**崩溃：
+// STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139)。
+//
+// 正式应用二进制由 tauri-build 注入等价 manifest，因此本修复必须严格限定在测试构建：
+// 通过 `#[cfg(test)]` 仅在 lib 单元测试编译单元中，向 MSVC 链接器写入 `.drectve` 指令
+// `/manifestdependency`，让测试 exe 依赖 ComCtl32 v6。应用二进制以 `test=false` 编译 lib，
+// 不会看到此指令，故不会与 tauri 的 manifest 冲突（避免 CVT1100/LNK1123 重复资源错误）。
+#[cfg(all(test, windows, target_env = "msvc"))]
+const COMMON_CONTROLS_V6_DIRECTIVE: &str = " /manifestdependency:\"type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' \
+publicKeyToken='6595b64144ccf1df' language='*'\"";
+
+#[cfg(all(test, windows, target_env = "msvc"))]
+#[used]
+#[link_section = ".drectve"]
+static COMMON_CONTROLS_V6_MANIFEST_DEP: [u8; COMMON_CONTROLS_V6_DIRECTIVE.len()] = {
+    let src = COMMON_CONTROLS_V6_DIRECTIVE.as_bytes();
+    let mut buf = [0u8; COMMON_CONTROLS_V6_DIRECTIVE.len()];
+    let mut i = 0;
+    while i < src.len() {
+        buf[i] = src[i];
+        i += 1;
+    }
+    buf
+};
+// -----------------------------------------------------------------------------
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -29,6 +62,7 @@ use parking_lot::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tokio_util::sync::CancellationToken;
 
 /// 全局应用状态
 pub struct AppState {
@@ -49,6 +83,16 @@ pub struct AppState {
     tray_en: AtomicBool,
     /// 进程感知自动加速：是否启用（检测到下载类应用自动加速）
     app_watch: AtomicBool,
+    /// 系统代理防泄漏看门狗开关（Proxy_Guardian，Req 5）：由 start_boost 透传存储，
+    /// 供看门狗生命周期读取。
+    proxy_guardian: AtomicBool,
+    /// 运行期死网关自检任务的取消句柄（Proxy_Guardian，Req 5.4）。
+    ///
+    /// 仅在「非 TUN 模式 + proxy_guardian 启用 + 成功接管系统代理」时 spawn 一个定时
+    /// 自检任务并在此存放其取消令牌；`stop_boost` / `cleanup` 取消它，确保停止 / 退出
+    /// 后自检任务不再运行、不会误触发还原。TUN 模式或未启用时此字段恒为 `None`，
+    /// 既有停止 / 清理路径行为不变（零回归，Req 5.6）。
+    guardian_task: Mutex<Option<CancellationToken>>,
     /// 托盘图标句柄，用于动态渲染实时速度数字图标
     tray: Mutex<Option<tauri::tray::TrayIcon<tauri::Wry>>>,
     /// 本地滚动日志 sink（在 setup 阶段指向 app_log_dir 初始化）；未初始化时日志仅前端输出
@@ -71,6 +115,8 @@ impl Default for AppState {
             app_watch: AtomicBool::new(false),
             tray: Mutex::new(None),
             log: OnceLock::new(),
+            proxy_guardian: AtomicBool::new(false),
+            guardian_task: Mutex::new(None),
         }
     }
 }
@@ -84,6 +130,26 @@ pub(crate) fn hmx_log(app: &AppHandle, level: logger::LogLevel, msg: &str) {
     // 附加行为：写入本地文件（sink 未就绪或写盘失败时静默跳过）
     if let Some(logger) = app.try_state::<AppState>().and_then(|s| s.log.get().cloned()) {
         logger.write(level, msg);
+    }
+}
+
+/// 结构化日志入口（Stability_Guard / Crash_Logger，Req 8.4/9.2）。
+///
+/// 向前端日志面板推送带级别与子系统标签的可读行（既有 `emit("hmx-log")` 面板行为
+/// 不变，Req 9.6），并复用本地滚动文件 sink 的结构化写入（内部时间戳 + 脱敏 + 滚动，
+/// Req 9.3/9.4）。写盘失败静默降级为仅前端输出，绝不 panic、不阻断主流程（Req 9.5）。
+pub(crate) fn hmx_log_structured(
+    app: &AppHandle,
+    level: logger::LogLevel,
+    subsystem: &str,
+    msg: &str,
+) {
+    let _ = app.emit(
+        "hmx-log",
+        format!("[{}] [{}] {}", level.label(), subsystem, msg),
+    );
+    if let Some(logger) = app.try_state::<AppState>().and_then(|s| s.log.get().cloned()) {
+        logger.write_structured(level, subsystem, msg);
     }
 }
 
@@ -401,6 +467,89 @@ fn restore_main(app: AppHandle) {
 }
 
 /// 一键加速：启动分流引擎并接管系统代理。
+/// 运行期死网关自检任务的探测间隔（秒）。
+const GUARDIAN_SELFCHECK_INTERVAL_SECS: u64 = 5;
+/// 探测本地代理端口是否仍在监听时的单次连接超时。
+const GUARDIAN_PROBE_TIMEOUT_MS: u64 = 800;
+
+/// 探测本地代理端口（`127.0.0.1:port`）是否仍在监听：能在超时内建立 TCP 连接即视为
+/// 仍在监听（Req 5.4）。
+///
+/// 用 `std::net::TcpStream::connect_timeout` 判定，置于 `spawn_blocking` 中执行以免阻塞
+/// 异步运行时；任何错误（连接被拒 / 超时 / join 失败）一律视为「未监听」，绝不 panic。
+async fn probe_port_listening(port: u16) -> bool {
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    tauri::async_runtime::spawn_blocking(move || {
+        std::net::TcpStream::connect_timeout(
+            &addr,
+            std::time::Duration::from_millis(GUARDIAN_PROBE_TIMEOUT_MS),
+        )
+        .is_ok()
+    })
+    .await
+    .unwrap_or(false)
+}
+
+/// 取消运行期死网关自检任务（若存在）。停止 / 退出 / 再次启动前调用，确保旧自检任务
+/// 不再运行（Req 5.4/5.6）。TUN 模式或未启用时该句柄恒为 `None`，此调用为无副作用空操作。
+fn cancel_guardian_task(state: &AppState) {
+    if let Some(token) = state.guardian_task.lock().take() {
+        token.cancel();
+    }
+}
+
+/// 启动运行期死网关自检任务（Proxy_Guardian，Req 5.4）。
+///
+/// 仅由 `start_boost` 在「非 TUN 模式 + `proxy_guardian` 启用 + 已成功接管系统代理」时
+/// 调用。任务每隔 [`GUARDIAN_SELFCHECK_INTERVAL_SECS`] 秒探测本地代理端口
+/// `127.0.0.1:socks_port` 是否仍在监听；当系统代理仍启用而该端口已不再监听
+/// （[`proxyguardian::is_dead_gateway`] 为真）时，说明本地代理已消失而系统代理仍指向
+/// 它 —— 即「死网关」，此时据落盘快照 [`proxyguardian::restore_and_clear`] 还原系统代理
+/// 并记可读日志以避免用户断网，随后结束自检（还原后无需再探测）。
+///
+/// 取消令牌存入 [`AppState::guardian_task`]，`stop_boost` / `cleanup` 取消并清空它，
+/// 确保停止 / 退出后自检任务不再运行、不会误触发还原（Req 5.4/5.6）。
+fn spawn_guardian_task(app: &AppHandle, socks_port: u16) {
+    let state = app.state::<AppState>();
+    // 先取消可能残留的旧自检任务，避免重复 spawn 叠加（正常路径下此处恒为空）。
+    cancel_guardian_task(&state);
+    let token = CancellationToken::new();
+    let child = token.child_token();
+    *state.guardian_task.lock() = Some(token);
+    drop(state);
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(
+            GUARDIAN_SELFCHECK_INTERVAL_SECS,
+        ));
+        // 跳过启动即触发的首个 tick，等待一个完整周期后再首检，避免接管瞬间误判。
+        ticker.tick().await;
+        loop {
+            tokio::select! {
+                _ = child.cancelled() => break,
+                _ = ticker.tick() => {
+                    let listening = probe_port_listening(socks_port).await;
+                    let proxy_enabled = sysproxy::get_system_proxy().0;
+                    if proxyguardian::is_dead_gateway(proxy_enabled, listening) {
+                        if let Ok(dir) = app.path().app_config_dir() {
+                            proxyguardian::restore_and_clear(&dir);
+                        }
+                        hmx_log(
+                            &app,
+                            logger::LogLevel::Warn,
+                            &format!(
+                                "检测到死网关：本地代理端口 127.0.0.1:{socks_port} 已不再监听，已还原系统代理以避免断网"
+                            ),
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+    });
+}
+
 #[tauri::command]
 async fn start_boost(
     app: AppHandle,
@@ -416,10 +565,40 @@ async fn start_boost(
     tun_mode: bool,
     ip_version: String,
     udp_associate: bool,
+    upstreams: Vec<engine::UpstreamProxy>,
+    upstream_bindings: Vec<engine::UpstreamBinding>,
+    upstream_chain: bool,
+    upstream_fallback: String,
+    // 本次新增能力配置（Req 1/7/8/13）：前端以 camelCase 透传，Tauri 自动将
+    // healthCfg/perNicDns/connCap/taskCap/proxyGuardian 映射到以下 snake_case 参数。
+    // 未启用时（health 关闭 / 空 DNS / 默认上限）行为与升级前等价（零回归，Req 13.1/13.2）。
+    health_cfg: engine::HealthConfig,
+    per_nic_dns: Vec<engine::PerNicDnsEntry>,
+    conn_cap: usize,
+    task_cap: usize,
+    proxy_guardian: bool,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
     }
+
+    // 每网卡 DNS 传输条目 → 引擎映射条目：kind 字符串（"plain"/"doh"）已由 serde
+    // 反序列化为 DnsKind，此处仅重整为 (if_index, PerNicDns) 供 engine::start 建表（Req 7）。
+    let per_nic_dns: Vec<(u32, engine::PerNicDns)> = per_nic_dns
+        .into_iter()
+        .map(|e| {
+            (
+                e.if_index,
+                engine::PerNicDns {
+                    kind: e.kind,
+                    endpoint: e.endpoint,
+                },
+            )
+        })
+        .collect();
+
+    // 存储看门狗开关，供后续看门狗生命周期（任务 6.x/7.x）读取；本任务不改变既有路径。
+    state.proxy_guardian.store(proxy_guardian, Ordering::Relaxed);
 
     let handle = engine::start(
         app.clone(),
@@ -433,6 +612,15 @@ async fn start_boost(
         rules,
         ip_version,
         udp_associate,
+        upstreams,
+        upstream_bindings,
+        upstream_chain,
+        upstream_fallback,
+        health_cfg,
+        per_nic_dns,
+        conn_cap,
+        task_cap,
+        proxy_guardian,
     )
     .await?;
 
@@ -486,6 +674,13 @@ async fn start_boost(
     let _ = app.emit("hmx-boost-state", true);
     update_tray_toggle(&app, true);
 
+    // Proxy_Guardian 运行期死网关自检（Req 5.4）：仅「非 TUN 模式 + 看门狗启用」时启动。
+    // 此时系统代理已成功接管指向 `127.0.0.1:socks_port`；自检任务周期性确认该端口存活，
+    // 端口消失即判为死网关并还原系统代理。TUN 模式或未启用时不 spawn，既有路径零回归。
+    if !tun_mode && proxy_guardian {
+        spawn_guardian_task(&app, socks_port);
+    }
+
     Ok(format!("http={http_addr};https={http_addr};socks={socks_addr}"))
 }
 
@@ -501,11 +696,18 @@ fn stop_tun(state: &AppState) {
 /// 停止加速：销毁引擎并强制还原系统代理。
 #[tauri::command]
 fn stop_boost(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    // Proxy_Guardian：先取消运行期死网关自检任务，确保停止后不再探测、不误触发还原
+    // （Req 5.4/5.6）。TUN 模式或未启用时该句柄恒为 None，此调用为无副作用空操作。
+    cancel_guardian_task(state.inner());
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
     }
     stop_tun(state.inner());
     let _ = sysproxy::disable_system_proxy();
+    // Proxy_Guardian：正常停止时据落盘快照还原并清理守护文件（Req 5.2）。
+    if let Ok(dir) = app.path().app_config_dir() {
+        proxyguardian::restore_and_clear(&dir);
+    }
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
     let _ = app.emit("hmx-boost-state", false);
@@ -812,13 +1014,65 @@ fn open_log_dir(app: AppHandle) -> Result<(), String> {
 /// 退出前的统一清理：停止引擎、还原系统代理与死网关检测。
 fn cleanup(app: &AppHandle) {
     let state = app.state::<AppState>();
+    // Proxy_Guardian：退出前取消运行期死网关自检任务，避免其在清理路径中误触发还原
+    // （Req 5.4/5.6）。未启用 / TUN 模式时该句柄恒为 None，此调用为无副作用空操作。
+    cancel_guardian_task(&state);
     if let Some(handle) = state.engine.lock().take() {
         handle.stop();
     }
     stop_tun(state.inner());
     let _ = sysproxy::disable_system_proxy();
+    // Proxy_Guardian：退出清理时据落盘快照还原并清理守护文件（Req 5.2）。
+    if let Ok(dir) = app.path().app_config_dir() {
+        proxyguardian::restore_and_clear(&dir);
+    }
     let _ = sysproxy::set_dead_gateway_detection(true);
     state.boosting.store(false, Ordering::Relaxed);
+}
+
+/// 安装进程级 panic hook：把未捕获 panic 的位置 / 消息 / 回溯摘要组装为结构化崩溃记录，
+/// 优先写入本地崩溃日志文件（经 [`logger::Logger::write_structured`] 内部脱敏），失败或
+/// 日志 sink 未就绪时降级为前端 `emit("hmx-log")`（Req 9.1/9.5/9.6）。
+///
+/// 本函数安装的 hook 内部对所有失败路径均静默处理，绝不再次 panic（Req 9.5）。
+fn install_panic_hook(app: AppHandle) {
+    std::panic::set_hook(Box::new(move |info| {
+        // panic payload 常见为 &str 或 String，其它类型降级为占位符（不 downcast 失败即 panic）
+        let payload = info.payload();
+        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "<non-string panic payload>".to_string()
+        };
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "<unknown>".to_string());
+        // 回溯摘要：截断前若干帧并折行为单行，控制体积（完整符号依运行时可获取信息，Req 9 边界）
+        let backtrace = std::backtrace::Backtrace::force_capture().to_string();
+        let bt_summary = backtrace
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .take(20)
+            .collect::<Vec<_>>()
+            .join(" | ");
+        let record = format!(
+            "panic at {} | message: {} | backtrace: {}",
+            location, msg, bt_summary
+        );
+        // 先尝试写入本地崩溃日志文件（内部经 redact 脱敏、复用滚动机制）
+        let written = app
+            .try_state::<AppState>()
+            .and_then(|s| s.log.get().cloned())
+            .map(|logger| logger.write_structured(logger::LogLevel::Error, "Crash_Logger", &record))
+            .unwrap_or(false);
+        // 写盘失败或 sink 未就绪：降级为前端日志面板输出（脱敏后再 emit）
+        if !written {
+            let _ = app.emit("hmx-log", format!("[CRASH] {}", logger::redact(&record)));
+        }
+    }));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -881,6 +1135,13 @@ pub fn run() {
             open_log_dir,
         ])
         .setup(|app| {
+            // Proxy_Guardian：初始化守护目录并做启动补偿——若上次被强杀 / 崩溃遗留了
+            // 未还原的系统代理落盘快照，则据其补偿还原后再继续启动流程（Req 5.3）。
+            // 须在 clear_residual_proxy 之前执行，确保先还原到接管前的原始代理。
+            if let Ok(dir) = app.path().app_config_dir() {
+                proxyguardian::init_dir(dir.clone());
+                proxyguardian::recover_on_startup(&dir);
+            }
             // 启动时仅清理疑似本程序上次崩溃残留的系统代理，不触碰 Clash 等第三方代理
             sysproxy::clear_residual_proxy();
             // 清理上次可能残留的 TUN 接管路由（崩溃遗留），幂等无副作用
@@ -892,6 +1153,12 @@ pub fn run() {
                 let logger = Arc::new(logger::Logger::new(dir, 2 * 1024 * 1024, 5));
                 let _ = app.state::<AppState>().log.set(logger);
             }
+
+            // 安装进程级 panic hook（Crash_Logger，Req 9.1/9.5/9.6）：捕获未处理 panic 的
+            // 位置 / 消息 / 回溯摘要，经 redact 脱敏后写入本地崩溃日志文件（复用 Logger 的
+            // 滚动 / 脱敏机制）；写盘失败或 sink 未就绪时降级为既有 emit("hmx-log") 前端面板
+            // 输出。依赖 release profile 的 panic="unwind"。hook 内绝不再 panic。
+            install_panic_hook(app.handle().clone());
 
             // 首个实例自身的命令行参数（CLI 控制）：延迟到前端就绪后执行
             {
