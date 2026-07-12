@@ -90,7 +90,7 @@ export function AdapterTable({
   nicConfig,
   setNicCfg,
 }: Props) {
-  const { t } = useSettings();
+  const { t, nicFilter, set } = useSettings();
   const toast = useToast();
   const [profiles, setProfiles] = useState<NicProfile[]>(loadProfiles);
   const [naming, setNaming] = useState(false);
@@ -99,7 +99,6 @@ export function AdapterTable({
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [sort, setSort] = useState<"default" | "speed" | "conns">("default");
-  const [nicFilter, setNicFilter] = useState<"all" | "physical" | "virtual">("all");
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; a: AdapterInfo } | null>(null);
 
   useEffect(() => {
@@ -127,10 +126,11 @@ export function AdapterTable({
   const cycleSort = () => setSort((s) => (s === "default" ? "speed" : s === "speed" ? "conns" : "default"));
 
   // 网卡过滤器（展示层）：全部 / 仅物理 / 仅虚拟。默认展示全部，不影响后端调度。
+  // 该过滤项持久化于设置（store.nicFilter），工具栏按钮与「设置 → 通用」的分段控件共用同一值。
   const filterLabel =
     nicFilter === "physical" ? t("nicFilterPhysical") : nicFilter === "virtual" ? t("nicFilterVirtual") : t("nicFilterAll");
   const cycleFilter = () =>
-    setNicFilter((f) => (f === "all" ? "physical" : f === "physical" ? "virtual" : "all"));
+    set("nicFilter", nicFilter === "all" ? "physical" : nicFilter === "physical" ? "virtual" : "all");
   const filteredAdapters =
     nicFilter === "all"
       ? adapters
@@ -411,7 +411,7 @@ export function AdapterTable({
                 </p>
                 {adapters.length > 0 ? (
                   <button
-                    onClick={() => setNicFilter("all")}
+                    onClick={() => set("nicFilter", "all")}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
                     style={{ background: "linear-gradient(135deg, var(--accent-deep), var(--accent))" }}
                   >

@@ -75,7 +75,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, nicFilter, set } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -338,6 +338,17 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
           </Row>
           <Row icon={<Contrast size={15} />} label={t("settingHighContrast")} hint={t("settingHighContrastHint")}>
             <Switch checked={highContrast} onChange={(v) => set("highContrast", v)} />
+          </Row>
+          <Row icon={<Network size={15} />} label={t("settingNicFilter")} hint={t("settingNicFilterHint")}>
+            <Segmented<"all" | "physical" | "virtual">
+              value={nicFilter}
+              options={[
+                { value: "all", label: t("nicFilterAll") },
+                { value: "physical", label: t("nicFilterPhysical") },
+                { value: "virtual", label: t("nicFilterVirtual") },
+              ]}
+              onChange={(v) => set("nicFilter", v)}
+            />
           </Row>
           <Row icon={<Droplet size={15} />} label={t("settingAccent")}>
             <div className="flex items-center gap-2">

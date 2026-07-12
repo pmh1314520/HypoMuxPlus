@@ -64,6 +64,8 @@ interface Settings {
   hudShowNics: boolean;
   hudClickThrough: boolean;
   sessionReport: boolean;
+  /** 网卡矩阵显示过滤：全部 / 仅物理 / 仅虚拟（仅影响展示，不影响后端调度） */
+  nicFilter: "all" | "physical" | "virtual";
 }
 
 const DEFAULTS: Settings = {
@@ -112,6 +114,7 @@ const DEFAULTS: Settings = {
   hudShowNics: false,
   hudClickThrough: false,
   sessionReport: true,
+  nicFilter: "all",
 };
 
 const STORAGE_KEY = "hmx-plus-settings";
