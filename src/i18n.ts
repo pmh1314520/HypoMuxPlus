@@ -104,6 +104,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     // 提示 / 消息
     warnNoSelection: "请至少勾选一张拥有有效 IPv4 的网卡",
     msgBoostStarted: "已接管系统代理 · HTTP/HTTPS + SOCKS5 双协议分流已生效",
+    msgBoostStartedLocal: "本地代理已启动（未接管系统代理）· 请在下载工具中填入 SOCKS5 127.0.0.1:{socks} 或 HTTP 127.0.0.1:{http}",
     msgBoostStopped: "已停止加速 · 系统代理已安全还原",
     proxyUnusedHint: "加速运行中，但还没检测到任何经本程序代理的连接——你的下载工具很可能没走代理。请在下载工具（IDM / 迅雷 / qBittorrent 等）的代理设置中填入 SOCKS5 代理 127.0.0.1:{port}；Steam / IDM 也可在 设置 → 应用兼容性 一键写入。",
     oneNicHint: "流量目前集中在单张网卡。请确认下载任务是多线程，且其余参与网卡各自拥有独立的公网出口（可看启动时的「网卡自检」结果）。",
@@ -284,6 +285,8 @@ export const DICT: Record<Lang, Record<string, string>> = {
     hudPos_br: "右下",
     hudTipDrag: "提示：解锁后可直接拖动悬浮窗到任意位置；双击悬浮窗可唤回主界面。",
     settingsTrafficHint: "限速与直连规则均在下次开启加速时生效",
+    settingSystemProxy: "接管系统代理",
+    settingSystemProxyHint: "开启（默认）后一键加速会自动写入 Windows 系统代理，浏览器 / Steam 等遵循系统代理的客户端自动生效；关闭则仅开启本地 SOCKS/HTTP 监听端口、不修改系统代理，需在下载工具中手动填 127.0.0.1:端口 或改用 TUN 模式——可避免「直接关机未还原导致下次开机上不了网」的风险",
     settingTunMode: "全局接管 (TUN) 模式",
     settingTunModeHint: "创建虚拟网卡在系统层接管全部流量，无需再逐个程序配置代理（下次开启加速时生效；非 DNS 的 UDP/QUIC 暂不接管）",
     ipVersion: "IP 版本",
@@ -695,6 +698,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
 
     warnNoSelection: "Please select at least one adapter with a valid IPv4",
     msgBoostStarted: "System proxy engaged · HTTP/HTTPS + SOCKS5 dual-protocol splitting active",
+    msgBoostStartedLocal: "Local proxy started (system proxy not taken over) · set SOCKS5 127.0.0.1:{socks} or HTTP 127.0.0.1:{http} in your download tool",
     msgBoostStopped: "Acceleration stopped · System proxy safely restored",
     proxyUnusedHint: "Boost is running but no connection has gone through the proxy yet — your download tool probably isn't using it. In the tool's proxy settings (IDM / Thunder / qBittorrent…), set SOCKS5 proxy to 127.0.0.1:{port}; for Steam / IDM you can one-click apply it in Settings → App Compatibility.",
     oneNicHint: "Traffic is currently concentrated on a single adapter. Make sure the download is multi-threaded and each participating adapter has its own independent internet uplink (see the NIC self-test on boot).",
@@ -876,6 +880,8 @@ export const DICT: Record<Lang, Record<string, string>> = {
     hudPos_br: "Bottom-Right",
     hudTipDrag: "Tip: when unlocked, drag the HUD anywhere; double-click it to restore the main window.",
     settingsTrafficHint: "Speed limit and bypass rules take effect on the next boost",
+    settingSystemProxy: "Take Over System Proxy",
+    settingSystemProxyHint: "When on (default), boosting writes the Windows system proxy automatically so browsers / Steam and other system-proxy-aware clients work out of the box; when off, only the local SOCKS/HTTP listener ports are opened without touching the system proxy — set 127.0.0.1:port manually in your tools or use TUN mode. This avoids the risk of losing internet on next boot if you power off without restoring.",
     settingTunMode: "Global Capture (TUN) Mode",
     settingTunModeHint: "Creates a virtual adapter to capture all system traffic at the OS level — no more per-app proxy config (takes effect on next boost; non-DNS UDP/QUIC is not captured yet)",
     ipVersion: "IP Version",

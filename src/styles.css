@@ -114,6 +114,21 @@
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease,
     fill 0.3s ease, stroke 0.3s ease, box-shadow 0.3s ease !important;
 }
+
+/* 主题切换水波纹扩散动效（View Transitions API）：
+   关闭默认的新旧快照交叉淡入，改由 store.tsx 用 clip-path 圆形裁剪驱动新快照，
+   从点击处向外扩散揭示新主题；旧快照置于底层保持静止，新快照覆于其上被圆形逐步揭示。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
 html,
 body,
 #root {

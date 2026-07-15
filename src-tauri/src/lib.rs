@@ -577,6 +577,10 @@ async fn start_boost(
     conn_cap: usize,
     task_cap: usize,
     proxy_guardian: bool,
+    // Issue #3：是否接管系统代理。默认（前端）true=写入 WinINet 系统代理（既有行为）；
+    // false 时仅保留本地 SOCKS/HTTP 监听端口、不修改系统代理与死网关设置，避免
+    // 「直接关机未还原 → 下次开机未启动软件时上不了网」的风险。
+    system_proxy: bool,
 ) -> Result<String, String> {
     if state.boosting.load(Ordering::Relaxed) {
         return Err("引擎已在运行中".into());
@@ -659,15 +663,23 @@ async fn start_boost(
                 }
             }
         }
-    } else if let Err(e) = sysproxy::enable_system_proxy(&socks_addr, &http_addr) {
-        // 接管失败：强制回滚，避免代理残留导致断网
-        handle.stop();
-        let _ = sysproxy::disable_system_proxy();
-        return Err(format!("双协议引擎已监听，但无法写入系统代理: {e}"));
+    } else if system_proxy {
+        // 接管系统代理（既有行为）：写入 WinINet 全局代理指向本地监听端口。
+        if let Err(e) = sysproxy::enable_system_proxy(&socks_addr, &http_addr) {
+            // 接管失败：强制回滚，避免代理残留导致断网
+            handle.stop();
+            let _ = sysproxy::disable_system_proxy();
+            return Err(format!("双协议引擎已监听，但无法写入系统代理: {e}"));
+        }
     }
+    // system_proxy=false 且非 TUN（Issue #3）：仅保留本地 SOCKS/HTTP 监听端口，不写系统代理，
+    // 用户需自行在下载工具中配置 127.0.0.1:端口，或改用 TUN 全局接管；停止/退出时也无系统代理需还原。
 
-    // 加速期间关闭死网关检测，维持慢速链路不被系统踢掉（需管理员，失败可忽略）
-    let _ = sysproxy::set_dead_gateway_detection(false);
+    // 加速期间关闭死网关检测，维持慢速链路不被系统踢掉（需管理员，失败可忽略）；
+    // 仅在 TUN 或接管系统代理时才改动该系统设置，纯本地端口模式不触碰系统。
+    if tun_mode || system_proxy {
+        let _ = sysproxy::set_dead_gateway_detection(false);
+    }
 
     *state.engine.lock() = Some(handle);
     state.boosting.store(true, Ordering::Relaxed);
@@ -677,7 +689,7 @@ async fn start_boost(
     // Proxy_Guardian 运行期死网关自检（Req 5.4）：仅「非 TUN 模式 + 看门狗启用」时启动。
     // 此时系统代理已成功接管指向 `127.0.0.1:socks_port`；自检任务周期性确认该端口存活，
     // 端口消失即判为死网关并还原系统代理。TUN 模式或未启用时不 spawn，既有路径零回归。
-    if !tun_mode && proxy_guardian {
+    if !tun_mode && system_proxy && proxy_guardian {
         spawn_guardian_task(&app, socks_port);
     }
 
@@ -1073,6 +1085,20 @@ fn install_panic_hook(app: AppHandle) {
             let _ = app.emit("hmx-log", format!("[CRASH] {}", logger::redact(&record)));
         }
     }));
+}
+
+/// 登录自愈轻量入口（`HypoMuxPlus.exe --heal-proxy`）。
+///
+/// 由接管系统代理时注册的 HKCU Run 自启项在用户下次登录 Windows 时静默拉起。
+/// 不创建任何窗口 / 托盘，仅：据落盘守护快照补偿还原残留的系统代理，随后移除该自启项，
+/// 使系统代理在用户无需手动打开主程序的情况下自动恢复，避免关机 / 强杀后浏览器「断网」。
+pub fn run_proxy_heal() {
+    if let Some(dir) = proxyguardian::default_config_dir() {
+        proxyguardian::recover_on_startup(&dir);
+    } else {
+        // 无法定位配置目录时，仍尽力移除自启项以免每次登录空转。
+        proxyguardian::unregister_logon_heal();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

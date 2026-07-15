@@ -120,8 +120,15 @@ function WinBtn({
         onClick={onClick}
         className="grid place-items-center w-8 h-8 rounded-lg transition-colors"
         style={{ color: "var(--text-1)" }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = danger ? "var(--danger)" : "var(--surface-hover)")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = danger ? "var(--danger)" : "var(--surface-hover)";
+          // 悬停在关闭按钮（红底）时，X 图标改为白色以保证对比与可读性
+          if (danger) e.currentTarget.style.color = "#fff";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+          if (danger) e.currentTarget.style.color = "var(--text-1)";
+        }}
       >
         {children}
       </button>

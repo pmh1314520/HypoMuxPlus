@@ -17,5 +17,11 @@ fn main() {
         // 提权实例：停止并删除服务
         std::process::exit(if hypomuxplus_lib::service::uninstall().is_ok() { 0 } else { 1 });
     }
+    if args.iter().any(|a| a == "--heal-proxy") {
+        // 登录自愈轻量实例：由 HKCU Run 自启项在用户登录时静默拉起，
+        // 补偿还原关机 / 强杀后残留的系统代理并自删自启项，不拉起 GUI。
+        hypomuxplus_lib::run_proxy_heal();
+        return;
+    }
     hypomuxplus_lib::run()
 }

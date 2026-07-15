@@ -75,7 +75,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, nicFilter, set } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, nicFilter, systemProxy, set, setThemeAnimated } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -315,10 +315,7 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
                 { value: "dark", label: t("themeDark") },
                 { value: "light", label: t("themeLight") },
               ]}
-              onChange={(v) => {
-                set("autoTheme", false);
-                set("theme", v);
-              }}
+              onChange={(v) => setThemeAnimated(v)}
             />
           </Row>
           <Row icon={<Network size={15} />} label={t("ipVersion")}>
@@ -599,6 +596,9 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
 
         {/* 流量控制（Plus 专属） */}
         <Section id="sec-traffic" icon={<Gauge size={16} />} title={t("settingsTraffic")} hint={t("settingsTrafficHint")}>
+          <Row icon={<Globe size={15} />} label={t("settingSystemProxy")} hint={t("settingSystemProxyHint")}>
+            <Switch checked={systemProxy} onChange={(v) => set("systemProxy", v)} ariaLabel={t("settingSystemProxy")} />
+          </Row>
           <Row icon={<Network size={15} />} label={t("settingTunMode")} hint={t("settingTunModeHint")}>
             <Switch checked={tunMode} onChange={(v) => set("tunMode", v)} />
           </Row>

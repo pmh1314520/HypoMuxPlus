@@ -125,7 +125,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, connCap, taskCap, proxyGuardian, perNicDns, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, connCap, taskCap, proxyGuardian, systemProxy, perNicDns, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
     useSettings();
   const toast = useToast();
 
@@ -693,9 +693,14 @@ function AppInner() {
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian);
-      notify2("success", t("msgBoostStarted"));
-      notify(t("msgBoostStarted"));
+      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian, systemProxy);
+      // 未接管系统代理（且非 TUN）时提示为「仅本地代理已启动」，并给出需手动配置的地址
+      const okMsg =
+        !tunMode && !systemProxy
+          ? t("msgBoostStartedLocal", { socks: socksPort, http: httpPort })
+          : t("msgBoostStarted");
+      notify2("success", okMsg);
+      notify(okMsg);
     } catch (e) {
       notify2("error", t("msgStartFailed", { err: String(e) }));
     } finally {

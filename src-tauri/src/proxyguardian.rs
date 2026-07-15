@@ -24,6 +24,13 @@ const SNAPSHOT_FILE: &str = "proxy-guardian.json";
 /// 还原失败的最大重试次数（Req 5.5）。
 const MAX_RESTORE_RETRIES: u32 = 3;
 
+/// HKCU 登录自启注册表路径。
+const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+/// 登录自愈自启项的值名（唯一标识，卸载时据此删除）。
+const RUN_VALUE_NAME: &str = "HypoMuxPlusProxyHeal";
+/// Tauri 应用标识符（用于定位 `%APPDATA%` 下的应用配置目录）。
+const IDENTIFIER: &str = "com.qingyun.hypomuxplus";
+
 /// 守护目录（在 `setup` 阶段以 `app_config_dir` 初始化一次）。
 ///
 /// `sysproxy.rs` 的 `enable_system_proxy` / `disable_system_proxy` 无法拿到应用目录，
@@ -67,6 +74,8 @@ pub(crate) fn capture_and_persist(dir: &Path) -> std::io::Result<()> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     std::fs::create_dir_all(dir)?;
     std::fs::write(&path, json)?;
+    // 落盘快照即代表已接管系统代理：注册登录自愈自启项，供关机 / 强杀后下次登录静默还原。
+    register_logon_heal();
     Ok(())
 }
 
@@ -79,6 +88,8 @@ pub(crate) fn restore_and_clear(dir: &Path) {
         restore_with_retry(&snap);
     }
     let _ = std::fs::remove_file(&path);
+    // 已正常还原并清理快照：移除登录自愈自启项，避免残留。
+    unregister_logon_heal();
 }
 
 /// 启动补偿：检测到上一次未被还原的残留守护快照则据其还原（Req 5.3）。
@@ -99,6 +110,8 @@ pub(crate) fn recover_on_startup(dir: &Path) {
             let _ = std::fs::remove_file(&path);
         }
     }
+    // 残留快照已被补偿处理（还原或清理）：移除登录自愈自启项。
+    unregister_logon_heal();
 }
 
 /// 死网关判定（纯函数，Req 5.4）：当且仅当系统代理已启用且其指向的本地端口不再监听。
@@ -145,6 +158,62 @@ pub(crate) fn capture_and_persist_default() {
 pub(crate) fn restore_and_clear_default() {
     if let Some(dir) = GUARDIAN_DIR.get() {
         restore_and_clear(dir);
+    }
+}
+
+// ── 登录自愈自启项：绑定到守护快照生命周期 ──────────────────────────────────────
+//
+// 场景（Req 5 延伸）：用户接管系统代理后直接关机 / 强制断电，主进程来不及执行
+// 正常还原路径，系统代理指针残留在注册表中。虽然本程序下次「启动」时会经
+// `recover_on_startup` 补偿还原，但用户可能不会立刻再打开本程序，导致这段时间内
+// 系统浏览器等因指向已失效的本地端口而「断网」。
+//
+// 为此，在**接管系统代理（落盘快照）时**注册一个 HKCU Run 登录自启项，指向
+// `HypoMuxPlus.exe --heal-proxy`；下次用户登录 Windows 时该轻量实例会静默执行
+// 补偿还原并自删此自启项后退出，无需用户手动打开主程序即可自愈。正常停止 / 退出
+// （删除快照）时同步移除该自启项，避免残留。
+
+/// `%APPDATA%\<identifier>` 应用配置目录（供 `--heal-proxy` 轻量实例定位守护快照）。
+///
+/// 该轻量实例不拉起 Tauri，无法通过 `app.path().app_config_dir()` 获取目录，
+/// 故直接据 `APPDATA` 环境变量与应用标识符拼出，与 Tauri 的默认取值一致。
+pub(crate) fn default_config_dir() -> Option<PathBuf> {
+    let appdata = std::env::var_os("APPDATA")?;
+    if appdata.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(appdata).join(IDENTIFIER))
+}
+
+/// 注册登录自愈自启项：写 HKCU Run 值 = `"<当前 exe 绝对路径>" --heal-proxy`。
+///
+/// 失败仅记日志、不阻断主流程（自愈是尽力而为的补偿机制）。
+fn register_logon_heal() {
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[Proxy_Guardian] 注册登录自愈项失败(无法获取 exe 路径): {e}");
+            return;
+        }
+    };
+    let cmd = format!("\"{}\" --heal-proxy", exe.display());
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    match hkcu.create_subkey_with_flags(RUN_KEY, winreg::enums::KEY_WRITE | winreg::enums::KEY_READ)
+    {
+        Ok((key, _)) => {
+            if let Err(e) = key.set_value(RUN_VALUE_NAME, &cmd) {
+                eprintln!("[Proxy_Guardian] 写入登录自愈项失败: {e}");
+            }
+        }
+        Err(e) => eprintln!("[Proxy_Guardian] 打开 Run 注册表键失败: {e}"),
+    }
+}
+
+/// 移除登录自愈自启项（幂等：不存在时忽略错误）。
+pub(crate) fn unregister_logon_heal() {
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, winreg::enums::KEY_WRITE) {
+        let _ = key.delete_value(RUN_VALUE_NAME);
     }
 }
 

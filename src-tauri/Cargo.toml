@@ -1,6 +1,6 @@
 [package]
 name = "hypomuxplus"
-version = "1.2.1"
+version = "1.2.5"
 description = "HypoMuxPlus - 多网卡带宽聚合工具"
 authors = ["青云制作_彭明航"]
 edition = "2021"

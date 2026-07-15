@@ -1,10 +1,34 @@
 // 全局设置 / 国际化上下文（localStorage 持久化）
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { Lang, translate } from "./i18n";
 import type { UpstreamProxy, UpstreamBinding } from "./lib/upstream";
 import type { HealthCfg, PerNicDnsCfg } from "./lib/api";
 
 export type Theme = "dark" | "light";
+
+/** 支持 View Transitions API 的 Document（用于主题切换水波纹扩散动效）。 */
+type DocumentWithVT = Document & {
+  startViewTransition?: (cb: () => void | Promise<void>) => { ready: Promise<void> };
+};
+
+/**
+ * 记录最近一次指针按下坐标，作为主题切换涟漪的发散原点。
+ * 用捕获阶段监听，确保在任何 onClick 之前就已更新为最新坐标。
+ */
+const lastPointer = { x: 0, y: 0 };
+if (typeof window !== "undefined") {
+  lastPointer.x = window.innerWidth / 2;
+  lastPointer.y = window.innerHeight / 2;
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      lastPointer.x = e.clientX;
+      lastPointer.y = e.clientY;
+    },
+    true,
+  );
+}
 export type SchedStrategy = "rr" | "least" | "weighted";
 export type AccentKey = "blue" | "violet" | "emerald" | "amber" | "rose" | "cyan";
 export type HudUnit = "mbps" | "mbit";
@@ -53,6 +77,9 @@ interface Settings {
   taskCap: number;
   /** 系统代理防泄漏看门狗开关（默认开启，正常路径行为与既有等价） */
   proxyGuardian: boolean;
+  /** 是否接管系统代理（默认开启：一键加速自动写入 Windows 系统代理；关闭则仅开本地
+   *  SOCKS/HTTP 监听端口、不改系统代理，需手动在工具中配置代理或改用 TUN 模式） */
+  systemProxy: boolean;
   alwaysOnTop: boolean;
   hudEnabled: boolean;
   hudOpacity: number;
@@ -103,6 +130,7 @@ const DEFAULTS: Settings = {
   connCap: 4096,
   taskCap: 64,
   proxyGuardian: true,
+  systemProxy: true,
   alwaysOnTop: false,
   hudEnabled: false,
   hudOpacity: 0.92,
@@ -193,6 +221,12 @@ function loadPerNicDns(): PerNicDnsCfg[] {
 
 interface Ctx extends Settings {
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  /**
+   * 切换主题并附带「水波纹扩散」动效：以最近点击处为圆心，用 View Transitions API
+   * 从半径 0 向外扩散揭示新主题（返回旧主题时对称收回）；同时关闭跟随系统主题。
+   * 浏览器不支持 View Transitions 或用户偏好减少动效时，回退为既有平滑过渡切换。
+   */
+  setThemeAnimated: (next: Theme) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
   /** 上游代理链节点列表（持久化于 localStorage key `hmx-upstreams`）。 */
   upstreams: UpstreamProxy[];
@@ -213,11 +247,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [upstreamBindings, setUpstreamBindings] = useState<UpstreamBinding[]>(loadUpstreamBindings);
   const [perNicDns, setPerNicDns] = useState<PerNicDnsCfg[]>(loadPerNicDns);
   const firstRun = useRef(true);
+  // 本次主题变更是否由 View Transitions 涟漪驱动：若是则跳过 theme-anim 的 CSS 过渡，
+  // 避免过渡使 VT 快照捕获到「过渡起点的旧配色」，导致涟漪揭示不出新主题。
+  const skipAnimRef = useRef(false);
 
   // 主题 / 强调色 / 对比度切换时短暂启用过渡动画，使配色变化平滑
   useEffect(() => {
     if (firstRun.current) {
       firstRun.current = false;
+      return;
+    }
+    // VT 涟漪切换：本次跳过 CSS 过渡（涟漪本身已提供动效），并复位标志
+    if (skipAnimRef.current) {
+      skipAnimRef.current = false;
       return;
     }
     const root = document.documentElement;
@@ -228,6 +270,47 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings((s) => ({ ...s, [key]: value }));
+
+  // 主题切换水波纹扩散：以最近点击处为圆心，用 View Transitions + clip-path 揭示新主题
+  const setThemeAnimated = (next: Theme) => {
+    const applyNow = () => setSettings((s) => ({ ...s, theme: next, autoTheme: false }));
+    const doc = document as DocumentWithVT;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // 不支持 View Transitions 或用户偏好减少动效：回退为既有平滑过渡切换
+    if (typeof doc.startViewTransition !== "function" || reduceMotion) {
+      applyNow();
+      return;
+    }
+    const { x, y } = lastPointer;
+    // 涟漪终止半径 = 圆心到四角的最大距离，确保扩散能覆盖整个视口
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y),
+    );
+    // 跳过本次 theme-anim 的 CSS 过渡，让 VT「新」快照即刻捕获最终配色
+    skipAnimRef.current = true;
+    const vt = doc.startViewTransition(() => flushSync(applyNow));
+    vt.ready
+      .then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${endRadius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 480,
+            easing: "cubic-bezier(0.33, 1, 0.68, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      })
+      .catch(() => {
+        // 动画启动失败不影响主题已切换的最终结果，复位标志避免影响后续切换
+        skipAnimRef.current = false;
+      });
+  };
 
   // 跟随系统主题：开启后实时同步 Windows 深 / 浅色，并监听系统切换
   useEffect(() => {
@@ -272,6 +355,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     () => ({
       ...settings,
       set,
+      setThemeAnimated,
       t: (key, vars) => translate(settings.lang, key, vars),
       upstreams,
       setUpstreams,

@@ -144,8 +144,9 @@ export const api = {
     connCap: number,
     taskCap: number,
     proxyGuardian: boolean,
+    systemProxy: boolean,
   ) =>
-    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian }),
+    invoke<string>("start_boost", { nics, socksPort, httpPort, strategy, lang, downLimitMbps, bypass, rules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian, systemProxy }),
   stopBoost: () => invoke<void>("stop_boost"),
   testLatency: (nics: SelectedNic[]) => invoke<LatencyResult[]>("test_latency", { nics }),
   speedTest: (nics: SelectedNic[], duration: number) =>
