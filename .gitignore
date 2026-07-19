@@ -45,3 +45,6 @@ website/
 # 版本号一键更新工具（维护者本地发布工具，不随仓库发布）
 /一键更新版本号.bat
 /scripts/update-version.ps1
+
+# Kiro 规格 / 开发过程文档（内部使用，不随仓库公开发布）
+.kiro/
