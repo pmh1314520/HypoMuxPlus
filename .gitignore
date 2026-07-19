@@ -46,5 +46,8 @@ website/
 /一键更新版本号.bat
 /scripts/update-version.ps1
 
-# Kiro 规格 / 开发过程文档（内部使用，不随仓库公开发布）
-.kiro/
+# 排除所有以点开头的文件夹（内部 / 工具目录，如 .kiro、.idea 等，不随仓库公开发布）
+.*/
+# 例外：保留 VS Code 共享的推荐扩展清单（须先重新包含被上面通配忽略的 .vscode 目录）
+!.vscode/
+!.vscode/extensions.json
