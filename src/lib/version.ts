@@ -23,7 +23,7 @@ let cached = "";
 
 /** 返回应用版本号（自动跟随 tauri.conf.json，无需各处硬编码） */
 export function useAppVersion(): string {
-  const [v, setV] = useState(cached || "1.2.5");
+  const [v, setV] = useState(cached || "1.2.6");
   useEffect(() => {
     if (cached) {
       setV(cached);

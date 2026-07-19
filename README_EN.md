@@ -14,7 +14,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?style=flat-square&logo=windows)](#)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-D22128?style=flat-square)](./LICENSE)
 
-[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.2.5-3b82f6?style=for-the-badge)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.5/HypoMuxPlus.exe)
+[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.2.6-3b82f6?style=for-the-badge)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.6/HypoMuxPlus.exe)
 [![GitHub](https://img.shields.io/badge/GitHub-pmh1314520%2FHypoMuxPlus-181717?style=for-the-badge&logo=github)](https://github.com/pmh1314520/HypoMuxPlus)
 [![Gitee](https://img.shields.io/badge/Gitee-peng--minghang%2Fhypo--mux--plus-C71D23?style=for-the-badge&logo=gitee)](https://gitee.com/peng-minghang/hypo-mux-plus)
 
@@ -31,7 +31,7 @@ HypoMuxPlus is a **multi-network-adapter bandwidth aggregation tool** for Window
 ## Download
 
 - **Windows 10 / 11 only.** Just download and run (running as administrator is recommended to enable all stability features).
-- Direct download: **[HypoMuxPlus.exe (v1.2.5)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.5/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.5/HypoMuxPlus.exe))
+- Direct download: **[HypoMuxPlus.exe (v1.2.6)](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.6/HypoMuxPlus.exe)** (via GitHub Releases; users in mainland China can use the [Gitee mirror](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.6/HypoMuxPlus.exe))
 - Repositories: [GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
 - Website: **[hmp.pmhs.top](https://hmp.pmhs.top)**
 

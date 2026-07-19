@@ -125,7 +125,7 @@ function loadRouteRules(): RouteRule[] {
 }
 
 function AppInner() {
-  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, connCap, taskCap, proxyGuardian, systemProxy, perNicDns, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport } =
+  const { t, lang, socksPort, httpPort, closeToTray, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, connCap, taskCap, proxyGuardian, systemProxy, perNicDns, alwaysOnTop, theme, accent, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, set } =
     useSettings();
   const toast = useToast();
 
@@ -672,17 +672,24 @@ function AppInner() {
     setBusy(true);
     setLogs([]);
     try {
-      // 启动前端口预检：被占用则给出明确提示与可用端口建议，避免难懂的绑定失败
-      const [socksFree, httpFree] = await Promise.all([
-        api.isPortFree(socksPort).catch(() => true),
-        api.isPortFree(httpPort).catch(() => true),
-      ]);
-      if (!socksFree || !httpFree) {
-        const busyPort = !socksFree ? socksPort : httpPort;
-        const suggest = await api.suggestFreePort(busyPort + 1).catch(() => 0);
-        notify2("error", t("msgPortBusy", { port: busyPort, suggest: suggest || busyPort + 1 }));
-        setBusy(false);
-        return;
+      // 启动前端口自愈（方案 A）：首选端口可用就沿用；不可用（被程序占用，或被 Windows
+      // 系统保留 —— 如 Hyper-V/WSL/Docker 申请的 excludedportrange，此时 netstat 查不到
+      // 却仍 bind 失败）则自动回退到可用端口，持久化写回设置并 toast 告知，避免用户撞上
+      // 「端口不可用」而无法启动。suggestFreePort(start) 会先探测 start 本身，可用即原样
+      // 返回，否则向上寻找下一个可用端口。
+      let finalSocks = await api.suggestFreePort(socksPort).catch(() => socksPort);
+      let finalHttp = await api
+        .suggestFreePort(finalSocks === httpPort ? httpPort + 1 : httpPort)
+        .catch(() => httpPort);
+      // 兜底：确保两个端口互不相同（相同端口会导致第二个监听绑定失败）
+      if (finalHttp === finalSocks) {
+        finalHttp = await api.suggestFreePort(finalSocks + 1).catch(() => finalHttp);
+      }
+      // 端口发生自动切换：持久化保存并显式告知用户新端口（手动填端口的用户需据此更新）
+      if (finalSocks !== socksPort || finalHttp !== httpPort) {
+        set("socksPort", finalSocks);
+        set("httpPort", finalHttp);
+        notify2("warning", t("msgPortAutoSwitched", { socks: finalSocks, http: finalHttp }));
       }
 
       // 与原项目一致：开启前提醒 Steam 重启
@@ -693,11 +700,11 @@ function AppInner() {
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.startBoost(chosen, socksPort, httpPort, strategy, lang, downLimit, bypass, routeRules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian, systemProxy);
+      await api.startBoost(chosen, finalSocks, finalHttp, strategy, lang, downLimit, bypass, routeRules, tunMode, ipVersion, udpAssociate, upstreams, upstreamBindings, upstreamChain, upstreamFallback, healthCfg, perNicDns, connCap, taskCap, proxyGuardian, systemProxy);
       // 未接管系统代理（且非 TUN）时提示为「仅本地代理已启动」，并给出需手动配置的地址
       const okMsg =
         !tunMode && !systemProxy
-          ? t("msgBoostStartedLocal", { socks: socksPort, http: httpPort })
+          ? t("msgBoostStartedLocal", { socks: finalSocks, http: finalHttp })
           : t("msgBoostStarted");
       notify2("success", okMsg);
       notify(okMsg);

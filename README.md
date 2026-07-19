@@ -14,7 +14,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?style=flat-square&logo=windows)](#)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-D22128?style=flat-square)](./LICENSE)
 
-[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.2.5-3b82f6?style=for-the-badge)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.5/HypoMuxPlus.exe)
+[![Download](https://img.shields.io/badge/⬇%20下载%20Download-v1.2.6-3b82f6?style=for-the-badge)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.6/HypoMuxPlus.exe)
 [![GitHub](https://img.shields.io/badge/GitHub-pmh1314520%2FHypoMuxPlus-181717?style=for-the-badge&logo=github)](https://github.com/pmh1314520/HypoMuxPlus)
 [![Gitee](https://img.shields.io/badge/Gitee-peng--minghang%2Fhypo--mux--plus-C71D23?style=for-the-badge&logo=gitee)](https://gitee.com/peng-minghang/hypo-mux-plus)
 
@@ -31,7 +31,7 @@ HypoMuxPlus 是一款面向 Windows 平台的**多网卡带宽聚合工具**。�
 ## 下载安装
 
 - **仅支持 Windows 10 / 11**，下载后双击运行即可（建议以管理员身份运行以启用全部稳定性增强功能）。
-- 直接下载：**[HypoMuxPlus.exe (v1.2.5)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.5/HypoMuxPlus.exe)**（Gitee 国内高速下载；海外用户可使用 [GitHub Releases](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.5/HypoMuxPlus.exe)）
+- 直接下载：**[HypoMuxPlus.exe (v1.2.6)](https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/v1.2.6/HypoMuxPlus.exe)**（Gitee 国内高速下载；海外用户可使用 [GitHub Releases](https://github.com/pmh1314520/HypoMuxPlus/releases/download/v1.2.6/HypoMuxPlus.exe)）
 - 项目仓库：[GitHub](https://github.com/pmh1314520/HypoMuxPlus) · [Gitee](https://gitee.com/peng-minghang/hypo-mux-plus)
 - 项目官网：**[hmp.pmhs.top](https://hmp.pmhs.top)**
 
