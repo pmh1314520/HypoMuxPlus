@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import { BackgroundLayer } from "./components/BackgroundLayer";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
@@ -72,7 +73,15 @@ function loadDaily(): Record<string, number> {
     const raw = localStorage.getItem(DAILY_KEY);
     if (raw) {
       const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object") return obj;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        // 值级校验：仅保留可转为有限数的条目，防止损坏存档在 toFixed/图表运算时抛错
+        const out: Record<string, number> = {};
+        for (const [k, v] of Object.entries(obj)) {
+          const n = Number(v);
+          if (Number.isFinite(n)) out[k] = n;
+        }
+        return out;
+      }
     }
   } catch {
     /* ignore */
@@ -225,20 +234,39 @@ function AppInner() {
     }
   }, [t, toast]);
 
+  // 供"只挂载一次"的主订阅 effect 读取最新值，避免把它们作为依赖而反复重建订阅、
+  // 泄漏监听器并导致遥测被多次处理、统计成倍累计（H-1）。
+  const scanRef = useRef(scan);
+  scanRef.current = scan;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
   useEffect(() => {
-    scan();
+    let disposed = false;
+    const unlisteners: Array<() => void> = [];
+    // 竞态防护：listen() 需一次 IPC 往返才 resolve；若 cleanup 先于 resolve 执行，
+    // 立即调用返回的 unlisten，避免把它塞进已遍历过的死数组而永久泄漏监听器。
+    const track = (p: Promise<() => void>) => {
+      p.then((u) => {
+        if (disposed) u();
+        else unlisteners.push(u);
+      }).catch(() => {});
+    };
+
+    scanRef.current();
     api.getBoostState().then(setRunning).catch(() => {});
     api.checkAdmin().then(setAdmin).catch(() => setAdmin(true));
 
-    const unlisteners: Array<() => void> = [];
-    onLog((line) => {
+    track(onLog((line) => {
       setLogs((prev) => {
         const next = [...prev, line];
         return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
       });
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    onTelemetry((p) => {
+    track(onTelemetry((p) => {
       setTelemetry(p);
       const map: Record<string, NicTelemetry> = {};
       for (const n of p.perNic) map[n.name] = n;
@@ -281,30 +309,33 @@ function AppInner() {
           return next;
         });
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    onBoostState((r) => setRunning(r)).then((u) => unlisteners.push(u));
-    onConnections((c) => setConnections(c)).then((u) => unlisteners.push(u));
-    onConnClosed((c) =>
+    track(onBoostState((r) => setRunning(r)));
+    track(onConnections((c) => setConnections(c)));
+    track(onConnClosed((c) =>
       setConnHistory((prev) => {
         const next = [{ id: c.id, proto: c.proto, target: c.target, nic: c.nic, at: Date.now() }, ...prev];
         return next.length > CONN_HISTORY_CAP ? next.slice(0, CONN_HISTORY_CAP) : next;
       }),
-    ).then((u) => unlisteners.push(u));
-    onSpeedTest((r) =>
+    ));
+    track(onSpeedTest((r) =>
       setSpeedResults((prev) => ({ ...prev, [r.index]: { mbps: r.mbps, ok: r.ok } })),
-    ).then((u) => unlisteners.push(u));
+    ));
 
     // 托盘菜单「切换加速」：触发与主界面一致的一键加速 / 停止流程
-    onTrayToggle(() => onBoostRef.current()).then((u) => unlisteners.push(u));
+    track(onTrayToggle(() => onBoostRef.current()));
 
-    // 网卡掉线守护：失联 / 恢复时提示用户
-    onNicAlert((a) =>
-      toast(a.alive ? "success" : "warning", t(a.alive ? "nicUpToast" : "nicDownToast", { name: a.name })),
-    ).then((u) => unlisteners.push(u));
+    // 网卡掉线守护：失联 / 恢复时提示用户（经 ref 读取最新 t/toast，保证语言切换后仍准确）
+    track(onNicAlert((a) =>
+      toastRef.current(
+        a.alive ? "success" : "warning",
+        tRef.current(a.alive ? "nicUpToast" : "nicDownToast", { name: a.name }),
+      ),
+    ));
 
     // 进程感知自动加速：检测到下载类应用自动加速，全部退出自动停（仅停自动启动的）
-    onAutoBoost((boost) => {
+    track(onAutoBoost((boost) => {
       if (boost) {
         if (!runningRef.current) {
           autoStartedRef.current = true;
@@ -314,10 +345,10 @@ function AppInner() {
         autoStartedRef.current = false;
         onBoostRef.current();
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
     // CLI 控制（第二个实例转发的命令）
-    onCli((action) => {
+    track(onCli((action) => {
       if (action === "start") {
         if (!runningRef.current) onBoostRef.current();
       } else if (action === "stop") {
@@ -325,10 +356,15 @@ function AppInner() {
       } else if (action === "toggle") {
         onBoostRef.current();
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    return () => unlisteners.forEach((u) => u());
-  }, [scan]);
+    return () => {
+      disposed = true;
+      unlisteners.forEach((u) => u());
+    };
+    // 仅挂载一次：内部所有对 scan/t/toast 的引用均经 ref 读取最新值（H-1）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     api.setCloseToTray(closeToTray).catch(() => {});
@@ -467,10 +503,16 @@ function AppInner() {
       return;
     }
     const start = Date.now();
+    let lastTick = start;
     const timer = setInterval(() => {
-      const secs = (Date.now() - start) / 1000;
+      const now = Date.now();
+      const secs = (now - start) / 1000;
       setUptime(secs);
-      setLifetimeSeconds((prev) => prev + 1);
+      // 按真实时间差累计（与 uptime 同口径）：窗口隐藏时 WebView 定时器被节流，
+      // 用固定 +1 会低估累计时长；上限 5s 防止极端休眠导致跳变。
+      const delta = Math.min(5, Math.max(0, (now - lastTick) / 1000));
+      lastTick = now;
+      setLifetimeSeconds((prev) => prev + delta);
       // 加速 15s 仍无任何经代理的连接 → 多半是下载工具没配代理，提示用户
       if (secs >= 15 && !sawConnRef.current && !hintedProxyRef.current && selected.size > 0) {
         hintedProxyRef.current = true;
@@ -654,6 +696,10 @@ function AppInner() {
         index: a.index,
         name: a.alias,
         ip: a.ipv4,
+        // 透传网卡的 IPv6 源地址（无则省略）：这是引擎双栈拨号 / IPv6 目标出口绑定
+        // （connect_via_nic 的 IPv6 分支、pick_family、resolve_host_dual）能否生效的前提，
+        // 否则后端恒视该网卡无 IPv6 出口而回退纯 IPv4。
+        ipv6: a.ipv6 && a.ipv6 !== "" ? a.ipv6 : undefined,
         weight: nicConfig[a.index]?.weight ?? 100,
         limit_mbps: nicConfig[a.index]?.limit ?? 0,
       }));
@@ -721,23 +767,33 @@ function AppInner() {
   useEffect(() => {
     if (!globalHotkey) return;
     let cancelled = false;
-    const combos = [hotkeyCombo, hotkeyStop].filter(Boolean);
+    const combos = Array.from(new Set([hotkeyCombo, hotkeyStop].filter(Boolean)));
+    // 起停键位相同：视为单一"切换"热键，避免"停止"分支被 hotkeyStop !== hotkeyCombo 跳过而静默失效
+    const sameCombo = !!hotkeyCombo && hotkeyStop === hotkeyCombo;
     (async () => {
       try {
         for (const c of combos) await unregister(c).catch(() => {});
         if (cancelled) return;
         if (hotkeyCombo) {
           await register(hotkeyCombo, (e) => {
-            if ((!e || e.state === "Pressed") && !runningRef.current) onBoostRef.current();
+            if (!e || e.state === "Pressed") {
+              if (sameCombo) onBoostRef.current();
+              else if (!runningRef.current) onBoostRef.current();
+            }
           });
         }
-        if (hotkeyStop && hotkeyStop !== hotkeyCombo) {
+        if (hotkeyStop && !sameCombo) {
           await register(hotkeyStop, (e) => {
             if ((!e || e.state === "Pressed") && runningRef.current) onBoostRef.current();
           });
         }
+        // 注册完成后再查一次取消标志：若在途期间开关已关或键位已改，立即撤销，
+        // 避免 cleanup 的 unregister 先于在途 register 完成而遗留孤儿热键（M-4）。
+        if (cancelled) {
+          for (const c of combos) await unregister(c).catch(() => {});
+        }
       } catch (err) {
-        toast("error", t("msgHotkeyFailed", { err: String(err) }));
+        toastRef.current("error", tRef.current("msgHotkeyFailed", { err: String(err) }));
       }
     })();
     return () => {
@@ -751,8 +807,10 @@ function AppInner() {
   const totalConn = telemetry?.total.connections ?? 0;
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex-1 min-h-0 flex">
+    <div className="h-screen flex flex-col relative">
+      {/* 自定义背景图（图片层 + 明暗蒙版）：位于内容之下，未启用时不渲染 */}
+      <BackgroundLayer />
+      <div className="flex-1 min-h-0 flex relative z-10">
         <Sidebar view={view} setView={setView} running={running} />
 
         <main className="flex-1 min-w-0 flex flex-col">

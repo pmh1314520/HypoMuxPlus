@@ -40,6 +40,14 @@ export function MonitorPanel({ logs, clearLogs, connections, connHistory, clearH
     if (tab === "log" && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs, tab]);
 
+  // 切换"活动连接/历史"两个 tab 时重置过滤器：两个 tab 的网卡 chip 列表不同，
+  // 共享过滤状态会导致在 B tab 显示"无匹配"却看不到任何激活的过滤器，状态不自洽（L-6）。
+  useEffect(() => {
+    setNicFilter(null);
+    setProtoFilter(null);
+    setQuery("");
+  }, [tab]);
+
   const q = query.trim().toLowerCase();
   const match = (c: { proto: string; target: string; nic: string }) =>
     (!nicFilter || c.nic === nicFilter) &&

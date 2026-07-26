@@ -13,6 +13,7 @@ import {
   Gamepad2,
   Gauge,
   Globe,
+  Image as ImageIcon,
   KeyRound,
   Languages,
   MinusSquare,
@@ -75,7 +76,7 @@ interface Props {
 }
 
 export function SettingsPage({ running, adapters, routeRules, setRouteRules, onStopBoost }: Props) {
-  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, nicFilter, systemProxy, set, setThemeAnimated } =
+  const { t, lang, theme, autoTheme, highContrast, accent, socksPort, httpPort, closeToTray, autostart, launchMinimized, autoBoost, autoBoostOnApp, strategy, globalHotkey, notifications, hotkeyCombo, hotkeyStop, downLimit, bypassList, tunMode, ipVersion, udpAssociate, hudEnabled, hudOpacity, hudLocked, hudUnit, hudShowDown, hudShowUp, hudShowConns, hudShowNics, hudClickThrough, sessionReport, nicFilter, systemProxy, bgEnabled, bgOpacity, bgMask, bgBlur, bgImageUrl, setBgImageUrl, set, setThemeAnimated } =
     useSettings();
   const toast = useToast();
   const [admin, setAdmin] = useState(true);
@@ -156,16 +157,32 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
     }
   };
 
-  // 导出全部配置（设置 + 网卡方案 + 已选网卡）为 JSON 文件
+  // 从 localStorage 安全读取 JSON（解析失败时回退默认值，避免单个损坏键让整次导出抛错）
+  const readJson = (key: string, fallback: unknown): unknown => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  // 导出全部配置（设置 + 网卡方案/权重限速/备注 + 已选网卡 + 上游链/绑定 + 每网卡 DNS + 分流规则）为 JSON 文件
   const exportConfig = async () => {
     try {
       const data = {
         app: "HypoMuxPlus",
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
-        settings: JSON.parse(localStorage.getItem("hmx-plus-settings") || "{}"),
-        profiles: JSON.parse(localStorage.getItem("hmx-nic-profiles") || "[]"),
-        selected: JSON.parse(localStorage.getItem("hmx-plus-selected") || "[]"),
+        settings: readJson("hmx-plus-settings", {}),
+        profiles: readJson("hmx-nic-profiles", []),
+        selected: readJson("hmx-plus-selected", []),
+        upstreams: readJson("hmx-upstreams", []),
+        upstreamBindings: readJson("hmx-upstream-bindings", []),
+        perNicDns: readJson("hmx-per-nic-dns", []),
+        routeRules: readJson("hmx-route-rules", []),
+        nicConfig: readJson("hmx-nic-config", {}),
+        nicNotes: readJson("hmx-nic-notes", {}),
       };
       const path = await saveDialog({
         defaultPath: "hypomuxplus-config.json",
@@ -179,7 +196,8 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
     }
   };
 
-  // 从 JSON 文件导入配置，写回 localStorage 后重新加载界面以全量生效
+  // 从 JSON 文件导入配置，写回 localStorage 后重新加载界面以全量生效。
+  // 兼容旧版备份（version 1，仅含 settings/profiles/selected）：缺失的键原样保留。
   const importConfig = async () => {
     try {
       const path = await openDialog({
@@ -194,8 +212,20 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
         throw new Error("invalid");
       }
       localStorage.setItem("hmx-plus-settings", JSON.stringify(data.settings));
-      if (Array.isArray(data.profiles)) localStorage.setItem("hmx-nic-profiles", JSON.stringify(data.profiles));
-      if (Array.isArray(data.selected)) localStorage.setItem("hmx-plus-selected", JSON.stringify(data.selected));
+      const setArr = (key: string, v: unknown) => {
+        if (Array.isArray(v)) localStorage.setItem(key, JSON.stringify(v));
+      };
+      const setObj = (key: string, v: unknown) => {
+        if (v && typeof v === "object" && !Array.isArray(v)) localStorage.setItem(key, JSON.stringify(v));
+      };
+      setArr("hmx-nic-profiles", data.profiles);
+      setArr("hmx-plus-selected", data.selected);
+      setArr("hmx-upstreams", data.upstreams);
+      setArr("hmx-upstream-bindings", data.upstreamBindings);
+      setArr("hmx-per-nic-dns", data.perNicDns);
+      setArr("hmx-route-rules", data.routeRules);
+      setObj("hmx-nic-config", data.nicConfig);
+      setObj("hmx-nic-notes", data.nicNotes);
       toast("success", t("msgImported"));
       setTimeout(() => window.location.reload(), 900);
     } catch {
@@ -226,10 +256,43 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
     }
   };
 
+  // 选择自定义背景图：原生对话框取路径 → 后端校验并复制到配置目录 → 返回 data URL 渲染。
+  // 首次选图自动启用背景，省去用户再点一次开关。
+  const pickBackground = async () => {
+    try {
+      const path = await openDialog({
+        multiple: false,
+        directory: false,
+        filters: [{ name: t("bgImageFilter"), extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] }],
+      });
+      if (!path || typeof path !== "string") return;
+      const url = await api.setBackgroundImage(path);
+      setBgImageUrl(url);
+      if (!bgEnabled) set("bgEnabled", true);
+      toast("success", t("msgBgApplied"));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
+  // 移除自定义背景图：删除落盘文件并关闭开关，恢复默认渐变基底
+  const removeBackground = async () => {
+    try {
+      await api.clearBackgroundImage();
+      setBgImageUrl(null);
+      set("bgEnabled", false);
+      toast("success", t("msgBgRemoved"));
+    } catch (e) {
+      toast("error", String(e));
+    }
+  };
+
   const sectionNav = [
     { id: "sec-general", label: t("settingsGeneral") },
     { id: "sec-auto", label: t("settingsAutomation") },
     { id: "sec-sched", label: t("schedTitle") },
+    { id: "sec-scene", label: t("sceneTitle") },
+    { id: "sec-rules", label: t("rulesTitle") },
     { id: "sec-hud", label: t("settingsHud") },
     { id: "sec-traffic", label: t("settingsTraffic") },
     { id: "sec-upstream", label: t("upstreamTitle") },
@@ -369,6 +432,75 @@ export function SettingsPage({ running, adapters, routeRules, setRouteRules, onS
               })}
             </div>
           </Row>
+          <Row icon={<ImageIcon size={15} />} label={t("settingBgImage")} hint={t("settingBgImageHint")}>
+            <div className="flex items-center gap-2">
+              {bgImageUrl && (
+                // 缩略预览：让用户确认选中的是哪张图，无需切走设置页
+                <span
+                  className="rounded-lg shrink-0"
+                  style={{
+                    width: 56,
+                    height: 32,
+                    backgroundImage: `url("${bgImageUrl}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    border: "1px solid var(--border)",
+                  }}
+                />
+              )}
+              <button
+                onClick={pickBackground}
+                className="px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors hover:[background:var(--surface-hover)]"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+              >
+                {bgImageUrl ? t("btnBgReplace") : t("btnBgChoose")}
+              </button>
+              {bgImageUrl && (
+                <button
+                  onClick={removeBackground}
+                  className="px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors hover:[background:var(--surface-hover)]"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--danger)" }}
+                >
+                  {t("btnBgRemove")}
+                </button>
+              )}
+            </div>
+          </Row>
+          {/* 观感微调仅在已选背景图时展示，避免无图时出现无效滑块 */}
+          {bgImageUrl && (
+            <>
+              <Row label={t("settingBgEnabled")} hint={t("settingBgEnabledHint")}>
+                <Switch checked={bgEnabled} onChange={(v) => set("bgEnabled", v)} />
+              </Row>
+              {bgEnabled && (
+                <>
+                  <Row label={t("settingBgOpacity")} hint={t("settingBgOpacityHint")}>
+                    <SliderPct value={bgOpacity} min={0.05} max={1} step={0.05} onChange={(v) => set("bgOpacity", v)} ariaLabel={t("settingBgOpacity")} />
+                  </Row>
+                  <Row label={t("settingBgMask")} hint={t("settingBgMaskHint")}>
+                    <SliderPct value={bgMask} min={0} max={0.95} step={0.05} onChange={(v) => set("bgMask", v)} ariaLabel={t("settingBgMask")} />
+                  </Row>
+                  <Row label={t("settingBgBlur")} hint={t("settingBgBlurHint")}>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={40}
+                        step={1}
+                        value={bgBlur}
+                        onChange={(e) => set("bgBlur", parseInt(e.target.value, 10))}
+                        aria-label={t("settingBgBlur")}
+                        style={{ accentColor: "var(--accent)", width: 150 }}
+                      />
+                      <span className="text-[12px] mono w-[42px] text-right" style={{ color: "var(--text-1)" }}>
+                        {bgBlur}px
+                      </span>
+                    </div>
+                  </Row>
+                </>
+              )}
+            </>
+          )}
           <Row icon={<Plug size={15} />} label={t("settingPorts")}>
             <div className="flex flex-col items-end gap-1.5">
               <div className="flex items-center gap-3">
@@ -797,6 +929,41 @@ function Row({ icon, label, hint, children }: { icon?: ReactNode; label: string;
         )}
       </div>
       <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+/** 百分比滑块：0..1 的比例值以整数百分比展示，用于背景图不透明度 / 蒙版浓度等观感调节。 */
+function SliderPct({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        aria-label={ariaLabel}
+        style={{ accentColor: "var(--accent)", width: 150 }}
+      />
+      <span className="text-[12px] mono w-[42px] text-right" style={{ color: "var(--text-1)" }}>
+        {Math.round(value * 100)}%
+      </span>
     </div>
   );
 }
@@ -1673,8 +1840,8 @@ function HealthProbeSection() {
   const { t, healthCfg, set } = useSettings();
   // 局部合并写回：仅改动传入的字段，其余保持不变。
   const setCfg = (patch: Partial<typeof healthCfg>) => set("healthCfg", { ...healthCfg, ...patch });
-  // 毫秒 -> 秒（展示用），至少 1 秒避免出现 0。
-  const toSec = (ms: number) => Math.max(1, Math.round(ms / 1000));
+  // 毫秒 -> 秒（展示用），至少 1 秒避免出现 0；非有限值兜底为 1 秒，避免 NaN 显示与写回（M-1）。
+  const toSec = (ms: number) => (Number.isFinite(ms) ? Math.max(1, Math.round(ms / 1000)) : 1);
 
   return (
     <>
@@ -1815,9 +1982,11 @@ function RouteSimSection({ adapters, routeRules }: { adapters: AdapterInfo[]; ro
     }
 
     // 纯 TS 复算所需路由上下文（与后端 engine::start 规则分派 + decide_egress 输入一致）。
+    // bypass 切分必须与真实启动路径（App.onBoost）及 SpeedHero 计数一致：按空白/逗号/分号切分，
+    // 否则同一行内以逗号/空格分隔多个域名时模拟器会误判为"不命中"，与"语义严格一致"承诺相悖（M-2）。
     const config: RouteSimConfig = {
       upstreamChain,
-      bypass: bypassList.split("\n"),
+      bypass: bypassList.split(/[\s,;]+/).filter(Boolean),
       rules: routeRules,
       bindings: upstreamBindings,
       chosenIfIndex: nics[0]?.index ?? 0,
@@ -2127,6 +2296,8 @@ function SubscriptionImportSection() {
   const nodeLabel = (u: UpstreamProxy) => (u.label.trim() ? u.label.trim() : `${u.host}:${u.port}`);
 
   const onParse = () => {
+    // 测速进行中禁止重新解析：否则收尾回写会用旧候选覆盖新解析结果（M-3）。
+    if (testing) return;
     const res = parseSubscription(text);
     setCandidates(res.candidates);
     setIgnored(res.ignoredUnsupported);
@@ -2167,7 +2338,8 @@ function SubscriptionImportSection() {
   };
 
   const onConfirm = () => {
-    if (candidates.length === 0) return;
+    // 测速进行中禁止确认入库：否则收尾回写会让已清空的草稿列表"复活"（M-3）。
+    if (candidates.length === 0 || testing) return;
     const existingIds = new Set(upstreams.map((u) => u.id));
     const fresh = candidates.filter((c) => !existingIds.has(c.id));
     const remaining = Math.max(0, UPSTREAM_MAX_COUNT - upstreams.length);
@@ -2210,12 +2382,12 @@ function SubscriptionImportSection() {
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={onParse}
-          disabled={!text.trim()}
+          disabled={!text.trim() || testing}
           className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium text-white transition-transform hover:scale-105"
           style={{
             background: "linear-gradient(135deg, var(--accent-deep), var(--accent))",
-            opacity: text.trim() ? 1 : 0.5,
-            cursor: text.trim() ? "pointer" : "not-allowed",
+            opacity: text.trim() && !testing ? 1 : 0.5,
+            cursor: text.trim() && !testing ? "pointer" : "not-allowed",
           }}
         >
           {t("subImportParse")}
@@ -2236,14 +2408,14 @@ function SubscriptionImportSection() {
         </button>
         <button
           onClick={onConfirm}
-          disabled={candidates.length === 0}
+          disabled={candidates.length === 0 || testing}
           className="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors"
           style={{
             background: "var(--surface-2)",
             border: "1px solid var(--border)",
             color: "var(--text-1)",
-            opacity: candidates.length === 0 ? 0.5 : 1,
-            cursor: candidates.length === 0 ? "not-allowed" : "pointer",
+            opacity: candidates.length === 0 || testing ? 0.5 : 1,
+            cursor: candidates.length === 0 || testing ? "not-allowed" : "pointer",
           }}
         >
           {t("subImportConfirm")}

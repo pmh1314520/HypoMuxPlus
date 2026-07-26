@@ -27,6 +27,14 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 const ENDPOINT_TTL: Duration = Duration::from_secs(1);
 /// `PID -> name` 缓存 TTL（进程名相对稳定，约 10 秒）。
 const NAME_TTL: Duration = Duration::from_secs(10);
+/// 系统 TCP 连接表快照缓存 TTL（约 0.7 秒）。
+///
+/// 每条新连接首次反查其发起进程时都会命中「端点缓存未命中」（新端口尚未缓存），
+/// 若每次都全量扫描系统连接表（`GetExtendedTcpTable`），在高并发新建连接（如大量
+/// 多线程下载连接、且启用了进程规则）时会累积昂贵的系统调用开销。为此对整张连接表
+/// 做短 TTL 快照缓存：TTL 内的并发新连接复用同一次扫描结果，把扫描频率上限约束到
+/// ~1.5 次/秒，与连接建立速率解耦，同时仍足够新鲜以反查到刚建立连接的 owning PID。
+const ROWS_TTL: Duration = Duration::from_millis(700);
 
 /// 系统 TCP 连接表中的一行（纯数据结构）。
 ///
@@ -73,6 +81,9 @@ pub(crate) struct ProcessResolver {
     endpoint_cache: Mutex<HashMap<(IpAddr, u16), (u32, Instant)>>,
     /// `PID -> (可执行文件名, 写入时刻)`，TTL≈10s
     name_cache: Mutex<HashMap<u32, (String, Instant)>>,
+    /// 系统 TCP 连接表快照 `(行集合, 快照时刻)`，TTL≈0.7s（跨并发新连接复用同一次扫描）
+    #[cfg(windows)]
+    rows_cache: Mutex<Option<(Vec<TcpRow>, Instant)>>,
 }
 
 impl ProcessResolver {
@@ -81,6 +92,8 @@ impl ProcessResolver {
         Self {
             endpoint_cache: Mutex::new(HashMap::new()),
             name_cache: Mutex::new(HashMap::new()),
+            #[cfg(windows)]
+            rows_cache: Mutex::new(None),
         }
     }
 
@@ -115,14 +128,31 @@ impl ProcessResolver {
             }
         }
 
-        // 未命中：查询系统连接表（AF_INET + AF_INET6）
-        let rows = query_tcp_rows();
+        // 未命中：查询系统连接表（AF_INET + AF_INET6），带短 TTL 快照缓存以约束扫描频率。
+        let rows = self.tcp_rows_cached(now);
         let pid = find_pid_by_endpoint(&rows, local)?;
 
         if let Ok(mut cache) = self.endpoint_cache.lock() {
             cache.insert(key, (pid, now));
         }
         Some(pid)
+    }
+
+    /// 取系统 TCP 连接表：TTL 内复用上次快照，过期则重新扫描并刷新快照（锁中毒安全降级）。
+    #[cfg(windows)]
+    fn tcp_rows_cached(&self, now: Instant) -> Vec<TcpRow> {
+        if let Ok(cache) = self.rows_cache.lock() {
+            if let Some((rows, ts)) = cache.as_ref() {
+                if now.duration_since(*ts) < ROWS_TTL {
+                    return rows.clone();
+                }
+            }
+        }
+        let rows = query_tcp_rows();
+        if let Ok(mut cache) = self.rows_cache.lock() {
+            *cache = Some((rows.clone(), now));
+        }
+        rows
     }
 
     /// 由 PID 解析可执行文件名（带 TTL 缓存）。

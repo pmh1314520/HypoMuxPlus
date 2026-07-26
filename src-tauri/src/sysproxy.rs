@@ -112,11 +112,29 @@ pub fn disable_system_proxy() -> Result<(), String> {
             key.set_value("ProxyServer", &server)
                 .map_err(|e| format!("还原 ProxyServer 失败: {e}"))?;
         }
-        // 接管前本无代理：清空
-        _ => {
+        // 有快照但接管前本无代理：清空我方写入的代理。
+        Some(_) => {
             key.set_value("ProxyEnable", &0u32)
                 .map_err(|e| format!("写入 ProxyEnable 失败: {e}"))?;
             let _ = key.set_value("ProxyServer", &"");
+        }
+        // 本进程从未经 enable_system_proxy 接管（TUN 全局接管 / 纯本地端口模式，或
+        // 崩溃后内存快照丢失）：绝不无条件清空，否则会误清用户既有的第三方系统代理
+        // （如 Clash/Mihomo 的系统代理）。仅当当前系统代理确为本程序写入
+        // （ProxyEnable=1 且 ProxyServer 含 socks=127.0.0.1: 签名）时才清空我方残留；
+        // 否则保持系统代理原样不动，直接返回。
+        None => {
+            let (en, server) = read_proxy_raw();
+            if en == 1 && looks_like_ours(&server) {
+                key.set_value("ProxyEnable", &0u32)
+                    .map_err(|e| format!("写入 ProxyEnable 失败: {e}"))?;
+                let _ = key.set_value("ProxyServer", &"");
+            } else {
+                // 当前并非本程序写入的代理：不触碰，保留第三方设置。
+                // 仍清理可能残留的落盘守护快照（幂等），避免下次启动误触发补偿还原。
+                crate::proxyguardian::restore_and_clear_default();
+                return Ok(());
+            }
         }
     }
 

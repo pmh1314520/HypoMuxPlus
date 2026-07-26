@@ -535,7 +535,10 @@ export function AdapterTable({
                             max={1000}
                             value={nicConfig[a.index]?.weight ?? 100}
                             onChange={(e) => {
-                              const v = Math.max(1, Math.min(1000, Math.round(Number(e.target.value) || 100)));
+                              // 用 isFinite 判断而非 `|| 100`：否则输入 "0" 被当作 falsy 回落到 100，
+                              // 而非按 min 钳制到 1（L-8）。
+                              const raw = Number(e.target.value);
+                              const v = Number.isFinite(raw) ? Math.max(1, Math.min(1000, Math.round(raw))) : 100;
                               setNicCfg(a.index, { weight: v });
                             }}
                             disabled={running}

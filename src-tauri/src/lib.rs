@@ -13,9 +13,8 @@ mod engine;
 #[allow(dead_code)]
 mod logger;
 mod netadapter;
-// Process_Resolver（按进程名分流的 PID→进程名反查）已落地纯函数与系统调用薄封装，
-// pick_nic 进程匹配接线为后续任务（4.2），暂允许未使用告警。
-#[allow(dead_code)]
+// Process_Resolver（按进程名分流的 PID→进程名反查）：纯函数 + 系统调用薄封装，已由
+// engine 的 handle_socks / handle_http 在存在进程规则时经 pick_nic 运行时接线（Req 5.3）。
 mod process;
 mod proxyguardian;
 mod subscription;
@@ -800,6 +799,127 @@ fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
 
+// ============================== 自定义背景图 ==============================
+//
+// 用户选定的背景图被复制到 `app_config_dir/background.<ext>` 持久化，前端以 data URL
+// 渲染。之所以不把图片直接存入 localStorage：base64 后体积膨胀约 33%，几 MB 的壁纸
+// 极易触碰浏览器 ~5MB 配额而写入失败；改由后端落盘则无配额限制且重启自动恢复。
+
+/// 背景图落盘文件名前缀（扩展名随原图，用于推断 data URL 的 MIME 类型）。
+const BACKGROUND_STEM: &str = "background";
+/// 允许的背景图扩展名及其 MIME 类型（仅常见位图 / WebP，避免 SVG 等可执行脚本的载体）。
+const BACKGROUND_TYPES: &[(&str, &str)] = &[
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
+    ("jpeg", "image/jpeg"),
+    ("webp", "image/webp"),
+    ("bmp", "image/bmp"),
+    ("gif", "image/gif"),
+];
+/// 背景图体积上限（32 MiB）：防止超大图片撑爆内存或拖慢渲染。
+const BACKGROUND_MAX_BYTES: u64 = 32 * 1024 * 1024;
+
+/// 按扩展名查 MIME 类型；不在白名单内返回 `None`。
+fn background_mime(ext: &str) -> Option<&'static str> {
+    let lower = ext.to_ascii_lowercase();
+    BACKGROUND_TYPES
+        .iter()
+        .find(|(e, _)| *e == lower)
+        .map(|(_, m)| *m)
+}
+
+/// 查找应用配置目录下已落盘的背景图（返回其路径与 MIME 类型）。
+fn find_background(dir: &std::path::Path) -> Option<(std::path::PathBuf, &'static str)> {
+    BACKGROUND_TYPES.iter().find_map(|(ext, mime)| {
+        let p = dir.join(format!("{BACKGROUND_STEM}.{ext}"));
+        if p.is_file() {
+            Some((p, *mime))
+        } else {
+            None
+        }
+    })
+}
+
+/// 把图片字节编码为 data URL（`data:<mime>;base64,<payload>`）。
+fn to_data_url(mime: &str, bytes: &[u8]) -> String {
+    use base64::Engine;
+    format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    )
+}
+
+/// 删除应用配置目录下所有已落盘的背景图（切换 / 移除时保证只留一份）。
+fn remove_backgrounds(dir: &std::path::Path) {
+    for (ext, _) in BACKGROUND_TYPES {
+        let _ = std::fs::remove_file(dir.join(format!("{BACKGROUND_STEM}.{ext}")));
+    }
+}
+
+/// 设置自定义背景图：校验并把 `path` 指向的图片复制到应用配置目录持久化，返回其 data URL。
+///
+/// 路径由原生文件对话框提供。仅接受白名单扩展名与体积上限内的图片；旧背景图会被替换。
+#[tauri::command]
+fn set_background_image(app: AppHandle, path: String) -> Result<String, String> {
+    let src = std::path::PathBuf::from(&path);
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .ok_or("无法识别图片格式")?;
+    let mime = background_mime(ext).ok_or("仅支持 PNG / JPG / WebP / BMP / GIF 格式的图片")?;
+    let meta = std::fs::metadata(&src).map_err(|e| format!("读取图片失败: {e}"))?;
+    if !meta.is_file() {
+        return Err("所选路径不是文件".into());
+    }
+    if meta.len() > BACKGROUND_MAX_BYTES {
+        return Err(format!(
+            "图片体积过大（{:.1} MB），请选择小于 {} MB 的图片",
+            meta.len() as f64 / (1024.0 * 1024.0),
+            BACKGROUND_MAX_BYTES / (1024 * 1024)
+        ));
+    }
+    let bytes = std::fs::read(&src).map_err(|e| format!("读取图片失败: {e}"))?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("无法定位配置目录: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {e}"))?;
+    // 先清掉旧格式的背景图，确保目录中始终只有一份，避免读取时命中过期文件
+    remove_backgrounds(&dir);
+    let dest = dir.join(format!("{BACKGROUND_STEM}.{}", ext.to_ascii_lowercase()));
+    std::fs::write(&dest, &bytes).map_err(|e| format!("保存背景图失败: {e}"))?;
+    Ok(to_data_url(mime, &bytes))
+}
+
+/// 读取已保存的自定义背景图（data URL）；未设置过则返回 `None`。启动时用于恢复背景。
+#[tauri::command]
+fn get_background_image(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        // 拿不到配置目录时视为「未设置背景图」，不阻断界面加载
+        Err(_) => return Ok(None),
+    };
+    let Some((path, mime)) = find_background(&dir) else {
+        return Ok(None);
+    };
+    match std::fs::read(&path) {
+        Ok(bytes) => Ok(Some(to_data_url(mime, &bytes))),
+        // 文件损坏 / 被占用：安全降级为无背景图，不阻断界面加载
+        Err(_) => Ok(None),
+    }
+}
+
+/// 移除自定义背景图（删除落盘文件，恢复默认渐变基底）。
+#[tauri::command]
+fn clear_background_image(app: AppHandle) -> Result<(), String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("无法定位配置目录: {e}"))?;
+    remove_backgrounds(&dir);
+    Ok(())
+}
+
 /// 拉取远程文本（用于分流规则订阅：从 URL 导入规则列表）。
 #[tauri::command]
 async fn fetch_text(url: String) -> Result<String, String> {
@@ -884,15 +1004,36 @@ async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     let arr: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {e}"))?;
     let releases = arr.as_array().ok_or("Releases 响应格式异常")?;
-    // 列表按时间升序，最后一个非预发布版即为最新版
+    // 不依赖 Gitee 返回列表的排序（其顺序未文档化，可能为降序），改为在全部非预发布版中
+    // 按语义版本号（version_gt）选出最大的一个作为最新版，杜绝"取到旧版而漏报更新"。
     let latest = releases
         .iter()
         .filter(|r| !r["prerelease"].as_bool().unwrap_or(false))
-        .last()
+        .filter(|r| !r["tag_name"].as_str().unwrap_or("").trim().is_empty())
+        .max_by(|a, b| {
+            let va = a["tag_name"]
+                .as_str()
+                .unwrap_or("")
+                .trim()
+                .trim_start_matches(['v', 'V']);
+            let vb = b["tag_name"]
+                .as_str()
+                .unwrap_or("")
+                .trim()
+                .trim_start_matches(['v', 'V']);
+            // version_gt 定义了严格弱序：以其构造 Ordering（相等则视为 Equal）。
+            if version_gt(va, vb) {
+                std::cmp::Ordering::Greater
+            } else if version_gt(vb, va) {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
         .ok_or("仓库暂无发布版本")?;
     let tag = latest["tag_name"].as_str().unwrap_or("").trim().to_string();
     let notes = latest["body"].as_str().unwrap_or("").to_string();
-    let latest_ver = tag.trim_start_matches('v').trim_start_matches('V').to_string();
+    let latest_ver = tag.trim_start_matches(['v', 'V']).to_string();
     let url = format!(
         "https://gitee.com/peng-minghang/hypo-mux-plus/releases/download/{tag}/HypoMuxPlus.exe"
     );
@@ -1147,6 +1288,9 @@ pub fn run() {
             read_text_file,
             write_text_file,
             write_binary_file,
+            set_background_image,
+            get_background_image,
+            clear_background_image,
             fetch_text,
             set_tray_language,
             update_tray_speed,

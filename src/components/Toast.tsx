@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, AlertTriangle, Info, X, XCircle } from "lucide-react";
 import { useSettings } from "../store";
@@ -68,6 +68,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     },
     [schedule],
   );
+
+  // 卸载（含 StrictMode / HMR 重挂载）时清理全部在途定时器，避免定时器泄漏
+  useEffect(() => {
+    const timersMap = timers.current;
+    return () => {
+      timersMap.forEach((tm) => clearTimeout(tm));
+      timersMap.clear();
+    };
+  }, []);
 
   return (
     <ToastCtx.Provider value={push}>

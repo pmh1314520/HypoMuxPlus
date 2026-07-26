@@ -160,6 +160,12 @@ export const api = {
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   writeTextFile: (path: string, content: string) => invoke<void>("write_text_file", { path, content }),
   writeBinaryFile: (path: string, data: number[]) => invoke<void>("write_binary_file", { path, data }),
+  /** 设置自定义背景图：图片复制到应用配置目录持久化，返回其 data URL 供渲染 */
+  setBackgroundImage: (path: string) => invoke<string>("set_background_image", { path }),
+  /** 读取已保存的自定义背景图 data URL；未设置过返回 null */
+  getBackgroundImage: () => invoke<string | null>("get_background_image"),
+  /** 移除自定义背景图，恢复默认渐变基底 */
+  clearBackgroundImage: () => invoke<void>("clear_background_image"),
   setTrayLanguage: (en: boolean) => invoke<void>("set_tray_language", { en }),
   setAppWatch: (enabled: boolean) => invoke<void>("set_app_watch", { enabled }),
   updateTraySpeed: (mbps: number) => invoke<void>("update_tray_speed", { mbps }),

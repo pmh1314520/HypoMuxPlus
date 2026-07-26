@@ -84,11 +84,19 @@ export function Hud() {
 
   // 订阅配置 / 数据 / 吸附事件
   useEffect(() => {
+    let disposed = false;
     const uns: Array<() => void> = [];
-    onHudConfig((c) => setCfg(c)).then((u) => uns.push(u));
-    onBoostState((r) => setRunning(r)).then((u) => uns.push(u));
+    // 竞态防护：listen() 需 IPC 往返；cleanup 若先于 resolve 执行则立即注销，避免监听器泄漏
+    const track = (p: Promise<() => void>) => {
+      p.then((u) => {
+        if (disposed) u();
+        else uns.push(u);
+      }).catch(() => {});
+    };
+    track(onHudConfig((c) => setCfg(c)));
+    track(onBoostState((r) => setRunning(r)));
     api.getBoostState().then(setRunning).catch(() => {});
-    onTelemetry((p) => {
+    track(onTelemetry((p) => {
       setTele(p);
       setHist((prev) => [...prev.slice(1), p.total.downMbps]);
       setNicHist((prev) => {
@@ -99,14 +107,15 @@ export function Hud() {
         }
         return next;
       });
-    }).then((u) => uns.push(u));
+    }));
     let noticeTimer: ReturnType<typeof setTimeout> | undefined;
-    onHudNotice((n) => {
+    track(onHudNotice((n) => {
       setNotice(n);
       if (noticeTimer) clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => setNotice(null), 3600);
-    }).then((u) => uns.push(u));
+    }));
     return () => {
+      disposed = true;
       if (noticeTimer) clearTimeout(noticeTimer);
       uns.forEach((u) => u());
     };

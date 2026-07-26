@@ -1,9 +1,9 @@
 // 全局设置 / 国际化上下文（localStorage 持久化）
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { Lang, translate } from "./i18n";
 import type { UpstreamProxy, UpstreamBinding } from "./lib/upstream";
-import type { HealthCfg, PerNicDnsCfg } from "./lib/api";
+import { api, type HealthCfg, type PerNicDnsCfg } from "./lib/api";
 
 export type Theme = "dark" | "light";
 
@@ -48,6 +48,14 @@ interface Settings {
   autoTheme: boolean;
   highContrast: boolean;
   accent: AccentKey;
+  /** 自定义背景图是否启用（图片本体由后端落盘于应用配置目录，此处仅存开关与观感参数）。 */
+  bgEnabled: boolean;
+  /** 背景图不透明度 0..1：越高图片越明显。 */
+  bgOpacity: number;
+  /** 明暗蒙版浓度 0..1：叠在图片上层，越高越暗（浅色主题下越白），保证文字可读并营造层次。 */
+  bgMask: number;
+  /** 背景图模糊半径（px，0..40）：毛玻璃虚化，让前景面板与文字更聚焦。 */
+  bgBlur: number;
   socksPort: number;
   httpPort: number;
   closeToTray: boolean;
@@ -101,6 +109,11 @@ const DEFAULTS: Settings = {
   autoTheme: false,
   highContrast: false,
   accent: "blue",
+  bgEnabled: false,
+  // 默认取值经权衡：图片可见但不抢戏，蒙版足够压住高光以保证文字对比，轻微模糊增强层次
+  bgOpacity: 0.35,
+  bgMask: 0.7,
+  bgBlur: 2,
   socksPort: 10800,
   httpPort: 10801,
   closeToTray: true,
@@ -152,10 +165,32 @@ const UPSTREAM_BINDINGS_KEY = "hmx-upstream-bindings";
 // 每网卡 DNS / DoH 映射作为独立持久化状态（单独的 localStorage key）
 const PER_NIC_DNS_KEY = "hmx-per-nic-dns";
 
+/** 把可能缺字段/含非法值的持久化 healthCfg 与默认值深合并，并把数值字段兜底为有限数，
+ *  避免旧存档或手工编辑导致 NaN 传染到 UI（NumberField 显示 "NaN"）与后端参数。 */
+function mergeHealthCfg(raw: unknown): HealthCfg {
+  const d = DEFAULTS.healthCfg;
+  const o = (raw && typeof raw === "object" ? raw : {}) as Partial<HealthCfg>;
+  const num = (v: unknown, fallback: number) =>
+    typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  return {
+    enabled: typeof o.enabled === "boolean" ? o.enabled : d.enabled,
+    intervalMs: num(o.intervalMs, d.intervalMs),
+    timeoutMs: num(o.timeoutMs, d.timeoutMs),
+    failThreshold: num(o.failThreshold, d.failThreshold),
+    cooldownMs: num(o.cooldownMs, d.cooldownMs),
+  };
+}
+
 function load(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        // 浅合并顶层，再对嵌套对象深合并，避免整体替换丢失嵌套默认值。
+        return { ...DEFAULTS, ...parsed, healthCfg: mergeHealthCfg(parsed.healthCfg) };
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -237,6 +272,13 @@ interface Ctx extends Settings {
   /** 每网卡 DNS / DoH 映射（持久化于 localStorage key `hmx-per-nic-dns`）。 */
   perNicDns: PerNicDnsCfg[];
   setPerNicDns: (dns: PerNicDnsCfg[]) => void;
+  /**
+   * 自定义背景图的 data URL（运行期状态，非持久化）。
+   * 图片本体由后端落盘于应用配置目录，启动时经 `getBackgroundImage` 恢复；
+   * 之所以不入 localStorage：base64 体积易超出浏览器约 5MB 配额。
+   */
+  bgImageUrl: string | null;
+  setBgImageUrl: (url: string | null) => void;
 }
 
 const SettingsCtx = createContext<Ctx | null>(null);
@@ -246,7 +288,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [upstreams, setUpstreams] = useState<UpstreamProxy[]>(loadUpstreams);
   const [upstreamBindings, setUpstreamBindings] = useState<UpstreamBinding[]>(loadUpstreamBindings);
   const [perNicDns, setPerNicDns] = useState<PerNicDnsCfg[]>(loadPerNicDns);
+  // 自定义背景图 data URL（运行期状态）：启动时从后端落盘文件恢复一次
+  const [bgImageUrl, setBgImageUrl] = useState<string | null>(null);
   const firstRun = useRef(true);
+
+  // 恢复已保存的自定义背景图；读取失败静默降级为无背景图，绝不阻断界面加载
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getBackgroundImage()
+      .then((url) => {
+        if (!cancelled) setBgImageUrl(url ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // 本次主题变更是否由 View Transitions 涟漪驱动：若是则跳过 theme-anim 的 CSS 过渡，
   // 避免过渡使 VT 快照捕获到「过渡起点的旧配色」，导致涟漪揭示不出新主题。
   const skipAnimRef = useRef(false);
@@ -268,11 +326,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(id);
   }, [settings.theme, settings.accent, settings.highContrast]);
 
-  const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
+  // set 引用恒定（setSettings 稳定）：避免作为下游 useCallback / effect 依赖时反复失效。
+  const set = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((s) => ({ ...s, [key]: value }));
+  }, []);
+
+  // 翻译函数仅随语言变化而变化：稳定其引用，避免任意设置变更（如拖动滑块的每一帧）
+  // 令订阅了 t 的下游 useCallback / effect 反复重建（见 App 主事件订阅 effect）。
+  const t = useCallback(
+    (key: string, vars?: Record<string, string | number>) => translate(settings.lang, key, vars),
+    [settings.lang],
+  );
 
   // 主题切换水波纹扩散：以最近点击处为圆心，用 View Transitions + clip-path 揭示新主题
   const setThemeAnimated = (next: Theme) => {
+    // 点击当前已激活主题：仅关闭跟随系统即可，不触发涟漪/过渡，避免 skipAnimRef 标志滞留
+    // 到下一次真正的主题切换而丢失一次 CSS 过渡动效。
+    if (next === settings.theme) {
+      if (settings.autoTheme) setSettings((s) => ({ ...s, autoTheme: false }));
+      return;
+    }
     const applyNow = () => setSettings((s) => ({ ...s, theme: next, autoTheme: false }));
     const doc = document as DocumentWithVT;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -356,15 +429,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...settings,
       set,
       setThemeAnimated,
-      t: (key, vars) => translate(settings.lang, key, vars),
+      t,
       upstreams,
       setUpstreams,
       upstreamBindings,
       setUpstreamBindings,
       perNicDns,
       setPerNicDns,
+      bgImageUrl,
+      setBgImageUrl,
     }),
-    [settings, upstreams, upstreamBindings, perNicDns],
+    [settings, upstreams, upstreamBindings, perNicDns, bgImageUrl, set, t],
   );
 
   return <SettingsCtx.Provider value={value}>{children}</SettingsCtx.Provider>;

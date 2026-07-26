@@ -39,6 +39,13 @@ const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30
 /// Happy-Eyeballs 双栈拨号中每个地址族的连接超时：首选族在该时长内未建成且存在
 /// 备选族时，回退尝试另一地址族。仅作用于域名目标的双栈拨号，不影响字面 IPv4 路径。
 const DIAL_FAMILY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+/// DNS 解析缓存 TTL：命中该时长内的缓存即复用，超时视为失效（读取时判定）。
+const DNS_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+/// DNS 解析缓存容量上限：插入时先惰性淘汰过期项，仍超上限则整表清空，防止长期运行下无界增长。
+const DNS_CACHE_CAP: usize = 8192;
+/// 单条 SOCKS5 UDP ASSOCIATE 关联内的 NAT 目标上限：达上限按最久未活跃淘汰（取消其下行任务），
+/// 防止客户端在一条关联内向海量不同目标发包（DNS 泛洪 / P2P / 扫描）导致 socket/任务/内存无界增长。
+const UDP_ASSOC_MAX_TARGETS: usize = 256;
 
 /// 前端勾选并下发的网卡（index 为 scan 阶段拿到的权威 IfIndex）
 #[derive(Debug, Clone, Deserialize)]
@@ -1353,6 +1360,11 @@ pub struct Engine {
     /// [新增] 活跃连接计数（Connection_Cap 判定与遥测复用，Req 8.2）
     #[allow(dead_code)]
     active_conns: Arc<AtomicI64>,
+    /// [新增] 进程反查器（按进程名分流的运行时接线，Req 5.3/5.6）：仅当存在进程规则
+    /// （`rules_proc` 非空）时，才在新连接建立时经其反查发起进程的可执行文件名（带短 TTL
+    /// 缓存），供 `pick_nic` 命中进程规则。无进程规则时完全不调用，既有直连/域名规则/
+    /// 调度路径零开销、行为不变。
+    proc_resolver: Arc<crate::process::ProcessResolver>,
 }
 
 impl Engine {
@@ -1381,6 +1393,19 @@ impl Engine {
     ///
     /// `pub(crate)`：供 TUN 模式（`tunmode.rs`）的 UDP 中继复用同一套网卡选择逻辑
     /// （按网卡规则 / 调度策略），确保 UDP 与 TCP 出口选择一致（Req 3.4）。
+    /// 反查发起该入站连接的进程可执行文件名（小写），供按进程名分流（Req 5.3/5.6）。
+    ///
+    /// 仅当存在进程规则（`rules_proc` 非空）时才发起反查——经 `peer`（被代理客户端在
+    /// 本机的源端点）查系统 TCP 连接表得 owning PID，再解析其可执行文件名（均带短 TTL
+    /// 缓存，见 `process` 模块）。无进程规则时直接返回 `None`，既有直连聚合 / 域名规则 /
+    /// 调度路径零额外系统调用、行为逐字节不变（零回归，Req 5.6）。任何失败返回 `None`。
+    fn resolve_proc_name(&self, peer: SocketAddr) -> Option<String> {
+        if self.rules_proc.is_empty() {
+            return None;
+        }
+        self.proc_resolver.resolve(peer)
+    }
+
     pub(crate) fn pick_nic(&self, host: &str, port: u16, proc_name: Option<&str>) -> Arc<NicRuntime> {
         if let Some(RuleAction::Nic(ifindex)) =
             decide_rule_action(&self.rules_proc, &self.rules_nic, proc_name, host, port)
@@ -1601,23 +1626,20 @@ impl Engine {
             return Some(SocketAddrV4::new(ip, port));
         }
         // [新增] 每网卡 DNS 旁路（Per_NIC_DNS，Req 7.2/7.4）：仅当该承载网卡配置了
-        // Per_NIC_DNS 时才启用；经该网卡出口用指定 DNS/DoH 解析，成功则采用并写入
-        // 既有共享缓存，失败/超时记可读日志后回退既有全局解析路径。未配置该网卡时
-        // `get` 返回 None，本分支被整体跳过，既有全局路径逐字节不变（零回归，Req 7.3/7.6）。
+        // Per_NIC_DNS 时才启用；经该网卡出口用指定 DNS/DoH 解析，成功则采用并写入缓存，
+        // 失败/超时记可读日志后回退既有全局解析路径。未配置该网卡时 `get` 返回 None，
+        // 本分支被整体跳过，既有全局路径逐字节不变（零回归，Req 7.3/7.6）。
+        //
+        // 缓存键含 if_index（`{if_index}\0{host}`）：不同网卡的自定义 DNS 结果各自独立，
+        // 不再经仅以 host 为键的全局缓存互相"串号"，也不污染全局解析路径（M2）。
         if let Some(dns) = self.per_nic_dns.get(&nic.if_index) {
-            // 命中近期缓存直接复用（与全局路径共享 60s 缓存，避免重复查询）。
-            if let Ok(cache) = self.dns_cache.lock() {
-                if let Some((ip, t)) = cache.get(host) {
-                    if t.elapsed() < std::time::Duration::from_secs(60) {
-                        return Some(SocketAddrV4::new(*ip, port));
-                    }
-                }
+            let nic_key = format!("{}\u{0}{}", nic.if_index, host);
+            if let Some(ip) = self.cache_get(&nic_key) {
+                return Some(SocketAddrV4::new(ip, port));
             }
             match resolve_host_via_per_nic_dns(nic, host, dns).await {
                 Some(ip) => {
-                    if let Ok(mut cache) = self.dns_cache.lock() {
-                        cache.insert(host.to_string(), (ip, std::time::Instant::now()));
-                    }
+                    self.cache_put(nic_key, ip);
                     return Some(SocketAddrV4::new(ip, port));
                 }
                 None => {
@@ -1628,12 +1650,8 @@ impl Engine {
                 }
             }
         }
-        if let Ok(cache) = self.dns_cache.lock() {
-            if let Some((ip, t)) = cache.get(host) {
-                if t.elapsed() < std::time::Duration::from_secs(60) {
-                    return Some(SocketAddrV4::new(*ip, port));
-                }
-            }
+        if let Some(ip) = self.cache_get(host) {
+            return Some(SocketAddrV4::new(ip, port));
         }
         let ip = match resolve_via_doh(nic, host).await {
             Some(ip) => ip,
@@ -1645,10 +1663,31 @@ impl Engine {
                 },
             },
         };
-        if let Ok(mut cache) = self.dns_cache.lock() {
-            cache.insert(host.to_string(), (ip, std::time::Instant::now()));
-        }
+        self.cache_put(host.to_string(), ip);
         Some(SocketAddrV4::new(ip, port))
+    }
+
+    /// 读取 DNS 缓存：命中且未过 [`DNS_CACHE_TTL`] 时返回 IP，否则 None（锁中毒亦安全降级）。
+    fn cache_get(&self, key: &str) -> Option<Ipv4Addr> {
+        let cache = self.dns_cache.lock().ok()?;
+        let (ip, t) = cache.get(key)?;
+        if t.elapsed() < DNS_CACHE_TTL {
+            Some(*ip)
+        } else {
+            None
+        }
+    }
+
+    /// 写入 DNS 缓存并做容量治理（M1）：先惰性淘汰全部过期条目；仍达容量上限则整表清空，
+    /// 保证长期运行下缓存有界。锁中毒时静默跳过，绝不 panic、不阻断解析主流程。
+    fn cache_put(&self, key: String, ip: Ipv4Addr) {
+        if let Ok(mut cache) = self.dns_cache.lock() {
+            cache.retain(|_, (_, t)| t.elapsed() < DNS_CACHE_TTL);
+            if cache.len() >= DNS_CACHE_CAP {
+                cache.clear();
+            }
+            cache.insert(key, (ip, std::time::Instant::now()));
+        }
     }
 
     /// 经所选物理网卡对目标进行双栈解析：复用既有 A 记录路径得 IPv4，
@@ -1972,6 +2011,7 @@ pub async fn start(
         conn_cap: if conn_cap == 0 { 4096 } else { conn_cap },
         task_cap: if task_cap == 0 { 64 } else { task_cap },
         active_conns: Arc::new(AtomicI64::new(0)),
+        proc_resolver: Arc::new(crate::process::ProcessResolver::new()),
     });
 
     let nic_names: Vec<&str> = nics.iter().map(|n| n.name.as_str()).collect();
@@ -2576,8 +2616,8 @@ async fn handle_connection_isolated(
     let eng_inner = eng.clone();
     let mut inner = tokio::task::spawn(async move {
         match proto {
-            Protocol_::Socks => handle_socks(eng_inner, stream).await,
-            Protocol_::Http => handle_http(eng_inner, stream).await,
+            Protocol_::Socks => handle_socks(eng_inner, stream, peer).await,
+            Protocol_::Http => handle_http(eng_inner, stream, peer).await,
         }
     });
     tokio::select! {
@@ -3408,6 +3448,17 @@ async fn udp_bind_via_nic(nic: &NicRuntime, family: Family) -> std::io::Result<t
     tokio::net::UdpSocket::from_std(std_udp)
 }
 
+/// 单条 SOCKS5 UDP ASSOCIATE 关联内、按真实目标缓存复用的上游 NAT 条目。
+///
+/// `sock` 为经所选网卡 Egress_Binding 的出口 UDP socket；`last_active` 记录该目标最近
+/// 一次上行发包时刻，供达 [`UDP_ASSOC_MAX_TARGETS`] 上限时按 LRU 淘汰；`cancel` 为该目标
+/// 下行转发任务的取消令牌（pump 的子令牌），淘汰或整关联结束时取消以回收其 socket/任务。
+struct UdpNatEntry {
+    sock: Arc<tokio::net::UdpSocket>,
+    last_active: std::time::Instant,
+    cancel: CancellationToken,
+}
+
 /// SOCKS5 UDP ASSOCIATE（CMD=0x03）：在 `127.0.0.1` 分配 UDP 中继端口并应答 BND，
 /// 随后按客户端数据报中的 SOCKS5 UDP 请求头目标，经所选网卡出口转发数据报，并把
 /// 上游响应封回请求头后回送客户端。TCP 控制连接关闭即拆除该关联（RFC 1928）。
@@ -3459,7 +3510,7 @@ async fn udp_associate(engine: Arc<Engine>, mut client: TcpStream) -> std::io::R
     let pump_cancel = cancel.clone();
     let pump = async move {
         let client_addr: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
-        let mut upstreams: HashMap<SocketAddr, Arc<tokio::net::UdpSocket>> = HashMap::new();
+        let mut upstreams: HashMap<SocketAddr, UdpNatEntry> = HashMap::new();
         let mut buf = vec![0u8; 65536];
         loop {
             let (n, src) = tokio::select! {
@@ -3503,9 +3554,25 @@ async fn udp_associate(engine: Arc<Engine>, mut client: TcpStream) -> std::io::R
                 }
             };
             // 获取 / 创建经网卡的上游 socket（按真实目标缓存复用）
-            let up = if let Some(u) = upstreams.get(&real_dst) {
-                u.clone()
+            let up = if let Some(entry) = upstreams.get_mut(&real_dst) {
+                // 命中缓存：刷新最近活跃时刻（供 LRU 淘汰），复用其 socket。
+                entry.last_active = std::time::Instant::now();
+                entry.sock.clone()
             } else {
+                // NAT 目标上限保护（防 DNS 泛洪 / P2P / 扫描导致 socket/任务/内存无界增长）：
+                // 达上限时按最久未活跃（LRU）淘汰一个目标——取消其下行任务并移除映射，
+                // 随后再创建新目标条目。
+                if upstreams.len() >= UDP_ASSOC_MAX_TARGETS {
+                    if let Some(victim) = upstreams
+                        .iter()
+                        .min_by_key(|(_, e)| e.last_active)
+                        .map(|(k, _)| *k)
+                    {
+                        if let Some(old) = upstreams.remove(&victim) {
+                            old.cancel.cancel();
+                        }
+                    }
+                }
                 let u = match udp_bind_via_nic(&nic, family).await {
                     Ok(s) => Arc::new(s),
                     Err(e) => {
@@ -3517,13 +3584,22 @@ async fn udp_associate(engine: Arc<Engine>, mut client: TcpStream) -> std::io::R
                         continue;
                     }
                 };
-                upstreams.insert(real_dst, u.clone());
+                // 该目标下行任务的独立取消令牌（pump 子令牌）：淘汰或整关联结束均可单独取消。
+                let entry_cancel = pump_cancel.child_token();
+                upstreams.insert(
+                    real_dst,
+                    UdpNatEntry {
+                        sock: u.clone(),
+                        last_active: std::time::Instant::now(),
+                        cancel: entry_cancel.clone(),
+                    },
+                );
                 // 下行转发任务：上游响应 -> 封回 SOCKS5 UDP 头 -> 回送客户端
                 let relay_send = relay_recv.clone();
                 let ca = client_addr.clone();
                 let hdr_target = target.clone();
                 let up_task = u.clone();
-                let dtoken = pump_cancel.clone();
+                let dtoken = entry_cancel;
                 tauri::async_runtime::spawn(async move {
                     let mut dbuf = vec![0u8; 65536];
                     loop {
@@ -4457,7 +4533,11 @@ async fn health_prober_loop(engine: Arc<Engine>, cancel: CancellationToken) {
 
 // ============================== SOCKS5 ==============================
 
-async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Result<()> {
+async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream, peer: SocketAddr) -> std::io::Result<()> {
+    // 按进程名分流（Req 5.3）：仅当存在进程规则时反查发起连接的进程名（否则为 None，零开销）。
+    // 一条连接仅反查一次，供本连接的所有 pick_nic 复用。
+    let proc_name = engine.resolve_proc_name(peer);
+    let proc_name = proc_name.as_deref();
     // 1) 握手：版本 + 方法列表（首个读加超时，回收连上不发数据的僵死连接）
     let mut head = [0u8; 2];
     match tokio::time::timeout(HANDSHAKE_TIMEOUT, client.read_exact(&mut head)).await {
@@ -4587,8 +4667,8 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
             return Ok(());
         }
 
-        // 调度 + 物理绑定连接（复用既有网卡选择逻辑；proc_name=None，进程反查为运行时集成项）
-        let nic = engine.pick_nic(&target_display, port, None);
+        // 调度 + 物理绑定连接（复用既有网卡选择逻辑；proc_name 已按进程规则反查，命中进程规则优先）
+        let nic = engine.pick_nic(&target_display, port, proc_name);
         nic.active.fetch_add(1, Ordering::Relaxed);
         let _guard = ConnGuard(nic.clone());
 
@@ -4678,8 +4758,8 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
         return Ok(());
     }
 
-    // 调度 + 物理绑定连接（先查域名→网卡规则，否则按策略调度；proc_name=None）
-    let nic = engine.pick_nic(&target_display, port, None);
+    // 调度 + 物理绑定连接（先查进程规则 / 域名→网卡规则，否则按策略调度）
+    let nic = engine.pick_nic(&target_display, port, proc_name);
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
 
@@ -4754,7 +4834,10 @@ async fn handle_socks(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Re
 
 // ============================== HTTP / HTTPS ==============================
 
-async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Result<()> {
+async fn handle_http(engine: Arc<Engine>, mut client: TcpStream, peer: SocketAddr) -> std::io::Result<()> {
+    // 按进程名分流（Req 5.3）：仅当存在进程规则时反查发起连接的进程名（否则为 None，零开销）。
+    let proc_name = engine.resolve_proc_name(peer);
+    let proc_name = proc_name.as_deref();
     // 逐字节读取直到 \r\n\r\n（请求头），避免吞掉请求体。
     // 整个请求头读取加超时，回收连上却迟迟不发完整请求头的僵死连接。
     let read_header = async {
@@ -4875,8 +4958,8 @@ async fn handle_http(engine: Arc<Engine>, mut client: TcpStream) -> std::io::Res
         return Ok(());
     }
 
-    // 调度 + 物理绑定连接（先查域名→网卡规则，否则按策略调度；proc_name=None）
-    let nic = engine.pick_nic(&dst_host, dst_port, None);
+    // 调度 + 物理绑定连接（先查进程规则 / 域名→网卡规则，否则按策略调度）
+    let nic = engine.pick_nic(&dst_host, dst_port, proc_name);
     nic.active.fetch_add(1, Ordering::Relaxed);
     let _guard = ConnGuard(nic.clone());
 
@@ -7092,6 +7175,7 @@ mod tests {
             conn_cap: 4096,
             task_cap: 64,
             active_conns: Arc::new(AtomicI64::new(0)),
+            proc_resolver: Arc::new(crate::process::ProcessResolver::new()),
         }
     }
 

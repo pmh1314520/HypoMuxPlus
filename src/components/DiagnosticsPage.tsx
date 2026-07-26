@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { Activity, ArrowDownToLine, ClipboardList, ImageDown, Loader2, RotateCw, ShieldCheck, Stethoscope, TrendingUp, Waves, PackageX } from "lucide-react";
@@ -28,7 +28,22 @@ function loadDiagHistory(): DiagHistory {
     const raw = localStorage.getItem(DIAG_HISTORY_KEY);
     if (raw) {
       const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object") return obj;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        // 值级校验：仅保留形如 { grade: string, ts: number } 的条目，防止损坏存档触发运行时异常
+        const out: DiagHistory = {};
+        for (const [k, v] of Object.entries(obj)) {
+          const idx = Number(k);
+          if (
+            Number.isFinite(idx) &&
+            v &&
+            typeof v === "object" &&
+            typeof (v as { grade?: unknown }).grade === "string"
+          ) {
+            out[idx] = { grade: (v as { grade: string }).grade, ts: Number((v as { ts?: unknown }).ts) || 0 };
+          }
+        }
+        return out;
+      }
     }
   } catch {
     /* ignore */
@@ -45,7 +60,15 @@ function loadDiagTrend(): DiagTrend {
     const raw = localStorage.getItem(DIAG_TREND_KEY);
     if (raw) {
       const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object") return obj as DiagTrend;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        // 值级校验：仅保留值为数组的条目，防止损坏存档在 [...trend] 展开时抛错整页崩溃
+        const out: DiagTrend = {};
+        for (const [k, v] of Object.entries(obj)) {
+          const idx = Number(k);
+          if (Number.isFinite(idx) && Array.isArray(v)) out[idx] = v as DiagTrendPoint[];
+        }
+        return out;
+      }
     }
   } catch {
     /* ignore */
@@ -96,24 +119,29 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
   const valid = adapters.filter((a) => a.ipv4 && a.ipv4 !== "0.0.0.0");
   const hasResults = valid.some((a) => latencies[a.index] || speedResults[a.index]);
 
-  // 诊断结果落地为历史（下次进入诊断页可见"上次评级"），并据此自适应
+  // 仅在一轮整体诊断或单卡重测"完成"的边沿采样一次，避免：每次切回诊断页即为旧结果
+  // 重复追加样本；一次测速过程中后端逐卡推送事件导致重复追加半成品（mbps=0）样本（H-2）。
+  const prevDiagnosingRef = useRef(diagnosing);
+  const prevTestingIdxRef = useRef(testingIdx);
   useEffect(() => {
+    const finishedFullRun = prevDiagnosingRef.current && !diagnosing;
+    const finishedSingle = prevTestingIdxRef.current !== null && testingIdx === null;
+    prevDiagnosingRef.current = diagnosing;
+    prevTestingIdxRef.current = testingIdx;
+    if (!finishedFullRun && !finishedSingle) return;
     if (!hasResults) return;
+
+    // 评级历史（下次进入诊断页可见"上次评级"）
     setHistory((prev) => {
       const next = { ...prev };
       for (const a of valid) {
         const g = gradeOf(latencies[a.index], speedResults[a.index]);
         if (g.key !== "gradePending") next[a.index] = { grade: g.key, ts: Date.now() };
       }
-      localStorage.setItem(DIAG_HISTORY_KEY, JSON.stringify(next));
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latencies, speedResults]);
 
-  // 诊断结果追加到趋势历史（每卡一采样点，复用纯函数 appendTrendPoint/capTrend，上限裁剪）
-  useEffect(() => {
-    if (!hasResults) return;
+    // 趋势历史（每卡一采样点，复用纯函数 appendTrendPoint/capTrend，上限裁剪）
     setTrend((prev) => {
       const next: DiagTrend = { ...prev };
       const ts = Date.now();
@@ -131,11 +159,18 @@ export function DiagnosticsPage({ adapters, latencies, speedResults, diagnosing,
         };
         next[a.index] = capTrend(appendTrendPoint(next[a.index] ?? [], point), DIAG_TREND_MAX);
       }
-      localStorage.setItem(DIAG_TREND_KEY, JSON.stringify(next));
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latencies, speedResults]);
+  }, [diagnosing, testingIdx]);
+
+  // 持久化：作为独立副作用（不放进 state updater，符合 React 纯函数 updater 约定，避免 StrictMode 双写）
+  useEffect(() => {
+    localStorage.setItem(DIAG_HISTORY_KEY, JSON.stringify(history));
+  }, [history]);
+  useEffect(() => {
+    localStorage.setItem(DIAG_TREND_KEY, JSON.stringify(trend));
+  }, [trend]);
 
   // 把趋势点按所选指标映射为绘图数值序列（丢包率转百分比，其余取原值，负值/失败归零便于展示）
   const metricSeries = (points: DiagTrendPoint[] | undefined): number[] =>

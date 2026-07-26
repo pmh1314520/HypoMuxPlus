@@ -23,6 +23,7 @@ export function UpdateDialog({ info, onClose }: Props) {
 
   // 订阅后端下载进度，驱动进度条
   useEffect(() => {
+    let disposed = false;
     let un: (() => void) | undefined;
     onUpdateProgress((p) => {
       if (p.total > 0) {
@@ -33,8 +34,17 @@ export function UpdateDialog({ info, onClose }: Props) {
         setIndeterminate(true);
         setProgress(p.percent);
       }
-    }).then((fn) => (un = fn));
-    return () => un?.();
+    })
+      // 竞态防护：若弹窗在 listen() resolve 前已关闭，立即注销，避免监听器泄漏与对已卸载组件 setState
+      .then((fn) => {
+        if (disposed) fn();
+        else un = fn;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      un?.();
+    };
   }, []);
 
   const install = async () => {
